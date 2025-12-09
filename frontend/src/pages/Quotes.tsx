@@ -4,6 +4,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef } from 'ag-grid-community';
+import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
 
@@ -84,6 +85,7 @@ export default function Quotes() {
             }
         } catch (error) {
             console.error('Error loading assets:', error);
+            toast.error('Error al cargar los activos. Por favor, inténtelo de nuevo.');
         }
     };
 
@@ -97,60 +99,45 @@ export default function Quotes() {
             setQuotes(response.data);
         } catch (error) {
             console.error('Error loading quotes:', error);
+            toast.error('Error al cargar las cotizaciones. Por favor, inténtelo de nuevo.');
         }
     };
 
     return (
         <Layout>
-            <div className="space-y-4 h-[calc(100vh-12rem)]">
-                <div>
-                    <h1 className="text-3xl font-bold mb-4">Cotizaciones</h1>
+            <div className="p-6 h-full flex flex-col">
+                <h1 className="text-3xl font-bold mb-4">Cotizaciones</h1>
 
-                    {/* Filtros */}
-                    <div className="bg-dark-surface border border-dark-border rounded-lg p-4 space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-2">Activo</label>
-                                <select
-                                    value={selectedAsset}
-                                    onChange={(e) => setSelectedAsset(e.target.value)}
-                                    className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded-lg
-                           focus:outline-none focus:ring-2 focus:ring-primary"
-                                >
-                                    {assets.map((asset) => (
-                                        <option key={asset.id} value={asset.id}>
-                                            {asset.symbol} - {asset.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                <div className="flex space-x-4 mb-4">
+                    <select
+                        value={selectedAsset}
+                        onChange={(e) => setSelectedAsset(e.target.value)}
+                        className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg"
+                    >
+                        <option value="">Todos los activos</option>
+                        {assets.map((asset) => (
+                            <option key={asset.id} value={asset.id}>
+                                {asset.symbol} - {asset.name}
+                            </option>
+                        ))}
+                    </select>
 
-                            <div>
-                                <label className="block text-sm font-medium mb-2">Fecha Inicio</label>
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded-lg
-                           focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
-                            </div>
+                    <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg"
+                    />
 
-                            <div>
-                                <label className="block text-sm font-medium mb-2">Fecha Fin</label>
-                                <input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className="w-full px-4 py-2 bg-dark-bg border border-dark-border rounded-lg
-                           focus:outline-none focus:ring-2 focus:ring-primary"
-                                />
-                            </div>
-                        </div>
-                    </div>
+                    <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg"
+                    />
                 </div>
 
-                <div className="ag-theme-alpine-dark h-full rounded-lg overflow-hidden border border-dark-border">
+                <div className="ag-theme-quartz-dark flex-1 rounded-lg overflow-hidden border border-dark-border" style={{ height: 'calc(100vh - 280px)' }}>
                     <AgGridReact
                         ref={gridRef}
                         rowData={quotes}
@@ -158,9 +145,13 @@ export default function Quotes() {
                         defaultColDef={{
                             sortable: true,
                             resizable: true,
+                            filter: true,
                         }}
+                        pagination={true}
+                        paginationPageSize={50}
                         animateRows={true}
                         suppressCellFocus={true}
+                        domLayout='normal'
                     />
                 </div>
             </div>

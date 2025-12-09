@@ -4,6 +4,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef } from 'ag-grid-community';
+import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
 
@@ -95,6 +96,7 @@ export default function Transactions() {
             }
         } catch (error) {
             console.error('Error loading portfolios:', error);
+            toast.error('Error al cargar las carteras. Por favor, inténtelo de nuevo.');
         }
     };
 
@@ -104,6 +106,7 @@ export default function Transactions() {
             setTransactions(response.data);
         } catch (error) {
             console.error('Error loading transactions:', error);
+            toast.error('Error al cargar las transacciones. Por favor, inténtelo de nuevo.');
         }
     };
 
@@ -112,46 +115,56 @@ export default function Transactions() {
 
         try {
             await api.delete(`/transactions/${id}`);
+            toast.success('Transacción eliminada correctamente');
             loadTransactions();
         } catch (error) {
             console.error('Error deleting transaction:', error);
-            alert('Error al eliminar transacción');
+            toast.error('Error al eliminar transacción. Por favor, inténtelo de nuevo.');
         }
     };
 
+    const filteredTransactions = selectedPortfolio
+        ? transactions.filter(t => t.portfolio_id === selectedPortfolio)
+        : transactions;
+
     return (
         <Layout>
-            <div className="space-y-4 h-[calc(100vh-12rem)]">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-3xl font-bold">Gestión de Transacciones</h1>
-                        <select
-                            value={selectedPortfolio}
-                            onChange={(e) => setSelectedPortfolio(e.target.value)}
-                            className="mt-2 px-4 py-2 bg-dark-surface border border-dark-border rounded-lg
-                       focus:outline-none focus:ring-2 focus:ring-primary"
-                        >
-                            {portfolios.map((p) => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                        </select>
-                    </div>
+            <div className="p-6 h-full flex flex-col">
+                <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-3xl font-bold">Transacciones</h1>
                     <button className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg">
                         + Nueva Transacción
                     </button>
                 </div>
 
-                <div className="ag-theme-alpine-dark h-full rounded-lg overflow-hidden border border-dark-border">
+                <div className="flex space-x-4 mb-4">
+                    <select
+                        value={selectedPortfolio}
+                        onChange={(e) => setSelectedPortfolio(e.target.value)}
+                        className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg"
+                    >
+                        <option value="">Todas las carteras</option>
+                        {portfolios.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="ag-theme-quartz-dark flex-1 rounded-lg overflow-hidden border border-dark-border" style={{ height: 'calc(100vh - 280px)' }}>
                     <AgGridReact
                         ref={gridRef}
-                        rowData={transactions}
+                        rowData={filteredTransactions}
                         columnDefs={columnDefs}
                         defaultColDef={{
                             sortable: true,
                             resizable: true,
+                            filter: true,
                         }}
+                        pagination={true}
+                        paginationPageSize={20}
                         animateRows={true}
                         suppressCellFocus={true}
+                        domLayout='normal'
                     />
                 </div>
             </div>

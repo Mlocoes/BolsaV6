@@ -3,6 +3,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
 
@@ -27,6 +28,7 @@ export default function Dashboard() {
             setPortfolios(response.data);
         } catch (error) {
             console.error('Error loading portfolios:', error);
+            toast.error('Error al cargar las carteras. Por favor, inténtelo de nuevo.');
         } finally {
             setLoading(false);
         }

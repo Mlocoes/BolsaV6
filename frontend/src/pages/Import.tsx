@@ -2,6 +2,7 @@
  * Página de Importación de Datos
  */
 import { useState } from 'react';
+import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 
 export default function Import() {
@@ -11,10 +12,10 @@ export default function Import() {
         setLoading(true);
         try {
             // TODO: Implementar importación masiva de históricos
-            alert('Funcionalidad en desarrollo');
+            toast.info('Funcionalidad en desarrollo');
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al importar');
+            toast.error('Error al importar. Por favor, inténtelo de nuevo.');
         } finally {
             setLoading(false);
         }
@@ -24,10 +25,10 @@ export default function Import() {
         setLoading(true);
         try {
             // TODO: Implementar actualización de últimas cotizaciones
-            alert('Funcionalidad en desarrollo');
+            toast.info('Funcionalidad en desarrollo');
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al actualizar');
+            toast.error('Error al actualizar. Por favor, inténtelo de nuevo.');
         } finally {
             setLoading(false);
         }
@@ -40,10 +41,10 @@ export default function Import() {
         setLoading(true);
         try {
             // TODO: Implementar importación desde Excel
-            alert('Funcionalidad en desarrollo');
+            toast.info('Funcionalidad en desarrollo');
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al importar Excel');
+            toast.error('Error al importar Excel. Por favor, inténtelo de nuevo.');
         } finally {
             setLoading(false);
         }
