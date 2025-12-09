@@ -58,9 +58,10 @@ async def login(
         key="session_id",
         value=session_id,
         httponly=True,
-        secure=settings.SECURE_COOKIES,  # True en producción
+        secure=False,  # Forzar False en desarrollo
         samesite="lax",
-        max_age=settings.SESSION_EXPIRE_MINUTES * 60
+        max_age=settings.SESSION_EXPIRE_MINUTES * 60,
+        domain=None  # Sin restricción de dominio
     )
     
     return LoginResponse(
