@@ -31,38 +31,38 @@ export default function Quotes() {
             field: 'date',
             headerName: 'Fecha',
             width: 150,
-            valueFormatter: (params) => new Date(params.value).toLocaleDateString()
+            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString() : '-'
         },
         {
             field: 'open',
             headerName: 'Apertura',
             width: 120,
-            valueFormatter: (params) => `$${params.value.toFixed(2)}`
+            valueFormatter: (params) => params.value != null ? `$${Number(params.value).toFixed(2)}` : '-'
         },
         {
             field: 'high',
             headerName: 'Máximo',
             width: 120,
-            valueFormatter: (params) => `$${params.value.toFixed(2)}`
+            valueFormatter: (params) => params.value != null ? `$${Number(params.value).toFixed(2)}` : '-'
         },
         {
             field: 'low',
             headerName: 'Mínimo',
             width: 120,
-            valueFormatter: (params) => `$${params.value.toFixed(2)}`
+            valueFormatter: (params) => params.value != null ? `$${Number(params.value).toFixed(2)}` : '-'
         },
         {
             field: 'close',
             headerName: 'Cierre',
             width: 120,
-            valueFormatter: (params) => `$${params.value.toFixed(2)}`,
+            valueFormatter: (params) => params.value != null ? `$${Number(params.value).toFixed(2)}` : '-',
             cellStyle: { fontWeight: 'bold' }
         },
         {
             field: 'volume',
             headerName: 'Volumen',
             width: 150,
-            valueFormatter: (params) => params.value.toLocaleString()
+            valueFormatter: (params) => params.value != null ? Number(params.value).toLocaleString() : '-'
         },
     ];
 

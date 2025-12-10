@@ -50,17 +50,23 @@ class AlphaVantageService:
                 
                 data = response.json()
                 
+                logger.info(f"📡 Respuesta de Alpha Vantage para {symbol}: {list(data.keys())}")
+                
                 # Verificar si hay error en la respuesta
                 if "Error Message" in data:
-                    logger.error(f"Alpha Vantage error for {symbol}: {data['Error Message']}")
+                    logger.error(f"❌ Alpha Vantage error for {symbol}: {data['Error Message']}")
                     return None
                 
                 if "Note" in data:
-                    logger.warning(f"Alpha Vantage rate limit: {data['Note']}")
+                    logger.warning(f"⚠️ Alpha Vantage rate limit: {data['Note']}")
                     return None
                 
                 # Parsear datos
                 time_series = data.get("Time Series (Daily)", {})
+                
+                if not time_series:
+                    logger.warning(f"⚠️ No hay 'Time Series (Daily)' en la respuesta para {symbol}. Respuesta: {data}")
+                    return None
                 
                 quotes = []
                 for date_str, values in time_series.items():

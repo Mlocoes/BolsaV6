@@ -24,9 +24,12 @@ class Settings(BaseSettings):
     SESSION_EXPIRE_MINUTES: int = 480
     SECURE_COOKIES: bool = False
     
-    # Alpha Vantage
+    # Alpha Vantage (Deprecated)
     ALPHA_VANTAGE_API_KEY: str
     ALPHA_VANTAGE_RATE_LIMIT: int = 5
+    
+    # Finnhub
+    FINNHUB_API_KEY: str
     QUOTE_UPDATE_INTERVAL_MINUTES: int = 60
     
     # Admin user

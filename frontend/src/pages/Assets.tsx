@@ -94,10 +94,12 @@ export default function Assets() {
 
     const handleFetchQuotes = async (assetId: string, symbol: string) => {
         try {
-            await api.post(`/quotes/asset/${assetId}/fetch-history`);
+            console.log('🔄 Iniciando importación de cotizaciones para:', symbol, assetId);
+            const response = await api.post(`/quotes/asset/${assetId}/fetch-history`);
+            console.log('✅ Respuesta del servidor:', response.data);
             toast.success(`Importación de historial iniciada para ${symbol}`);
         } catch (error) {
-            console.error('Error fetching quotes:', error);
+            console.error('❌ Error fetching quotes:', error);
             toast.error('Error al importar cotizaciones. Por favor, inténtelo de nuevo.');
         }
     };
