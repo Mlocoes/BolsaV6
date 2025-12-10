@@ -30,7 +30,7 @@ export default function Assets() {
     });
 
     const columnDefs: ColDef[] = [
-        { field: 'symbol', headerName: 'Símbolo', width: 120, filter: true, sort: 'asc' },
+        { field: 'symbol', headerName: 'Símbolo', width: 120, filter: true },
         { field: 'name', headerName: 'Nombre', flex: 1, filter: true },
         { field: 'asset_type', headerName: 'Tipo', width: 120, filter: true },
         { field: 'currency', headerName: 'Moneda', width: 100 },
@@ -60,6 +60,13 @@ export default function Assets() {
     useEffect(() => {
         loadAssets();
     }, []);
+
+    // Refrescar grid cuando cambien los assets
+    useEffect(() => {
+        if (gridRef.current?.api && assets.length > 0) {
+            gridRef.current.api.updateGridOptions({ rowData: assets });
+        }
+    }, [assets]);
 
     const loadAssets = async () => {
         try {
@@ -110,7 +117,7 @@ export default function Assets() {
 
     return (
         <Layout>
-            <div className="p-6 h-full flex flex-col">
+            <div className="p-6" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-3xl font-bold">Catálogo de Activos</h1>
                     <button
@@ -196,7 +203,7 @@ export default function Assets() {
                     </div>
                 )}
 
-                <div className="ag-theme-quartz-dark flex-1 rounded-lg overflow-hidden border border-dark-border" style={{ height: 'calc(100vh - 200px)' }}>
+                <div className="ag-theme-quartz-dark rounded-lg border border-dark-border" style={{ height: '600px', width: '100%', flex: '1 1 auto', minHeight: 0 }}>
                     <AgGridReact
                         ref={gridRef}
                         rowData={assets}
@@ -210,8 +217,10 @@ export default function Assets() {
                         paginationPageSize={20}
                         animateRows={true}
                         suppressCellFocus={true}
-                        domLayout='normal'
                         rowSelection="single"
+                        onGridReady={(params) => {
+                            params.api.sizeColumnsToFit();
+                        }}
                     />
                 </div>
             </div>

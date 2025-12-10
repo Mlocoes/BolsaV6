@@ -139,7 +139,7 @@ export default function Portfolios() {
                     </div>
                 )}
 
-                <div className="ag-theme-quartz-dark flex-1 rounded-lg overflow-hidden border border-dark-border" style={{ minHeight: '400px' }}>
+                <div className="ag-theme-quartz-dark rounded-lg border border-dark-border" style={{ height: '600px', width: '100%', flex: '1 1 auto', minHeight: 0 }}>
                     <AgGridReact
                         ref={gridRef}
                         rowData={portfolios}

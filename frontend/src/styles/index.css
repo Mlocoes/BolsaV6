@@ -51,7 +51,18 @@ body {
   --ag-border-color: #334155;
   --ag-header-foreground-color: #e2e8f0;
   --ag-foreground-color: #e2e8f0;
+  --ag-row-height: 42px;
   font-size: 14px;
+}
+
+/* Force AG Grid rows to be visible */
+.ag-theme-quartz-dark .ag-row {
+  min-height: 42px !important;
+  height: 42px !important;
+}
+
+.ag-theme-quartz-dark .ag-cell {
+  line-height: 42px !important;
 }
 
 /* Responsive utilities */
