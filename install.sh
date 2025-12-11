@@ -323,8 +323,12 @@ configure_environment() {
     # Generar SECRET_KEY
     SECRET_KEY=$DEFAULT_SECRET_KEY
     
-    # Obtener IP local para CORS
-    LOCAL_IP=$(hostname -I | awk '{print $1}')
+    # Obtener todas las IPs locales para CORS
+    ALL_IPS=$(hostname -I | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | tr '\n' ',' | sed 's/,$//')
+    CORS_URLS="http://localhost:3000,http://127.0.0.1:3000"
+    for ip in $(echo $ALL_IPS | tr ',' ' '); do
+        CORS_URLS="${CORS_URLS},http://${ip}:3000"
+    done
     
     # Crear archivo .env
     cat > "$ENV_FILE" << EOF
@@ -358,7 +362,7 @@ ALPHA_VANTAGE_RATE_LIMIT=5
 # ==============================================
 # SEGURIDAD
 # ==============================================
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://${LOCAL_IP}:3000
+CORS_ORIGINS=${CORS_URLS}
 SESSION_EXPIRE_MINUTES=480
 SECURE_COOKIES=false
 
