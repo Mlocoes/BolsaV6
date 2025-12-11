@@ -42,7 +42,7 @@ cd BolsaV6
 
 # Ejecutar instalador
 chmod +x install.sh
-./scripts/install.sh
+./install.sh
 ```
 
 El instalador se encargará automáticamente de:
