@@ -240,12 +240,16 @@ configure_environment() {
     echo ""
     
     # Verificar si .env ya existe
+    RECONFIGURE=false
     if [ -f "$ENV_FILE" ]; then
         print_warning "El archivo .env ya existe."
         read -p "¿Desea sobrescribirlo? (s/N): " overwrite
         if [[ ! "$overwrite" =~ ^[Ss]$ ]]; then
             print_info "Usando configuración existente."
             return 0
+        else
+            RECONFIGURE=true
+            print_warning "Se eliminarán los volúmenes de Docker para aplicar las nuevas credenciales."
         fi
     fi
     
@@ -384,6 +388,17 @@ EOF
 # Construcción e Inicio del Sistema
 ################################################################################
 
+clean_volumes() {
+    if [ "$RECONFIGURE" = true ]; then
+        print_step "Eliminando volúmenes antiguos de Docker..."
+        echo ""
+        cd "$SCRIPT_DIR"
+        $DOCKER_COMPOSE_CMD down -v 2>/dev/null || true
+        print_success "Volúmenes eliminados"
+        echo ""
+    fi
+}
+
 build_system() {
     print_step "Construyendo imágenes Docker..."
     echo ""
@@ -422,7 +437,8 @@ run_migrations() {
     echo ""
     
     # Esperar a que la base de datos esté lista
-    sleep 10
+    print_info "Esperando a que PostgreSQL esté completamente listo..."
+    sleep 15
     
     # Ejecutar migraciones con Alembic
     $DOCKER_COMPOSE_CMD exec -T backend alembic upgrade head
@@ -490,6 +506,9 @@ main() {
     
     # Configurar entorno
     configure_environment
+    
+    # Limpiar volúmenes si es necesario
+    clean_volumes
     
     # Construir sistema
     build_system
