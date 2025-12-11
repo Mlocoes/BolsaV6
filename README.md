@@ -26,36 +26,72 @@ Sistema profesional, seguro y escalable para gestión de carteras de inversión 
 
 ## 📋 Prerrequisitos
 
-- Docker y Docker Compose
-- Git
+- **Docker** 20.10+
+- **Docker Compose** 2.0+ (o docker-compose 1.29+)
+- **Python** 3.10+ (para el script de instalación)
+- **Git**
 
-## ⚡ Inicio Rápido
+## ⚡ Instalación Rápida
+
+### Opción 1: Instalación Automática (Recomendado)
 
 ```bash
 # Clonar repositorio
-git clone <repo-url>
+git clone https://github.com/Mlocoes/BolsaV6.git
 cd BolsaV6
 
-# Copiar variables de entorno
-cp .env.example .env
-
-# Editar .env con tus credenciales
-nano .env
-
-# Levantar servicios
-docker-compose up -d
-
-# Crear tablas (primera vez)
-docker-compose exec backend alembic upgrade head
-
-# Crear usuario admin (primera vez)
-docker-compose exec backend python -m app.scripts.create_admin
+# Ejecutar instalador
+chmod +x install.sh
+./install.sh
 ```
+
+El instalador se encargará automáticamente de:
+- ✅ Verificar e instalar dependencias
+- ✅ Configurar credenciales
+- ✅ Construir e iniciar servicios
+- ✅ Ejecutar migraciones
+- ✅ Crear usuario administrador
+
+### Opción 2: Instalación Manual
+
+```bash
+# 1. Clonar repositorio
+git clone https://github.com/Mlocoes/BolsaV6.git
+cd BolsaV6
+
+# 2. Configurar variables de entorno
+cp .env.example .env
+nano .env  # Editar con sus credenciales
+
+# 3. Iniciar servicios
+docker compose up -d
+
+# 4. Ejecutar migraciones
+docker compose exec backend alembic upgrade head
+
+# 5. Crear usuario administrador
+docker compose exec backend python create_admin.py
+```
+
+📖 **Documentación completa:** Ver [INSTALACION.md](INSTALACION.md)
 
 ### Accesos
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **Documentación API**: http://localhost:8000/docs
+
+### Scripts de Gestión
+
+```bash
+# Iniciar el sistema
+./start.sh
+
+# Detener el sistema
+./stop.sh
+
+# Ver logs
+docker compose logs -f
+```
 
 ## 📂 Estructura
 
