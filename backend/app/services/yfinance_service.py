@@ -99,7 +99,7 @@ class YFinanceService:
             symbol: Símbolo del activo (ej: TSLA, AAPL, BTC-USD)
             start_date: Fecha de inicio (opcional)
             end_date: Fecha de fin (opcional)
-            period: Período si no se especifican fechas (1mo, 3mo, 6mo, 1y, etc)
+            period: Período si no se especifican fechas (1mo, 3mo, 6mo, 1y, 3y, etc)
         
         Returns:
             Lista de diccionarios con datos OHLCV
@@ -113,31 +113,6 @@ class YFinanceService:
             end_date,
             period
         )
-            
-            # Convertir DataFrame a lista de diccionarios
-            quotes = []
-            for index, row in df.iterrows():
-                # index es un Timestamp de pandas, convertir a datetime
-                quote_date = index.to_pydatetime()
-                # Normalizar a medianoche
-                quote_date = datetime.combine(quote_date.date(), datetime.min.time())
-                
-                quote = {
-                    "date": quote_date,
-                    "open": float(row['Open']),
-                    "high": float(row['High']),
-                    "low": float(row['Low']),
-                    "close": float(row['Close']),
-                    "volume": int(row['Volume']) if row['Volume'] > 0 else 0
-                }
-                quotes.append(quote)
-            
-            logger.info(f"✅ {len(quotes)} cotizaciones obtenidas para {symbol} desde yfinance")
-            return quotes
-            
-        except Exception as e:
-            logger.error(f"❌ Error obteniendo datos de yfinance para {symbol}: {str(e)}")
-            return None
     
     async def get_current_quote(self, symbol: str) -> Optional[Dict]:
         """

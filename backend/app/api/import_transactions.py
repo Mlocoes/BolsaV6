@@ -16,8 +16,11 @@ from app.core.security import get_current_user
 from app.models.portfolio import Portfolio
 from app.models.asset import Asset, AssetType
 from app.models.transaction import Transaction, TransactionType
+from app.models.quote import Quote
+from app.services.yfinance_service import YFinanceService
 
 router = APIRouter()
+yfinance_service = YFinanceService()
 
 
 @router.post("/transactions/excel/{portfolio_id}")
@@ -80,6 +83,7 @@ async def import_transactions_from_excel(
         transactions_skipped = 0
         assets_created = 0
         corporate_transactions = 0  # Contador de operaciones corporativas
+        quotes_imported = 0  # Contador de cotizaciones históricas importadas
         errors = []
         
         for index, row in df.iterrows():
@@ -139,7 +143,7 @@ async def import_transactions_from_excel(
                 )
                 asset = asset_result.scalar_one_or_none()
                 
-                # Si el activo no existe, crearlo automáticamente
+                # Si el activo no existe, crearlo automáticamente e importar cotizaciones
                 if not asset:
                     # Extraer el nombre del activo del campo "Valor"
                     asset_name = lines[0].strip() if lines else symbol
@@ -155,6 +159,52 @@ async def import_transactions_from_excel(
                     db.add(asset)
                     await db.flush()  # Asegurar que el activo tenga un ID antes de continuar
                     assets_created += 1
+                    
+                    # Importar cotizaciones históricas para el nuevo activo
+                    try:
+                        # Obtener cotizaciones de los últimos 3 años
+                        historical_quotes = await yfinance_service.get_historical_quotes(
+                            symbol=symbol,
+                            period="3y"  # 3 años de histórico
+                        )
+                        
+                        if historical_quotes:
+                            # Insertar cotizaciones en la BD
+                            asset_quotes_count = 0
+                            for quote_data in historical_quotes:
+                                # Verificar si la cotización ya existe
+                                existing_quote = await db.execute(
+                                    select(Quote).where(
+                                        Quote.asset_id == asset.id,
+                                        Quote.date == quote_data["date"]
+                                    )
+                                )
+                                if not existing_quote.scalar_one_or_none():
+                                    new_quote = Quote(
+                                        asset_id=asset.id,
+                                        date=quote_data["date"],
+                                        open=quote_data["open"],
+                                        high=quote_data["high"],
+                                        low=quote_data["low"],
+                                        close=quote_data["close"],
+                                        volume=quote_data["volume"],
+                                        source="yfinance"
+                                    )
+                                    db.add(new_quote)
+                                    asset_quotes_count += 1
+                            
+                            await db.flush()  # Guardar las cotizaciones
+                            
+                            if asset_quotes_count > 0:
+                                quotes_imported += asset_quotes_count  # Acumular en el contador global
+                                print(f"✅ {asset_quotes_count} cotizaciones históricas importadas para {symbol}")
+                        else:
+                            print(f"⚠️ No se pudieron obtener cotizaciones históricas para {symbol}")
+                    
+                    except Exception as e:
+                        # Si falla la importación de cotizaciones, continuar de todos modos
+                        print(f"⚠️ Error al importar cotizaciones para {symbol}: {str(e)}")
+                        # No interrumpir el proceso de importación
                 
                 # Determinar tipo de transacción
                 tipo_operacion = str(row['Tipo de Operación']).upper()
@@ -252,6 +302,9 @@ async def import_transactions_from_excel(
         if assets_created > 0:
             message_parts.append(f"{assets_created} activos nuevos registrados")
         
+        if quotes_imported > 0:
+            message_parts.append(f"{quotes_imported} cotizaciones históricas importadas")
+        
         main_message = f"✅ Importación completada: {', '.join(message_parts)}"
         
         if transactions_skipped > 0:
@@ -264,6 +317,7 @@ async def import_transactions_from_excel(
             "corporate_transactions": corporate_transactions,
             "transactions_skipped": transactions_skipped,
             "assets_created": assets_created,
+            "quotes_imported": quotes_imported,
             "errors": errors if errors else None,
             "message": main_message
         }
