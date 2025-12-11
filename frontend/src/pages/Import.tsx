@@ -82,15 +82,25 @@ export default function Import() {
             const result = response.data;
             
             if (result.success) {
-                toast.success(
-                    `✅ ${result.message}\n` +
-                    `Creadas: ${result.transactions_created}\n` +
-                    (result.transactions_skipped > 0 ? `Omitidas: ${result.transactions_skipped}` : '')
-                );
+                let message = result.message;
                 
+                toast.success(message, { autoClose: 5000 });
+                
+                // Si hay errores específicos, mostrarlos en consola
                 if (result.errors && result.errors.length > 0) {
-                    console.warn('Errores durante la importación:', result.errors);
-                    toast.warning(`Se omitieron ${result.transactions_skipped} filas. Ver consola para detalles.`);
+                    console.group('📋 Detalle de filas omitidas durante la importación:');
+                    console.table(result.errors.map((err: string, idx: number) => ({
+                        '#': idx + 1,
+                        'Error': err
+                    })));
+                    console.groupEnd();
+                    
+                    // Mostrar solo un resumen si hay muchos errores
+                    if (result.errors.length > 5) {
+                        toast.info(`ℹ️ ${result.errors.length} filas fueron omitidas. Ver consola para detalles completos.`, { autoClose: 7000 });
+                    } else {
+                        toast.info(`ℹ️ Algunas filas fueron omitidas. Ver consola para detalles.`, { autoClose: 5000 });
+                    }
                 }
             }
         } catch (error: any) {
@@ -207,12 +217,13 @@ export default function Import() {
                     </div>
 
                     <div className="bg-info/10 border border-info rounded p-3 text-sm">
-                        <strong className="text-info">ℹ️ Nota importante:</strong>
+                        <strong className="text-info">ℹ️ Tipos de operaciones soportadas:</strong>
                         <ul className="mt-2 space-y-1 text-dark-muted">
-                            <li>• Los activos deben existir previamente en la base de datos</li>
+                            <li>• <strong>Compra/Venta:</strong> "COMPRA ACCIONES" o "VENTA ACCIONES"</li>
+                            <li>• <strong>Operaciones corporativas (informativas):</strong> SPLIT, DIVIDENDO, CAMBIO DE CODIGO ISIN, etc.</li>
+                            <li>• Si un activo no existe, se registrará automáticamente</li>
                             <li>• El símbolo debe estar en mayúsculas (ej: TSLA, AAPL)</li>
                             <li>• La fecha debe estar en formato DD/MM/YYYY</li>
-                            <li>• Tipo de operación: "COMPRA ACCIONES" o "VENTA ACCIONES"</li>
                         </ul>
                     </div>
                 </div>

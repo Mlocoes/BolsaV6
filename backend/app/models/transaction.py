@@ -13,8 +13,11 @@ from app.core.database import Base
 
 class TransactionType(str, enum.Enum):
     """Tipos de transacciones"""
-    BUY = "buy"      # Compra
-    SELL = "sell"    # Venta
+    BUY = "BUY"          # Compra
+    SELL = "SELL"        # Venta
+    DIVIDEND = "DIVIDEND"  # Pago de dividendo
+    SPLIT = "SPLIT"      # División de acciones
+    CORPORATE = "CORPORATE"  # Otras operaciones corporativas (fusión, cambio ISIN, etc.)
 
 
 class Transaction(Base):

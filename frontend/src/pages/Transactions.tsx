@@ -32,7 +32,7 @@ export default function Transactions() {
     const [formData, setFormData] = useState({
         portfolio_id: '',
         asset_id: '',
-        transaction_type: 'buy',
+        transaction_type: 'BUY',
         transaction_date: new Date().toISOString().split('T')[0],
         quantity: '',
         price: '',
@@ -50,11 +50,27 @@ export default function Transactions() {
         {
             field: 'transaction_type',
             headerName: 'Tipo',
-            width: 100,
-            valueFormatter: (params) => params.value === 'buy' ? 'Compra' : 'Venta',
-            cellStyle: (params) => ({
-                color: params.value === 'buy' ? '#10b981' : '#ef4444'
-            })
+            width: 120,
+            valueFormatter: (params) => {
+                const typeMap: Record<string, string> = {
+                    'BUY': 'Compra',
+                    'SELL': 'Venta',
+                    'DIVIDEND': 'Dividendo',
+                    'SPLIT': 'Split',
+                    'CORPORATE': 'Corporativa'
+                };
+                return typeMap[params.value] || params.value;
+            },
+            cellStyle: (params) => {
+                const colorMap: Record<string, string> = {
+                    'BUY': '#10b981',
+                    'SELL': '#ef4444',
+                    'DIVIDEND': '#3b82f6',
+                    'SPLIT': '#8b5cf6',
+                    'CORPORATE': '#64748b'
+                };
+                return { color: colorMap[params.value] || '#ffffff' };
+            }
         },
         { 
             field: 'asset_id', 
@@ -228,7 +244,7 @@ export default function Transactions() {
         setFormData({
             portfolio_id: selectedPortfolio || (portfolios.length > 0 ? portfolios[0].id : ''),
             asset_id: '',
-            transaction_type: 'buy',
+            transaction_type: 'BUY',
             transaction_date: new Date().toISOString().split('T')[0],
             quantity: '',
             price: '',
@@ -318,8 +334,15 @@ export default function Transactions() {
                                     className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
                                     required
                                 >
-                                    <option value="buy">Compra</option>
-                                    <option value="sell">Venta</option>
+                                    <optgroup label="Transacciones">
+                                        <option value="BUY">Compra</option>
+                                        <option value="SELL">Venta</option>
+                                    </optgroup>
+                                    <optgroup label="Operaciones Corporativas (Informativas)">
+                                        <option value="DIVIDEND">Dividendo</option>
+                                        <option value="SPLIT">Split</option>
+                                        <option value="CORPORATE">Otra Operación Corporativa</option>
+                                    </optgroup>
                                 </select>
                             </div>
 

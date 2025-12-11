@@ -14,8 +14,8 @@ class TransactionBase(BaseModel):
     asset_id: UUID
     transaction_type: TransactionType
     transaction_date: datetime
-    quantity: Decimal = Field(..., gt=0)
-    price: Decimal = Field(..., gt=0)
+    quantity: Decimal = Field(..., ge=0)  # >= 0 para permitir operaciones corporativas
+    price: Decimal = Field(..., ge=0)     # >= 0 para permitir operaciones corporativas
     fees: Decimal = Field(default=Decimal("0.0"), ge=0)
     notes: Optional[str] = Field(None, max_length=500)
 
@@ -29,8 +29,8 @@ class TransactionUpdate(BaseModel):
     """Schema para actualizar transacción"""
     transaction_type: Optional[TransactionType] = None
     transaction_date: Optional[datetime] = None
-    quantity: Optional[Decimal] = Field(None, gt=0)
-    price: Optional[Decimal] = Field(None, gt=0)
+    quantity: Optional[Decimal] = Field(None, ge=0)  # >= 0 para permitir operaciones corporativas
+    price: Optional[Decimal] = Field(None, ge=0)     # >= 0 para permitir operaciones corporativas
     fees: Optional[Decimal] = Field(None, ge=0)
     notes: Optional[str] = Field(None, max_length=500)
 
