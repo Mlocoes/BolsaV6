@@ -248,8 +248,18 @@ configure_environment() {
             print_info "Usando configuración existente."
             return 0
         else
+            echo ""
+            print_warning "⚠️  ATENCIÓN: Cambiar las credenciales requiere eliminar la base de datos actual."
+            print_warning "   Esto borrará TODOS los datos almacenados (usuarios, carteras, transacciones, etc.)."
+            echo ""
+            read -p "¿Está seguro de que desea continuar? (s/N): " confirm_delete
+            if [[ ! "$confirm_delete" =~ ^[Ss]$ ]]; then
+                print_info "Operación cancelada. Manteniendo configuración existente."
+                return 0
+            fi
             RECONFIGURE=true
-            print_warning "Se eliminarán los volúmenes de Docker para aplicar las nuevas credenciales."
+            print_info "Se eliminarán los volúmenes de Docker para aplicar las nuevas credenciales."
+            echo ""
         fi
     fi
     
@@ -390,11 +400,15 @@ EOF
 
 clean_volumes() {
     if [ "$RECONFIGURE" = true ]; then
-        print_step "Eliminando volúmenes antiguos de Docker..."
+        print_step "Deteniendo servicios y eliminando base de datos antigua..."
         echo ""
         cd "$SCRIPT_DIR"
+        
+        # Detener servicios
         $DOCKER_COMPOSE_CMD down -v 2>/dev/null || true
-        print_success "Volúmenes eliminados"
+        
+        print_success "Base de datos antigua eliminada correctamente"
+        print_info "Se creará una nueva base de datos con las credenciales actualizadas"
         echo ""
     fi
 }
