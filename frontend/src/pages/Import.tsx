@@ -1,12 +1,15 @@
 /**
  * Página de Importación de Datos
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
+import api from '../services/api';
 
 export default function Import() {
     const [loading, setLoading] = useState(false);
+    const [portfolios, setPortfolios] = useState<any[]>([]);
+    const [selectedPortfolio, setSelectedPortfolio] = useState('');
 
     const handleImportHistorical = async () => {
         setLoading(true);
@@ -34,19 +37,69 @@ export default function Import() {
         }
     };
 
+    useEffect(() => {
+        loadPortfolios();
+    }, []);
+
+    const loadPortfolios = async () => {
+        try {
+            const response = await api.get('/portfolios');
+            setPortfolios(response.data);
+            if (response.data.length > 0) {
+                setSelectedPortfolio(response.data[0].id);
+            }
+        } catch (error) {
+            console.error('Error loading portfolios:', error);
+            toast.error('Error al cargar las carteras.');
+        }
+    };
+
     const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        if (!selectedPortfolio) {
+            toast.error('Por favor, selecciona una cartera primero.');
+            e.target.value = '';
+            return;
+        }
+
         setLoading(true);
         try {
-            // TODO: Implementar importación desde Excel
-            toast.info('Funcionalidad en desarrollo');
-        } catch (error) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await api.post(
+                `/import/transactions/excel/${selectedPortfolio}`,
+                formData,
+                {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                }
+            );
+
+            const result = response.data;
+            
+            if (result.success) {
+                toast.success(
+                    `✅ ${result.message}\n` +
+                    `Creadas: ${result.transactions_created}\n` +
+                    (result.transactions_skipped > 0 ? `Omitidas: ${result.transactions_skipped}` : '')
+                );
+                
+                if (result.errors && result.errors.length > 0) {
+                    console.warn('Errores durante la importación:', result.errors);
+                    toast.warning(`Se omitieron ${result.transactions_skipped} filas. Ver consola para detalles.`);
+                }
+            }
+        } catch (error: any) {
             console.error('Error:', error);
-            toast.error('Error al importar Excel. Por favor, inténtelo de nuevo.');
+            const errorMsg = error.response?.data?.detail || 'Error al importar Excel.';
+            toast.error(errorMsg);
         } finally {
             setLoading(false);
+            e.target.value = '';
         }
     };
 
@@ -92,23 +145,76 @@ export default function Import() {
                 <div className="bg-dark-surface border border-dark-border rounded-lg p-6">
                     <h2 className="text-xl font-semibold mb-2">Importar Transacciones desde Excel</h2>
                     <p className="text-dark-muted text-sm mb-4">
-                        Importa múltiples transacciones de una cartera desde un archivo Excel.
-                        El archivo debe tener las columnas: Fecha, Activo, Tipo (C/V), Cantidad, Precio.
+                        Importa múltiples transacciones desde un archivo Excel con el siguiente formato:
                     </p>
-                    <input
-                        type="file"
-                        accept=".xlsx,.xls"
-                        onChange={handleImportExcel}
-                        disabled={loading}
-                        className="block w-full text-sm text-dark-text
-                     file:mr-4 file:py-2 file:px-4
-                     file:rounded-lg file:border-0
-                     file:text-sm file:font-semibold
-                     file:bg-primary file:text-white
-                     hover:file:bg-primary-dark
-                     file:cursor-pointer cursor-pointer
-                     disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
+                    
+                    <div className="bg-dark-bg border border-dark-border rounded p-3 mb-4 text-xs font-mono overflow-x-auto">
+                        <table className="text-left">
+                            <thead className="text-dark-muted">
+                                <tr>
+                                    <th className="pr-4">Fecha</th>
+                                    <th className="pr-4">Valor</th>
+                                    <th className="pr-4">Tipo de Operación</th>
+                                    <th className="pr-4">Títulos</th>
+                                    <th className="pr-4">Precio</th>
+                                    <th className="pr-4">Gastos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td className="pr-4">20/11/2025</td>
+                                    <td className="pr-4">TESLA MOTORS<br/>TSLA</td>
+                                    <td className="pr-4">COMPRA ACCIONES</td>
+                                    <td className="pr-4">10</td>
+                                    <td className="pr-4">419</td>
+                                    <td className="pr-4">23.01</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium mb-2">Seleccionar Cartera *</label>
+                        <select
+                            value={selectedPortfolio}
+                            onChange={(e) => setSelectedPortfolio(e.target.value)}
+                            className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
+                            disabled={loading}
+                        >
+                            <option value="">Seleccionar cartera...</option>
+                            {portfolios.map((p) => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium mb-2">Archivo Excel *</label>
+                        <input
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={handleImportExcel}
+                            disabled={loading || !selectedPortfolio}
+                            className="block w-full text-sm text-dark-text
+                         file:mr-4 file:py-2 file:px-4
+                         file:rounded-lg file:border-0
+                         file:text-sm file:font-semibold
+                         file:bg-primary file:text-white
+                         hover:file:bg-primary-dark
+                         file:cursor-pointer cursor-pointer
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                    </div>
+
+                    <div className="bg-info/10 border border-info rounded p-3 text-sm">
+                        <strong className="text-info">ℹ️ Nota importante:</strong>
+                        <ul className="mt-2 space-y-1 text-dark-muted">
+                            <li>• Los activos deben existir previamente en la base de datos</li>
+                            <li>• El símbolo debe estar en mayúsculas (ej: TSLA, AAPL)</li>
+                            <li>• La fecha debe estar en formato DD/MM/YYYY</li>
+                            <li>• Tipo de operación: "COMPRA ACCIONES" o "VENTA ACCIONES"</li>
+                        </ul>
+                    </div>
                 </div>
 
                 {/* Info */}

@@ -15,48 +15,48 @@ export default function Positions() {
             field: 'quantity',
             headerName: 'Cantidad',
             width: 120,
-            valueFormatter: (params) => params.value.toFixed(2)
+            valueFormatter: (params) => params.value != null ? parseFloat(params.value).toFixed(2) : '0.00'
         },
         {
             field: 'avg_price',
             headerName: 'Precio Compra',
             width: 140,
-            valueFormatter: (params) => `$${params.value.toFixed(2)}`
+            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
         },
         {
             field: 'current_price',
             headerName: 'Precio Actual',
             width: 140,
-            valueFormatter: (params) => `$${params.value.toFixed(2)}`
+            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
         },
         {
             field: 'cost_basis',
             headerName: 'Costo Base',
             width: 140,
-            valueFormatter: (params) => `$${params.value.toFixed(2)}`
+            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
         },
         {
             field: 'current_value',
             headerName: 'Valor Actual',
             width: 140,
-            valueFormatter: (params) => `$${params.value.toFixed(2)}`
+            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
         },
         {
             field: 'profit_loss',
             headerName: 'Resultado',
             width: 140,
             cellStyle: (params) => ({
-                color: params.value >= 0 ? '#10b981' : '#ef4444'
+                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444'
             }),
-            valueFormatter: (params) => `$${params.value.toFixed(2)}`
+            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
         },
         {
             field: 'profit_loss_percent',
             headerName: 'Resultado %',
             width: 140,
-            valueFormatter: (params) => `${params.value.toFixed(2)}%`,
+            valueFormatter: (params) => params.value != null ? `${parseFloat(params.value).toFixed(2)}%` : '0.00%',
             cellStyle: (params) => ({
-                color: params.value >= 0 ? '#10b981' : '#ef4444',
+                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444',
                 fontWeight: 'bold'
             })
         },
