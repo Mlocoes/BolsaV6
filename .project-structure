@@ -1,0 +1,276 @@
+# Directrices de Organización del Proyecto BolsaV6
+
+## 📁 Estructura de Directorios
+
+### `/scripts/` - Scripts Ejecutables
+**Propósito:** Todos los scripts de utilidad del sistema
+
+**Contenido:**
+- Scripts Bash (`.sh`)
+- Scripts Python de mantenimiento
+- Scripts de instalación y configuración
+- Scripts de validación y diagnóstico
+
+**Convenciones:**
+- ✅ Todos los scripts deben tener permisos de ejecución: `chmod +x`
+- ✅ Usar shebang: `#!/bin/bash` o `#!/usr/bin/env python3`
+- ✅ Incluir manejo de errores: `set -e` en bash
+- ✅ Usar colores para feedback visual
+- ✅ Documentar en `scripts/README.md`
+
+**Ubicación de guardado:**
+```bash
+# SIEMPRE guardar scripts en:
+./scripts/nombre_script.sh
+./scripts/nombre_script.py
+```
+
+---
+
+### `/docs/` - Documentación
+**Propósito:** Toda la documentación del proyecto
+
+**Contenido:**
+- Archivos Markdown (`.md`)
+- Guías de instalación
+- Documentación técnica
+- Tutoriales y troubleshooting
+- Diagramas y esquemas
+
+**Convenciones:**
+- ✅ Formato Markdown exclusivamente
+- ✅ Nombres en MAYÚSCULAS: `MI_DOCUMENTO.md`
+- ✅ Usar emojis para mejor visualización
+- ✅ Incluir fecha de última actualización
+- ✅ Actualizar `docs/INDEX.md` con nuevos documentos
+
+**Ubicación de guardado:**
+```bash
+# SIEMPRE guardar documentación en:
+./docs/NOMBRE_DOCUMENTO.md
+```
+
+---
+
+### `/backend/` - Código Backend
+**Propósito:** Aplicación FastAPI
+
+**Estructura:**
+```
+backend/
+├── app/
+│   ├── api/              # Endpoints REST
+│   ├── core/             # Configuración, DB, Seguridad
+│   ├── models/           # Modelos SQLAlchemy
+│   ├── schemas/          # Esquemas Pydantic
+│   ├── services/         # Lógica de negocio
+│   └── main.py           # Aplicación principal
+├── alembic/              # Migraciones de BD
+│   └── versions/         # Archivos de migración
+├── Dockerfile
+└── requirements.txt
+```
+
+---
+
+### `/frontend/` - Código Frontend
+**Propósito:** Aplicación React
+
+**Estructura:**
+```
+frontend/
+├── src/
+│   ├── components/       # Componentes React
+│   ├── pages/            # Páginas de la aplicación
+│   ├── services/         # Servicios API
+│   ├── stores/           # Estado global (Zustand)
+│   ├── types/            # Tipos TypeScript
+│   └── utils/            # Utilidades
+├── Dockerfile
+└── package.json
+```
+
+---
+
+## 🎯 Reglas de Guardado
+
+### Scripts
+```bash
+# ✅ CORRECTO
+./scripts/backup.sh
+./scripts/deploy.sh
+./scripts/test_runner.py
+
+# ❌ INCORRECTO
+./backup.sh                    # En raíz
+./backend/scripts/backup.sh    # En backend
+```
+
+### Documentación
+```bash
+# ✅ CORRECTO
+./docs/API.md
+./docs/ARQUITECTURA.md
+./docs/GUIA_DESARROLLO.md
+
+# ❌ INCORRECTO
+./API.md                       # En raíz
+./backend/README.md            # Docs específicas de módulo
+```
+
+### Excepciones
+**Archivos que van en raíz:**
+- `README.md` - Documentación principal del proyecto
+- `.env` - Variables de entorno (no versionado)
+- `.env.example` - Plantilla de variables de entorno
+- `.gitignore` - Configuración de Git
+- `docker-compose.yml` - Orquestación de contenedores
+
+---
+
+## 🔄 Workflow de Trabajo
+
+### Crear Nuevo Script
+1. Crear archivo en `scripts/`:
+   ```bash
+   touch scripts/nuevo_script.sh
+   chmod +x scripts/nuevo_script.sh
+   ```
+
+2. Usar template estándar:
+   ```bash
+   #!/bin/bash
+   set -e
+   
+   # Colores
+   GREEN='\033[0;32m'
+   RED='\033[0;31m'
+   YELLOW='\033[1;33m'
+   BLUE='\033[0;34m'
+   NC='\033[0m'
+   
+   echo -e "${BLUE}========================================${NC}"
+   echo -e "${BLUE}  Nombre del Script${NC}"
+   echo -e "${BLUE}========================================${NC}"
+   
+   # Tu código aquí...
+   
+   echo -e "${GREEN}✓ Completado${NC}"
+   ```
+
+3. Documentar en `scripts/README.md`
+
+4. Commit:
+   ```bash
+   git add scripts/nuevo_script.sh scripts/README.md
+   git commit -m "feat: añadir script [descripción]"
+   ```
+
+### Crear Nueva Documentación
+1. Crear archivo en `docs/`:
+   ```bash
+   touch docs/NUEVO_DOC.md
+   ```
+
+2. Usar estructura estándar:
+   ```markdown
+   # Título del Documento
+   
+   Descripción breve...
+   
+   ## Sección 1
+   
+   Contenido...
+   
+   ---
+   
+   **Última actualización:** [fecha]
+   ```
+
+3. Añadir entrada en `docs/INDEX.md`
+
+4. Commit:
+   ```bash
+   git add docs/NUEVO_DOC.md docs/INDEX.md
+   git commit -m "docs: añadir documentación de [tema]"
+   ```
+
+---
+
+## 📋 Checklist Pre-Commit
+
+Antes de hacer commit, verificar:
+
+- [ ] Los scripts están en `scripts/` y tienen permisos de ejecución
+- [ ] La documentación está en `docs/` y en formato Markdown
+- [ ] El `scripts/README.md` está actualizado si añadiste scripts
+- [ ] El `docs/INDEX.md` está actualizado si añadiste documentación
+- [ ] Los nombres de archivo siguen las convenciones
+- [ ] No hay archivos `.sh` o `.md` (excepto README.md) en la raíz
+- [ ] El mensaje de commit es descriptivo
+
+---
+
+## 🚫 Anti-Patrones a Evitar
+
+### NO hacer esto:
+
+❌ Guardar scripts en la raíz del proyecto
+❌ Guardar documentación fuera de `docs/`
+❌ Crear subdirectorios en `scripts/` sin consultar
+❌ Duplicar documentación en varios lugares
+❌ Nombres de archivo inconsistentes (`mi_script.sh` vs `MiScript.sh`)
+❌ Scripts sin documentación en `scripts/README.md`
+❌ Documentación sin entrada en `docs/INDEX.md`
+
+---
+
+## 🎓 Ejemplos Reales
+
+### Script bien ubicado:
+```bash
+# Archivo: scripts/backup_database.sh
+#!/bin/bash
+set -e
+
+# Crear backup de PostgreSQL
+docker compose exec -T db pg_dump -U bolsav6_user bolsav6 > backups/backup_$(date +%Y%m%d_%H%M%S).sql
+echo "✓ Backup completado"
+```
+
+### Documentación bien ubicada:
+```markdown
+# Archivo: docs/BACKUP_RESTORE.md
+
+# Guía de Backup y Restauración
+
+## Crear Backup
+
+\`\`\`bash
+./scripts/backup_database.sh
+\`\`\`
+
+## Restaurar Backup
+
+\`\`\`bash
+./scripts/restore_database.sh backup_20251211.sql
+\`\`\`
+
+---
+
+**Última actualización:** 11 de diciembre de 2025
+```
+
+---
+
+## 📞 Contacto
+
+Si tienes dudas sobre dónde guardar algo:
+1. Revisar este documento
+2. Consultar `scripts/README.md` o `docs/INDEX.md`
+3. Seguir el principio: "Scripts en `scripts/`, Docs en `docs/`"
+
+---
+
+**Última actualización:** 11 de diciembre de 2025  
+**Versión:** 1.0
