@@ -35,10 +35,13 @@ Aunque ambos están en la misma IP, **los puertos diferentes los hacen orígenes
    
    **Nota**: Agregar todas las IPs desde las que se accederá al sistema.
 
-3. **Reiniciar el backend**:
+3. **IMPORTANTE: Recrear el contenedor backend** (no solo reiniciar):
    ```bash
-   docker compose restart backend
+   docker compose up -d --force-recreate backend
    ```
+   
+   ⚠️ **Nota crítica**: `docker compose restart` NO recarga las variables de entorno.
+   Debe usar `--force-recreate` para que el contenedor lea el nuevo `.env`.
 
 ### Opción 2: Reinstalar con el script mejorado
 
