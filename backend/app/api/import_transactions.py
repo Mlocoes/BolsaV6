@@ -17,10 +17,10 @@ from app.models.portfolio import Portfolio
 from app.models.asset import Asset, AssetType
 from app.models.transaction import Transaction, TransactionType
 from app.models.quote import Quote
-from app.services.yfinance_service import YFinanceService
+from app.services.alpha_vantage_service import AlphaVantageService
 
 router = APIRouter()
-yfinance_service = YFinanceService()
+alpha_vantage_service = AlphaVantageService()
 
 
 @router.post("/transactions/excel/{portfolio_id}")
@@ -162,10 +162,9 @@ async def import_transactions_from_excel(
                     
                     # Importar cotizaciones históricas para el nuevo activo
                     try:
-                        # Obtener cotizaciones de los últimos 3 años
-                        historical_quotes = await yfinance_service.get_historical_quotes(
-                            symbol=symbol,
-                            period="3y"  # 3 años de histórico
+                        # Obtener cotizaciones históricas (últimos 100 días con plan gratuito)
+                        historical_quotes = await alpha_vantage_service.get_historical_quotes(
+                            symbol=symbol
                         )
                         
                         if historical_quotes:
@@ -188,7 +187,7 @@ async def import_transactions_from_excel(
                                         low=quote_data["low"],
                                         close=quote_data["close"],
                                         volume=quote_data["volume"],
-                                        source="yfinance"
+                                        source="alpha_vantage"
                                     )
                                     db.add(new_quote)
                                     asset_quotes_count += 1

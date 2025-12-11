@@ -29,6 +29,22 @@ Este directorio contiene toda la documentación del sistema BolsaV6.
 
 ---
 
+### 📥 Importación y Gestión de Datos
+
+#### [`IMPORTACION_AUTOMATICA.md`](./IMPORTACION_AUTOMATICA.md)
+**Descripción:** Importación automática de activos y cotizaciones históricas
+
+**Contenido:**
+- Auto-registro de activos nuevos
+- Descarga automática de 3 años de histórico
+- Flujo de importación mejorado
+- Ejemplos de respuesta
+- Casos de uso
+- Configuración de período
+- Solución de problemas
+
+---
+
 ### 🛠️ Operación y Mantenimiento
 
 #### [`SOLUCION_CORS.md`](./SOLUCION_CORS.md)
