@@ -269,7 +269,7 @@ configure_environment() {
     DEFAULT_DB_PASSWORD=$(generate_secret_key | head -c 20)
     DEFAULT_SECRET_KEY=$(generate_secret_key)
     DEFAULT_ADMIN_USER="admin"
-    DEFAULT_ADMIN_EMAIL="admin@bolsav6.local"
+    DEFAULT_ADMIN_EMAIL="admin@example.com"
     DEFAULT_ADMIN_PASSWORD="Admin123!@#"
     
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
