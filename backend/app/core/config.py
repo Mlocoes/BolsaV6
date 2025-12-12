@@ -39,8 +39,32 @@ class Settings(BaseSettings):
     
     @property
     def cors_origins_list(self) -> List[str]:
-        """Convertir CORS_ORIGINS string a lista"""
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        """
+        Convertir CORS_ORIGINS string a lista
+        En desarrollo, permite todos los orígenes en red local
+        """
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        
+        # En desarrollo, agregar patrones comunes automáticamente
+        if self.ENVIRONMENT == "development":
+            # Patrones para desarrollo local y red local
+            development_patterns = [
+                "http://localhost:3000",
+                "http://localhost:5173",  # Vite dev
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:5173",
+            ]
+            # Agregar solo si no están ya
+            for pattern in development_patterns:
+                if pattern not in origins:
+                    origins.append(pattern)
+        
+        return origins
+    
+    @property
+    def is_cors_permissive(self) -> bool:
+        """En desarrollo, permitir cualquier origen de red local"""
+        return self.ENVIRONMENT == "development"
     
     class Config:
         env_file = ".env"

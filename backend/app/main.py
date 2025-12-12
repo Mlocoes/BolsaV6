@@ -18,14 +18,30 @@ app = FastAPI(
 )
 
 # Configurar CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
+# En desarrollo: permite cualquier origen de red local automáticamente
+# En producción: solo los orígenes configurados en CORS_ORIGINS
+if settings.ENVIRONMENT == "development":
+    # Modo desarrollo: CORS permisivo para facilitar desarrollo en red local
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3})(:\d+)?",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+    print("🌐 CORS: Modo desarrollo - Aceptando orígenes de red local")
+else:
+    # Modo producción: CORS restrictivo
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
+    print(f"🌐 CORS: Modo producción - Orígenes permitidos: {settings.cors_origins_list}")
 
 # Registrar routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Autenticación"])

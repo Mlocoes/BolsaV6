@@ -1,0 +1,6 @@
+bolsav6
+bolsav6_user
+TestPass123!
+admin
+admin@bolsav6.local
+Admin123!

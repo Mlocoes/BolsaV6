@@ -55,10 +55,21 @@ class AlphaVantageService:
             logger.info(f"📅 Plan FREE: Últimos 100 días disponibles")
             
             # Obtener datos históricos (últimos 100 días con plan gratuito)
-            df, meta_data = self.ts.get_daily(
-                symbol=symbol.upper(),
-                outputsize='compact'  # 'compact' = últimos 100 días (gratis)
-            )
+            try:
+                df, meta_data = self.ts.get_daily(
+                    symbol=symbol.upper(),
+                    outputsize='compact'  # 'compact' = últimos 100 días (gratis)
+                )
+            except Exception as api_error:
+                error_msg = str(api_error).lower()
+                if 'api call frequency' in error_msg or 'limit' in error_msg:
+                    logger.warning(f"⚠️ Límite de API alcanzado para {symbol}")
+                    return None
+                elif 'invalid api call' in error_msg or 'not found' in error_msg:
+                    logger.warning(f"⚠️ Símbolo {symbol} no encontrado en Alpha Vantage")
+                    return None
+                else:
+                    raise api_error
             
             if df is None or df.empty:
                 logger.warning(f"⚠️ No se recibieron datos de Alpha Vantage para {symbol}")

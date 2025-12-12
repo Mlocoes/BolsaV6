@@ -218,11 +218,20 @@ ORDER BY a.symbol;
 - Plan premium: hasta 20+ años de histórico
 - Mejor cobertura en mercados principales (NYSE, NASDAQ)
 
-### 2. Rendimiento
+### 2. Rendimiento y Rate Limiting
 - La descarga de cotizaciones añade **~3-5 segundos** por activo nuevo
-- Con muchos activos nuevos, la importación puede tardar más
+- **⚠️ Rate Limiting Implementado**: Solo se descargan cotizaciones para los **primeros 5 activos nuevos** por importación
+- Los activos restantes se crean pero SIN cotizaciones históricas (mensaje informativo en logs)
+- Esto preserva llamadas API para otras operaciones del sistema
 - Proceso asíncrono: no bloquea otras operaciones
-- **Importante**: Plan gratuito tiene límite de 25 llamadas/día
+- **Plan gratuito**: límite de 25 llamadas/día (5 activos × 1 call = 5 calls usadas)
+
+**Ejemplo con 10 activos nuevos:**
+```
+✅ Activos 1-5: Creados + 100 días de cotizaciones descargadas
+ℹ️ Activos 6-10: Creados + Mensaje "Límite de API: cotizaciones no descargadas"
+💡 Puedes actualizar manualmente las cotizaciones después
+```
 
 ### 3. Símbolos Internacionales
 - Alpha Vantage usa símbolos directos para US: `TSLA`, `AAPL`

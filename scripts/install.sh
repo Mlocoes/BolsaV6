@@ -25,8 +25,9 @@ NC='\033[0m' # Sin color
 
 # Variables globales
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env"
-ENV_EXAMPLE="${SCRIPT_DIR}/.env.example"
+PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ENV_FILE="${PROJECT_DIR}/.env"
+ENV_EXAMPLE="${PROJECT_DIR}/.env.example"
 
 ################################################################################
 # Funciones de Utilidad
@@ -246,6 +247,8 @@ configure_environment() {
         read -p "¿Desea sobrescribirlo? (s/N): " overwrite
         if [[ ! "$overwrite" =~ ^[Ss]$ ]]; then
             print_info "Usando configuración existente."
+            # Cargar variables del .env existente
+            export $(grep -v '^#' "$ENV_FILE" | xargs)
             return 0
         else
             echo ""
@@ -266,62 +269,93 @@ configure_environment() {
     # Valores por defecto
     DEFAULT_DB_NAME="bolsav6"
     DEFAULT_DB_USER="bolsav6_user"
-    DEFAULT_DB_PASSWORD=$(generate_secret_key | head -c 20)
+    DEFAULT_DB_PASSWORD_GEN=$(generate_secret_key | head -c 20)
     DEFAULT_SECRET_KEY=$(generate_secret_key)
     DEFAULT_ADMIN_USER="admin"
     DEFAULT_ADMIN_EMAIL="admin@example.com"
     DEFAULT_ADMIN_PASSWORD="Admin123!@#"
     
-    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║           Configuración de Base de Datos PostgreSQL           ║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    
-    # Nombre de la base de datos
-    read -p "Nombre de la base de datos [${DEFAULT_DB_NAME}]: " DB_NAME
-    DB_NAME=${DB_NAME:-$DEFAULT_DB_NAME}
-    
-    # Usuario de la base de datos
-    read -p "Usuario de la base de datos [${DEFAULT_DB_USER}]: " DB_USER
-    DB_USER=${DB_USER:-$DEFAULT_DB_USER}
-    
-    # Contraseña de la base de datos
-    echo -e "${YELLOW}Sugerencia de contraseña segura: ${DEFAULT_DB_PASSWORD}${NC}"
-    read -sp "Contraseña de la base de datos: " DB_PASSWORD
-    echo ""
-    if [ -z "$DB_PASSWORD" ]; then
-        DB_PASSWORD=$DEFAULT_DB_PASSWORD
-        echo -e "${GREEN}Usando contraseña generada automáticamente${NC}"
-    fi
-    
-    echo ""
-    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║              Configuración de Usuario Administrador            ║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    
-    # Usuario administrador
-    read -p "Nombre de usuario administrador [${DEFAULT_ADMIN_USER}]: " ADMIN_USER
-    ADMIN_USER=${ADMIN_USER:-$DEFAULT_ADMIN_USER}
-    
-    # Email del administrador
-    read -p "Email del administrador [${DEFAULT_ADMIN_EMAIL}]: " ADMIN_EMAIL
-    ADMIN_EMAIL=${ADMIN_EMAIL:-$DEFAULT_ADMIN_EMAIL}
-    
-    # Contraseña del administrador
-    echo -e "${YELLOW}Sugerencia de contraseña: ${DEFAULT_ADMIN_PASSWORD}${NC}"
-    read -sp "Contraseña del administrador: " ADMIN_PASSWORD
-    echo ""
-    if [ -z "$ADMIN_PASSWORD" ]; then
-        ADMIN_PASSWORD=$DEFAULT_ADMIN_PASSWORD
-        echo -e "${GREEN}Usando contraseña sugerida${NC}"
+    # Modo interactivo - Siempre preguntar por defecto
+    # Solo usar modo automático si TODAS las variables están definidas Y AUTO_INSTALL=true
+    if [ "$AUTO_INSTALL" = "true" ] && [ -n "$DB_NAME" ] && [ -n "$DB_USER" ] && \
+       [ -n "$DB_PASSWORD" ] && [ -n "$ADMIN_USER" ] && [ -n "$ADMIN_EMAIL" ] && \
+       [ -n "$ADMIN_PASSWORD" ]; then
+        echo -e "${YELLOW}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${YELLOW}║               🤖 MODO AUTOMÁTICO ACTIVADO                      ║${NC}"
+        echo -e "${YELLOW}╚════════════════════════════════════════════════════════════════╝${NC}"
+        print_info "Usando configuración predefinida (no se harán preguntas)"
+        echo ""
+    else
+        # Modo interactivo normal
+        echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║               👤 MODO INTERACTIVO                              ║${NC}"
+        echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║           Configuración de Base de Datos PostgreSQL           ║${NC}"
+        echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        
+        # Nombre de la base de datos
+        if [ -z "$DB_NAME" ]; then
+            read -p "Nombre de la base de datos [${DEFAULT_DB_NAME}]: " DB_NAME
+            DB_NAME=${DB_NAME:-$DEFAULT_DB_NAME}
+        fi
+        
+        # Usuario de la base de datos
+        if [ -z "$DB_USER" ]; then
+            read -p "Usuario de la base de datos [${DEFAULT_DB_USER}]: " DB_USER
+            DB_USER=${DB_USER:-$DEFAULT_DB_USER}
+        fi
+        
+        # Contraseña de la base de datos
+        if [ -z "$DB_PASSWORD" ]; then
+            echo -e "${YELLOW}Sugerencia de contraseña segura: ${DEFAULT_DB_PASSWORD_GEN}${NC}"
+            read -sp "Contraseña de la base de datos: " DB_PASSWORD
+            echo ""
+            if [ -z "$DB_PASSWORD" ]; then
+                DB_PASSWORD=$DEFAULT_DB_PASSWORD_GEN
+                echo -e "${GREEN}Usando contraseña generada automáticamente${NC}"
+            fi
+        fi
+        
+        echo ""
+        echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║              Configuración de Usuario Administrador            ║${NC}"
+        echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        
+        # Usuario administrador
+        if [ -z "$ADMIN_USER" ]; then
+            read -p "Nombre de usuario administrador [${DEFAULT_ADMIN_USER}]: " ADMIN_USER
+            ADMIN_USER=${ADMIN_USER:-$DEFAULT_ADMIN_USER}
+        fi
+        
+        # Email del administrador
+        if [ -z "$ADMIN_EMAIL" ]; then
+            read -p "Email del administrador [${DEFAULT_ADMIN_EMAIL}]: " ADMIN_EMAIL
+            ADMIN_EMAIL=${ADMIN_EMAIL:-$DEFAULT_ADMIN_EMAIL}
+        fi
+        
+        # Contraseña del administrador
+        if [ -z "$ADMIN_PASSWORD" ]; then
+            echo -e "${YELLOW}Sugerencia de contraseña: ${DEFAULT_ADMIN_PASSWORD}${NC}"
+            read -sp "Contraseña del administrador: " ADMIN_PASSWORD
+            echo ""
+            if [ -z "$ADMIN_PASSWORD" ]; then
+                ADMIN_PASSWORD=$DEFAULT_ADMIN_PASSWORD
+                echo -e "${GREEN}Usando contraseña sugerida${NC}"
+            fi
+        fi
     fi
     
     echo ""
     print_step "Generando archivo .env..."
     
-    # Generar SECRET_KEY
-    SECRET_KEY=$DEFAULT_SECRET_KEY
+    # Generar SECRET_KEY si no existe
+    if [ -z "$SECRET_KEY" ]; then
+        SECRET_KEY=$(generate_secret_key)
+    fi
     
     # Obtener todas las IPs locales para CORS
     ALL_IPS=$(hostname -I | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | tr '\n' ',' | sed 's/,$//')
@@ -354,10 +388,11 @@ FINNHUB_API_KEY=YOUR_FINNHUB_API_KEY_HERE
 QUOTE_UPDATE_INTERVAL_MINUTES=60
 
 # ==============================================
-# ALPHA VANTAGE API (Deprecated - Legacy Support)
+# ALPHA VANTAGE API (Cotizaciones Históricas)
 # ==============================================
-ALPHA_VANTAGE_API_KEY=demo
-ALPHA_VANTAGE_RATE_LIMIT=5
+# Tier gratuito: 25 llamadas por DÍA
+ALPHA_VANTAGE_API_KEY=PTL1KGN2VOZYO8KG
+ALPHA_VANTAGE_RATE_LIMIT=25
 
 # ==============================================
 # SEGURIDAD
@@ -395,18 +430,70 @@ EOF
     print_warning "IMPORTANTE: Guarde estas credenciales en un lugar seguro."
     echo ""
     
-    read -p "Presione Enter para continuar..."
+    # Solo pedir confirmación en modo interactivo
+    if [ "$AUTO_INSTALL" != "true" ]; then
+        read -p "Presione Enter para continuar..."
+    fi
 }
 
 ################################################################################
 # Construcción e Inicio del Sistema
 ################################################################################
 
+wait_for_db() {
+    print_info "Verificando conexión a la base de datos..."
+    
+    cd "$PROJECT_DIR"
+    
+    MAX_ATTEMPTS=30
+    ATTEMPT=0
+    
+    while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+        # Intentar conectar a PostgreSQL desde el contenedor backend
+        if $DOCKER_COMPOSE_CMD exec -T backend python -c "
+import asyncio
+import asyncpg
+import os
+
+async def check_db():
+    try:
+        conn = await asyncpg.connect(
+            host='db',
+            port=5432,
+            user=os.getenv('POSTGRES_USER'),
+            password=os.getenv('POSTGRES_PASSWORD'),
+            database=os.getenv('POSTGRES_DB'),
+            timeout=5
+        )
+        await conn.close()
+        return True
+    except Exception as e:
+        return False
+
+print('ok' if asyncio.run(check_db()) else 'fail')
+" 2>/dev/null | grep -q "ok"; then
+            print_success "Conexión a la base de datos verificada"
+            echo ""
+            return 0
+        fi
+        
+        ATTEMPT=$((ATTEMPT + 1))
+        echo -n "."
+        sleep 2
+    done
+    
+    echo ""
+    print_error "No se pudo conectar a la base de datos después de $MAX_ATTEMPTS intentos"
+    print_info "Mostrando logs de PostgreSQL:"
+    $DOCKER_COMPOSE_CMD logs db --tail=20
+    exit 1
+}
+
 clean_volumes() {
     if [ "$RECONFIGURE" = true ]; then
         print_step "Deteniendo servicios y eliminando base de datos antigua..."
         echo ""
-        cd "$SCRIPT_DIR"
+        cd "$PROJECT_DIR"
         
         # Detener servicios
         $DOCKER_COMPOSE_CMD down -v 2>/dev/null || true
@@ -421,7 +508,7 @@ build_system() {
     print_step "Construyendo imágenes Docker..."
     echo ""
     
-    cd "$SCRIPT_DIR"
+    cd "$PROJECT_DIR"
     $DOCKER_COMPOSE_CMD build
     
     print_success "Imágenes construidas exitosamente"
@@ -432,12 +519,27 @@ start_system() {
     print_step "Iniciando servicios..."
     echo ""
     
-    cd "$SCRIPT_DIR"
-    $DOCKER_COMPOSE_CMD up -d
+    cd "$PROJECT_DIR"
+    
+    # Si es reconfiguración, usar --force-recreate para asegurar nuevas credenciales
+    if [ "$RECONFIGURE" = true ]; then
+        print_info "Recreando contenedores con nuevas credenciales..."
+        $DOCKER_COMPOSE_CMD up -d --force-recreate
+    else
+        $DOCKER_COMPOSE_CMD up -d
+    fi
     
     # Esperar a que los servicios estén listos
     print_step "Esperando a que los servicios estén listos..."
-    sleep 5
+    
+    # Esperar específicamente a que la base de datos esté healthy
+    print_info "Esperando a que PostgreSQL esté listo..."
+    for i in {1..30}; do
+        if $DOCKER_COMPOSE_CMD ps db | grep -q "healthy"; then
+            break
+        fi
+        sleep 2
+    done
     
     # Verificar estado de los contenedores
     if $DOCKER_COMPOSE_CMD ps | grep -q "Up"; then
@@ -454,26 +556,74 @@ run_migrations() {
     print_step "Ejecutando migraciones de base de datos..."
     echo ""
     
-    # Esperar a que la base de datos esté lista
+    cd "$PROJECT_DIR"
+    
+    # Esperar adicional para asegurar que PostgreSQL esté completamente listo
     print_info "Esperando a que PostgreSQL esté completamente listo..."
-    sleep 15
+    sleep 5
     
-    # Ejecutar migraciones con Alembic
-    $DOCKER_COMPOSE_CMD exec -T backend alembic upgrade head
+    # Verificar que el backend esté corriendo
+    if ! $DOCKER_COMPOSE_CMD ps backend | grep -q "Up"; then
+        print_error "El backend no está corriendo. Intentando iniciarlo..."
+        $DOCKER_COMPOSE_CMD up -d backend
+        sleep 5
+    fi
     
-    print_success "Migraciones ejecutadas correctamente"
+    # Ejecutar migraciones con Alembic con reintentos
+    print_info "Ejecutando migraciones con Alembic..."
+    MAX_RETRIES=3
+    RETRY_COUNT=0
+    
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        if $DOCKER_COMPOSE_CMD exec -T backend alembic upgrade head; then
+            print_success "Migraciones ejecutadas correctamente"
+            echo ""
+            return 0
+        else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                print_warning "Intento $RETRY_COUNT falló. Reintentando en 5 segundos..."
+                sleep 5
+            fi
+        fi
+    done
+    
+    print_error "No se pudieron ejecutar las migraciones después de $MAX_RETRIES intentos"
     echo ""
+    print_info "Mostrando logs del backend para diagnóstico:"
+    $DOCKER_COMPOSE_CMD logs backend --tail=50
+    exit 1
 }
 
 create_admin() {
     print_step "Creando usuario administrador..."
     echo ""
     
-    # Ejecutar script de creación de administrador
-    $DOCKER_COMPOSE_CMD exec -T backend python create_admin.py
+    cd "$PROJECT_DIR"
     
-    print_success "Usuario administrador configurado"
+    # Ejecutar script de creación de administrador con reintentos
+    MAX_RETRIES=3
+    RETRY_COUNT=0
+    
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        if $DOCKER_COMPOSE_CMD exec -T backend python create_admin.py; then
+            print_success "Usuario administrador configurado"
+            echo ""
+            return 0
+        else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                print_warning "Intento $RETRY_COUNT falló. Reintentando en 3 segundos..."
+                sleep 3
+            fi
+        fi
+    done
+    
+    print_error "No se pudo crear el usuario administrador después de $MAX_RETRIES intentos"
     echo ""
+    print_info "Mostrando logs del backend para diagnóstico:"
+    $DOCKER_COMPOSE_CMD logs backend --tail=30
+    exit 1
 }
 
 ################################################################################
@@ -533,6 +683,9 @@ main() {
     
     # Iniciar sistema
     start_system
+    
+    # Verificar conexión a la base de datos
+    wait_for_db
     
     # Ejecutar migraciones
     run_migrations

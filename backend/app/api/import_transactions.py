@@ -18,9 +18,11 @@ from app.models.asset import Asset, AssetType
 from app.models.transaction import Transaction, TransactionType
 from app.models.quote import Quote
 from app.services.alpha_vantage_service import AlphaVantageService
+from app.services.yfinance_service import YFinanceService
 
 router = APIRouter()
 alpha_vantage_service = AlphaVantageService()
+yfinance_service = YFinanceService()
 
 
 @router.post("/transactions/excel/{portfolio_id}")
@@ -161,13 +163,17 @@ async def import_transactions_from_excel(
                     assets_created += 1
                     
                     # Importar cotizaciones históricas para el nuevo activo
+                    # NOTA: Alpha Vantage tier gratuito tiene límite de 25 llamadas/DÍA
+                    # El límite es diario, no por sesión, así que intentamos descargar siempre
                     try:
+                        print(f"📥 Intentando descargar cotizaciones para {symbol}...")
+                        
                         # Obtener cotizaciones históricas (últimos 100 días con plan gratuito)
                         historical_quotes = await alpha_vantage_service.get_historical_quotes(
                             symbol=symbol
                         )
                         
-                        if historical_quotes:
+                        if historical_quotes and len(historical_quotes) > 0:
                             # Insertar cotizaciones en la BD
                             asset_quotes_count = 0
                             for quote_data in historical_quotes:
@@ -192,13 +198,12 @@ async def import_transactions_from_excel(
                                     db.add(new_quote)
                                     asset_quotes_count += 1
                             
-                            await db.flush()  # Guardar las cotizaciones
-                            
                             if asset_quotes_count > 0:
+                                await db.flush()  # Guardar las cotizaciones
                                 quotes_imported += asset_quotes_count  # Acumular en el contador global
-                                print(f"✅ {asset_quotes_count} cotizaciones históricas importadas para {symbol}")
+                                print(f"✅ {asset_quotes_count} cotizaciones importadas para {symbol}")
                         else:
-                            print(f"⚠️ No se pudieron obtener cotizaciones históricas para {symbol}")
+                            print(f"⚠️ No se obtuvieron cotizaciones para {symbol} (posible límite de API alcanzado o símbolo inválido)")
                     
                     except Exception as e:
                         # Si falla la importación de cotizaciones, continuar de todos modos
