@@ -14,6 +14,7 @@ import Transactions from './pages/Transactions';
 import Quotes from './pages/Quotes';
 import Import from './pages/Import';
 import Users from './pages/Users';
+import FiscalReport from './pages/FiscalReport';
 import './styles/index.css';
 
 function App() {
@@ -101,6 +102,15 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <Users />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/fiscal"
+                    element={
+                        <ProtectedRoute>
+                            <FiscalReport />
                         </ProtectedRoute>
                     }
                 />

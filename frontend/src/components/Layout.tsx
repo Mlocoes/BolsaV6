@@ -80,6 +80,7 @@ export default function Layout({ children }: LayoutProps) {
                         <NavLink to="/portfolios" icon="📁" label="Carteras" />
                         <NavLink to="/transactions" icon="💸" label="Transacciones" />
                         <NavLink to="/quotes" icon="📉" label="Cotizaciones" />
+                        <NavLink to="/fiscal" icon="⚖️" label="Informe Fiscal" />
                         <NavLink to="/import" icon="📥" label="Importar" />
                         {user?.is_admin && <NavLink to="/users" icon="👥" label="Usuarios" />}
                     </div>
