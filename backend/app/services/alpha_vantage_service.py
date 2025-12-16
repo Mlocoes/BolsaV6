@@ -12,6 +12,10 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+class RateLimitException(Exception):
+    """Excepción para cuando se alcanza el límite de la API"""
+    pass
+
 
 class AlphaVantageService:
     """Servicio para obtener cotizaciones históricas de Alpha Vantage"""
@@ -64,7 +68,7 @@ class AlphaVantageService:
                 error_msg = str(api_error).lower()
                 if 'api call frequency' in error_msg or 'limit' in error_msg:
                     logger.warning(f"⚠️ Límite de API alcanzado para {symbol}")
-                    return None
+                    raise RateLimitException("Límite de API alcanzado")
                 elif 'invalid api call' in error_msg or 'not found' in error_msg:
                     logger.warning(f"⚠️ Símbolo {symbol} no encontrado en Alpha Vantage")
                     return None
@@ -120,6 +124,10 @@ class AlphaVantageService:
             logger.info(f"✅ {len(quotes)} cotizaciones procesadas para {symbol} desde Alpha Vantage")
             return quotes
             
+        except RateLimitException:
+            # Propagar la excepción de límite para que ser manejada por el llamador
+            raise
+
         except Exception as e:
             logger.error(f"❌ Error obteniendo datos de Alpha Vantage para {symbol}: {str(e)}", exc_info=True)
             return None

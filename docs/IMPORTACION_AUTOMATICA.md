@@ -220,17 +220,19 @@ ORDER BY a.symbol;
 
 ### 2. Rendimiento y Rate Limiting
 - La descarga de cotizaciones añade **~3-5 segundos** por activo nuevo
-- **⚠️ Rate Limiting Implementado**: Solo se descargan cotizaciones para los **primeros 5 activos nuevos** por importación
-- Los activos restantes se crean pero SIN cotizaciones históricas (mensaje informativo en logs)
-- Esto preserva llamadas API para otras operaciones del sistema
+- **⚠️ Rate Limiting Dinámico**: El sistema intentará descargar cotizaciones para todos los nuevos activos.
+- Si Alpha Vantage devuelve un error de límite excedido, el sistema **dejará de intentar descargar cotizaciones** para el resto de la importación.
+- Los activos restantes se crearán correctamente pero SIN cotizaciones históricas.
 - Proceso asíncrono: no bloquea otras operaciones
-- **Plan gratuito**: límite de 25 llamadas/día (5 activos × 1 call = 5 calls usadas)
+- **Plan gratuito**: límite de 25 llamadas/día.
+- **Plan Premium**: sin límite práctico (dependiendo del plan).
 
-**Ejemplo con 10 activos nuevos:**
+**Ejemplo si se alcanza el límite:**
 ```
-✅ Activos 1-5: Creados + 100 días de cotizaciones descargadas
-ℹ️ Activos 6-10: Creados + Mensaje "Límite de API: cotizaciones no descargadas"
-💡 Puedes actualizar manualmente las cotizaciones después
+✅ Activos 1-25 (aprox): Creados + 100 días de cotizaciones descargadas
+⛔ Límite de API alcanzado
+ℹ️ Activos restantes: Creados + Mensaje "Cotizaciones omitidas (límite de API alcanzado previamente)"
+💡 Puedes actualizar manualmente las cotizaciones al día siguiente o con un plan premium.
 ```
 
 ### 3. Símbolos Internacionales

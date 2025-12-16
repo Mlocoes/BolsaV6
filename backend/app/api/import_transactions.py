@@ -10,6 +10,7 @@ from decimal import Decimal
 import pandas as pd
 import io
 import traceback
+import asyncio
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -17,7 +18,7 @@ from app.models.portfolio import Portfolio
 from app.models.asset import Asset, AssetType
 from app.models.transaction import Transaction, TransactionType
 from app.models.quote import Quote
-from app.services.alpha_vantage_service import AlphaVantageService
+from app.services.alpha_vantage_service import AlphaVantageService, RateLimitException
 from app.services.yfinance_service import YFinanceService
 
 router = APIRouter()
@@ -84,9 +85,16 @@ async def import_transactions_from_excel(
         transactions_created = 0
         transactions_skipped = 0
         assets_created = 0
+        limit_reached = False # Bandera para detener descargas si se alcanza límite
         corporate_transactions = 0  # Contador de operaciones corporativas
         quotes_imported = 0  # Contador de cotizaciones históricas importadas
         errors = []
+        
+        # Cache para no procesar el mismo activo múltiples veces en el mismo archivo
+        processed_symbols_check = set()
+        
+        # Contador para controlar el límite de 5 llamadas por minuto de Alpha Vantage
+        consecutive_api_calls = 0
         
         for index, row in df.iterrows():
             try:
@@ -145,7 +153,8 @@ async def import_transactions_from_excel(
                 )
                 asset = asset_result.scalar_one_or_none()
                 
-                # Si el activo no existe, crearlo automáticamente e importar cotizaciones
+                # Si el activo no existe, crearlo
+                is_new_asset = False
                 if not asset:
                     # Extraer el nombre del activo del campo "Valor"
                     asset_name = lines[0].strip() if lines else symbol
@@ -161,54 +170,85 @@ async def import_transactions_from_excel(
                     db.add(asset)
                     await db.flush()  # Asegurar que el activo tenga un ID antes de continuar
                     assets_created += 1
+                    is_new_asset = True
+                
+                # VERIFICACIÓN DE COTIZACIONES (Para activos nuevos Y existentes)
+                # Solo verificamos una vez por símbolo en este archivo para eficiencia
+                if symbol not in processed_symbols_check:
+                    processed_symbols_check.add(symbol)
                     
-                    # Importar cotizaciones históricas para el nuevo activo
-                    # NOTA: Alpha Vantage tier gratuito tiene límite de 25 llamadas/DÍA
-                    # El límite es diario, no por sesión, así que intentamos descargar siempre
-                    try:
-                        print(f"📥 Intentando descargar cotizaciones para {symbol}...")
-                        
-                        # Obtener cotizaciones históricas (últimos 100 días con plan gratuito)
-                        historical_quotes = await alpha_vantage_service.get_historical_quotes(
-                            symbol=symbol
+                    should_download_quotes = False
+                    
+                    if is_new_asset:
+                        should_download_quotes = True
+                    else:
+                        # Si el activo ya existía, verificamos si tiene cotizaciones
+                        existing_quotes_check = await db.execute(
+                            select(Quote).where(Quote.asset_id == asset.id).limit(1)
                         )
-                        
-                        if historical_quotes and len(historical_quotes) > 0:
-                            # Insertar cotizaciones en la BD
-                            asset_quotes_count = 0
-                            for quote_data in historical_quotes:
-                                # Verificar si la cotización ya existe
-                                existing_quote = await db.execute(
-                                    select(Quote).where(
-                                        Quote.asset_id == asset.id,
-                                        Quote.date == quote_data["date"]
-                                    )
-                                )
-                                if not existing_quote.scalar_one_or_none():
-                                    new_quote = Quote(
-                                        asset_id=asset.id,
-                                        date=quote_data["date"],
-                                        open=quote_data["open"],
-                                        high=quote_data["high"],
-                                        low=quote_data["low"],
-                                        close=quote_data["close"],
-                                        volume=quote_data["volume"],
-                                        source="alpha_vantage"
-                                    )
-                                    db.add(new_quote)
-                                    asset_quotes_count += 1
+                        if not existing_quotes_check.scalar_one_or_none():
+                            should_download_quotes = True
+                            print(f"🔍 Activo existente {symbol} sin cotizaciones. Intentando descargar...")
+
+                    # Importar cotizaciones si es necesario y no se ha alcanzado el límite
+                    if should_download_quotes and not limit_reached:
+                        try:
+                            print(f"📥 Intentando descargar cotizaciones para {symbol}...")
                             
-                            if asset_quotes_count > 0:
-                                await db.flush()  # Guardar las cotizaciones
-                                quotes_imported += asset_quotes_count  # Acumular en el contador global
-                                print(f"✅ {asset_quotes_count} cotizaciones importadas para {symbol}")
-                        else:
-                            print(f"⚠️ No se obtuvieron cotizaciones para {symbol} (posible límite de API alcanzado o símbolo inválido)")
-                    
-                    except Exception as e:
-                        # Si falla la importación de cotizaciones, continuar de todos modos
-                        print(f"⚠️ Error al importar cotizaciones para {symbol}: {str(e)}")
-                        # No interrumpir el proceso de importación
+                            # Obtener cotizaciones históricas (últimos 100 días con plan gratuito)
+                            historical_quotes = await alpha_vantage_service.get_historical_quotes(
+                                symbol=symbol
+                            )
+                            
+                            consecutive_api_calls += 1
+                            await asyncio.sleep(2) # Esperar 2 segundos para evitar el límite de ráfaga
+                            
+                            if consecutive_api_calls >= 5:
+                                print("⏳ Límite de 5 llamadas/min de Alpha Vantage alcanzado. Esperando 65 segundos...")
+                                await asyncio.sleep(65)
+                                consecutive_api_calls = 0
+                            
+                            if historical_quotes and len(historical_quotes) > 0:
+                                # Insertar cotizaciones en la BD
+                                asset_quotes_count = 0
+                                for quote_data in historical_quotes:
+                                    # Verificar si la cotización ya existe
+                                    existing_quote = await db.execute(
+                                        select(Quote).where(
+                                            Quote.asset_id == asset.id,
+                                            Quote.date == quote_data["date"]
+                                        )
+                                    )
+                                    if not existing_quote.scalar_one_or_none():
+                                        new_quote = Quote(
+                                            asset_id=asset.id,
+                                            date=quote_data["date"],
+                                            open=quote_data["open"],
+                                            high=quote_data["high"],
+                                            low=quote_data["low"],
+                                            close=quote_data["close"],
+                                            volume=quote_data["volume"],
+                                            source="alpha_vantage"
+                                        )
+                                        db.add(new_quote)
+                                        asset_quotes_count += 1
+                                
+                                if asset_quotes_count > 0:
+                                    await db.flush()  # Guardar las cotizaciones
+                                    quotes_imported += asset_quotes_count  # Acumular en el contador global
+                                    print(f"✅ {asset_quotes_count} cotizaciones importadas para {symbol}")
+                            else:
+                                print(f"⚠️ No se obtuvieron cotizaciones para {symbol} (posible símbolo inválido)")
+                        
+                        except RateLimitException:
+                            print(f"⛔ Se alcanzó el límite de llamadas a la API de Alpha Vantage. Se detendrá la descarga de cotizaciones por esta sesión.")
+                            limit_reached = True
+                        
+                        except Exception as e:
+                            # Si falla la importación de cotizaciones por otro motivo, continuar
+                            print(f"⚠️ Error al importar cotizaciones para {symbol}: {str(e)}")
+                    elif should_download_quotes and limit_reached:
+                        print(f"ℹ️ Cotizaciones omitidas para {symbol} (límite de API alcanzado previamente)")
                 
                 # Determinar tipo de transacción
                 tipo_operacion = str(row['Tipo de Operación']).upper()
