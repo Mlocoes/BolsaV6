@@ -104,27 +104,7 @@ class FiscalService:
         Aplica la norma anti-aplicación de pérdidas (regla de los 2 meses).
         Si se ha comprado valores homogéneos 2 meses antes o después de una venta con pérdidas.
         """
-        # Agrupar compras por activo para acceso rápido
-        buys_by_asset = {}
-        for op in all_ops:
-            if op.type == TransactionType.BUY:
-                if op.asset_id not in buys_by_asset:
-                    buys_by_asset[op.asset_id] = []
-                buys_by_asset[op.asset_id].append(op)
-                
-        for item in results:
-            if item.gross_result < 0:
-                # Es una pérdida. Verificar si hay recompras.
-                # Rango: [SaleDate - 60 dias, SaleDate + 60 dias]
-                # Nota: La norma dice 2 meses. Usaremos 60 días para simplificar o timedelta exacto.
-                
-                asset_buys = buys_by_asset.get(item.asset_symbol, []) # Nota: item.asset_symbol deberia ser ID para ser robusto, pero usaremos lo que tenemos.
-                # Necesitamos el asset_id. En results no lo guardé explícitamente, pero tengo symbol.
-                # Mejor buscar por asset_symbol si es único, o haber guardado asset_id en ResultItem.
-                # Buscaré por symbol en buys_by_asset (que re-indexaré por symbol ahora para facilitar)
-                pass 
-                
-        # Re-indexar buys por symbol para cruzar con results
+        # Agrupar compras por symbol para acceso rápido
         buys_by_symbol = {}
         for op in all_ops:
             if op.type == TransactionType.BUY:
@@ -134,10 +114,18 @@ class FiscalService:
 
         window = timedelta(days=60) # Aproximación de 2 meses
         
+        # Mapa para rastrear qué cantidad de cada compra ya se ha usado para "lavar" pérdidas
+        # buy_id -> quantity_used_for_wash
+        buy_usage_map = {}
+
         for item in results:
             if item.gross_result < 0:
                 potential_buys = buys_by_symbol.get(item.asset_symbol, [])
-                is_wash = False
+                
+                # Cantidad de la pérdida que necesitamos "cubrir" con recompras
+                remaining_loss_qty = item.quantity_sold
+                matched_wash_qty = Decimal(0)
+
                 for buy in potential_buys:
                     # Excluir la compra original que originó este lote (aunque por fecha no debería solaparse si held > 0)
                     if buy.date == item.acquisition_date:
@@ -145,14 +133,37 @@ class FiscalService:
                         
                     # Verificar ventana temporal
                     if (item.sale_date - window) <= buy.date <= (item.sale_date + window):
-                        # Encontrada recompra en ventana
-                        is_wash = True
-                        break
+                        # Esta compra está en la ventana. Es candidata para Wash Sale.
+                        # Verificar cuánta cantidad de esta compra está disponible (no usada por otro wash sale)
+                        buy_id = getattr(buy, 'id', str(id(buy))) # Fallback para objetos temporales
+                        used_qty = buy_usage_map.get(buy_id, Decimal(0))
+                        available_qty = buy.quantity - used_qty
+                        
+                        if available_qty > 0:
+                            # Tomar lo que necesitemos hasta cubrir la venta
+                            match = min(remaining_loss_qty, available_qty)
+                            
+                            matched_wash_qty += match
+                            remaining_loss_qty -= match
+                            
+                            # Marcar como usada
+                            buy_usage_map[buy_id] = used_qty + match
+                            
+                            if remaining_loss_qty <= 0:
+                                break
                 
-                if is_wash:
+                if matched_wash_qty > 0:
                     item.is_wash_sale = True
-                    item.wash_sale_disallowed_loss = item.gross_result # Toda la pérdida bloqueada
-                    item.notes = "Lavado de activos (Wash Sale): Recompra en +-2 meses."
+                    # Calcular la proporción de la pérdida que no es computable
+                    # Si vendí 100 y recompré 10, matched=10. Proporción = 10/100 = 0.1
+                    # Pérdida bloqueada = Pérdida total * 0.1
+                    ratio = matched_wash_qty / item.quantity_sold
+                    item.wash_sale_disallowed_loss = item.gross_result * ratio
+                    
+                    if ratio < 1:
+                        item.notes = f"Wash Sale Parcial ({ratio:.1%}): Recompra de {matched_wash_qty} uds."
+                    else:
+                        item.notes = "Lavado de activos (Wash Sale): Recompra total."
 
     def _build_report(self, portfolio_id: str, results: List[FiscalResultItem]) -> FiscalReport:
         years = {}
@@ -167,9 +178,13 @@ class FiscalService:
             
             if item.is_wash_sale:
                 summary.pending_wash_sales.append(item)
-                # No sumar al neto, es pérdida bloqueada.
-                # Pero en la contabilidad "gross" quizas se quiera ver?
-                # Ajustaré total_losses solo con pérdidas no lavadas.
+                
+                # Sumar solo la parte DEDUCIBLE de la pérdida
+                # loss = -200, disallowed = -20 (bloqueado)
+                # deductible = -200 - (-20) = -180
+                deductible_loss = item.gross_result - item.wash_sale_disallowed_loss
+                if deductible_loss < 0:
+                     summary.total_losses += deductible_loss
             else:
                 if item.gross_result >= 0:
                     summary.total_gains += item.gross_result
