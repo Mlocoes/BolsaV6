@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ColDef } from 'ag-grid-community';
 import Layout from '../components/Layout';
 import { usePortfolioStore } from '../stores/portfolioStore';
+import { formatCurrency, formatQuantity, formatPercent } from '../utils/formatters';
 
 export default function Positions() {
     const gridRef = useRef<AgGridReact>(null);
@@ -15,31 +16,31 @@ export default function Positions() {
             field: 'quantity',
             headerName: 'Cantidad',
             width: 120,
-            valueFormatter: (params) => params.value != null ? parseFloat(params.value).toFixed(2) : '0.00'
+            valueFormatter: (params) => formatQuantity(params.value)
         },
         {
             field: 'avg_price',
             headerName: 'Precio Compra',
             width: 140,
-            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'current_price',
             headerName: 'Precio Actual',
             width: 140,
-            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'cost_basis',
             headerName: 'Costo Base',
             width: 140,
-            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'current_value',
             headerName: 'Valor Actual',
             width: 140,
-            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'profit_loss',
@@ -48,13 +49,13 @@ export default function Positions() {
             cellStyle: (params) => ({
                 color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444'
             }),
-            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'profit_loss_percent',
             headerName: 'Resultado %',
             width: 140,
-            valueFormatter: (params) => params.value != null ? `${parseFloat(params.value).toFixed(2)}%` : '0.00%',
+            valueFormatter: (params) => formatPercent(params.value),
             cellStyle: (params) => ({
                 color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444',
                 fontWeight: 'bold'

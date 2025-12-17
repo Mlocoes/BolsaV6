@@ -7,6 +7,7 @@ import { ColDef } from 'ag-grid-community';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { formatCurrency, formatQuantity } from '../utils/formatters';
 
 interface Transaction {
     id: string;
@@ -72,9 +73,9 @@ export default function Transactions() {
                 return { color: colorMap[params.value] || '#ffffff' };
             }
         },
-        { 
-            field: 'asset_id', 
-            headerName: 'Activo', 
+        {
+            field: 'asset_id',
+            headerName: 'Activo',
             width: 120,
             valueFormatter: (params) => {
                 const asset = assets.find(a => a.id === params.value);
@@ -85,19 +86,19 @@ export default function Transactions() {
             field: 'quantity',
             headerName: 'Cantidad',
             width: 120,
-            valueFormatter: (params) => params.value != null ? parseFloat(params.value).toFixed(2) : '0.00'
+            valueFormatter: (params) => formatQuantity(params.value)
         },
         {
             field: 'price',
             headerName: 'Precio',
             width: 120,
-            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'fees',
             headerName: 'Comisiones',
             width: 120,
-            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             headerName: 'Total',
@@ -108,7 +109,7 @@ export default function Transactions() {
                 const fees = parseFloat(params.data.fees) || 0;
                 return (quantity * price) + fees;
             },
-            valueFormatter: (params) => params.value != null ? `$${parseFloat(params.value).toFixed(2)}` : '$0.00',
+            valueFormatter: (params) => formatCurrency(params.value),
             cellStyle: { fontWeight: 'bold' }
         },
         { field: 'notes', headerName: 'Notas', flex: 1 },
@@ -269,7 +270,7 @@ export default function Transactions() {
             <div className="p-6 h-full flex flex-col">
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-3xl font-bold">Transacciones</h1>
-                    <button 
+                    <button
                         onClick={handleNewTransaction}
                         className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg"
                     >

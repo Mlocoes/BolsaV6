@@ -7,6 +7,7 @@ import { ColDef } from 'ag-grid-community';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { formatCurrency, formatQuantity } from '../utils/formatters';
 
 interface Quote {
     id: string;
@@ -37,32 +38,32 @@ export default function Quotes() {
             field: 'open',
             headerName: 'Apertura',
             width: 120,
-            valueFormatter: (params) => params.value != null ? `$${Number(params.value).toFixed(2)}` : '-'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'high',
             headerName: 'Máximo',
             width: 120,
-            valueFormatter: (params) => params.value != null ? `$${Number(params.value).toFixed(2)}` : '-'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'low',
             headerName: 'Mínimo',
             width: 120,
-            valueFormatter: (params) => params.value != null ? `$${Number(params.value).toFixed(2)}` : '-'
+            valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'close',
             headerName: 'Cierre',
             width: 120,
-            valueFormatter: (params) => params.value != null ? `$${Number(params.value).toFixed(2)}` : '-',
+            valueFormatter: (params) => formatCurrency(params.value),
             cellStyle: { fontWeight: 'bold' }
         },
         {
             field: 'volume',
             headerName: 'Volumen',
             width: 150,
-            valueFormatter: (params) => params.value != null ? Number(params.value).toLocaleString() : '-'
+            valueFormatter: (params) => formatQuantity(params.value)
         },
     ];
 
