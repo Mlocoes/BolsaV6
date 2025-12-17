@@ -46,45 +46,47 @@ export default function Layout({ children }: LayoutProps) {
 
     return (
         <div className="h-screen w-screen bg-dark-bg text-dark-text flex flex-col overflow-hidden">
-            {/* Header */}
-            <header className="bg-dark-surface border-b border-dark-border flex-none z-50">
-                <div className="px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <h1 className="text-2xl font-bold text-primary">BolsaV6</h1>
+            {/* Header Compacto */}
+            <header className="bg-dark-surface border-b border-dark-border flex-none z-50 h-14">
+                <div className="h-full px-4 flex items-center justify-between">
+                    {/* Left: Logo & Nav */}
+                    <div className="flex items-center space-x-6 overflow-hidden">
+                        <h1 className="text-xl font-bold text-primary whitespace-nowrap hidden md:block">BolsaV6</h1>
 
-                        <div className="flex items-center space-x-4">
-                            {user && (
-                                <>
-                                    <span className="text-sm">
-                                        {user.username}
-                                        {user.is_admin && <span className="text-warning ml-1">(Admin)</span>}
-                                    </span>
-                                    <button
-                                        onClick={handleLogout}
-                                        className="bg-danger hover:bg-danger/80 text-white px-4 py-2 rounded-lg text-sm"
-                                    >
-                                        Salir
-                                    </button>
-                                </>
-                            )}
-                        </div>
+                        {/* Navigation */}
+                        <nav className="flex space-x-1 overflow-x-auto no-scrollbar">
+                            <NavLink to="/" icon="📊" label="Dashboard" />
+                            <NavLink to="/positions" icon="📈" label="Posiciones" />
+                            <NavLink to="/assets" icon="💼" label="Activos" />
+                            <NavLink to="/portfolios" icon="📁" label="Carteras" />
+                            <NavLink to="/transactions" icon="💸" label="Transacciones" />
+                            <NavLink to="/quotes" icon="📉" label="Cotizaciones" />
+                            <NavLink to="/fiscal" icon="⚖️" label="Fiscal" />
+                            <NavLink to="/import" icon="📥" label="Importar" />
+                            {user?.is_admin && <NavLink to="/users" icon="👥" label="Usuarios" />}
+                        </nav>
+                    </div>
+
+                    {/* Right: User */}
+                    <div className="flex items-center space-x-3 flex-shrink-0 ml-4">
+                        {user && (
+                            <>
+                                <span className="text-xs md:text-sm hidden md:inline-block text-dark-muted">
+                                    {user.username}
+                                </span>
+                                <button
+                                    onClick={handleLogout}
+                                    className="text-dark-muted hover:text-danger p-1 rounded transition-colors"
+                                    title="Salir"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                                    </svg>
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
-
-                {/* Navigation */}
-                <nav className="px-6 pb-3">
-                    <div className="flex space-x-1 overflow-x-auto no-scrollbar">
-                        <NavLink to="/" icon="📊" label="Dashboard" />
-                        <NavLink to="/positions" icon="📈" label="Posiciones" />
-                        <NavLink to="/assets" icon="💼" label="Activos" />
-                        <NavLink to="/portfolios" icon="📁" label="Carteras" />
-                        <NavLink to="/transactions" icon="💸" label="Transacciones" />
-                        <NavLink to="/quotes" icon="📉" label="Cotizaciones" />
-                        <NavLink to="/fiscal" icon="⚖️" label="Informe Fiscal" />
-                        <NavLink to="/import" icon="📥" label="Importar" />
-                        {user?.is_admin && <NavLink to="/users" icon="👥" label="Usuarios" />}
-                    </div>
-                </nav>
             </header>
 
             {/* Main Content */}

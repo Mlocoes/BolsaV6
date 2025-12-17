@@ -4,8 +4,25 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import {
+    AreaChart,
+    Area,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    PieChart,
+    Pie,
+    Cell,
+    Legend
+} from 'recharts';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { getDashboardStats, DashboardStats } from '../services/dashboardService';
+import { formatCurrency, formatPercent } from '../utils/formatters';
 
 interface Portfolio {
     id: string;
@@ -14,99 +31,300 @@ interface Portfolio {
     created_at: string;
 }
 
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'];
+
 export default function Dashboard() {
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+    const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
+    const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadingStats, setLoadingStats] = useState(false);
 
+    /**
+     * Cargar carteras al inicio
+     */
     useEffect(() => {
         loadPortfolios();
     }, []);
 
+    /**
+     * Cargar estadísticas cuando cambia la cartera seleccionada
+     */
+    useEffect(() => {
+        if (selectedPortfolioId) {
+            loadStats(selectedPortfolioId);
+        }
+    }, [selectedPortfolioId]);
+
+    /**
+     * Función para obtener la lista de carteras
+     */
     const loadPortfolios = async () => {
         try {
             const response = await api.get('/portfolios');
-            setPortfolios(response.data);
+            const ports = response.data;
+            setPortfolios(ports);
+            if (ports.length > 0) {
+                // Seleccionar la primera cartera por defecto
+                setSelectedPortfolioId(ports[0].id);
+            }
         } catch (error) {
             console.error('Error loading portfolios:', error);
-            toast.error('Error al cargar las carteras. Por favor, inténtelo de nuevo.');
+            toast.error('Error al cargar las carteras.');
         } finally {
             setLoading(false);
         }
     };
 
+    /**
+     * Función para obtener las estadísticas del dashboard
+     */
+    const loadStats = async (portfolioId: string) => {
+        setLoadingStats(true);
+        try {
+            const data = await getDashboardStats(portfolioId);
+            setStats(data);
+        } catch (error) {
+            console.error('Error loading dashboard stats:', error);
+            toast.error('Error al cargar estadísticas.');
+            setStats(null);
+        } finally {
+            setLoadingStats(false);
+        }
+    };
+
+    /**
+     * Formateador para tooltips de gráficos (moneda)
+     */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const tooltipCurrencyFormatter = (value: number) => {
+        return [`${formatCurrency(value)} €`, 'Valor'];
+    };
+
+    /**
+     * Formateador para tooltips de gráficos (porcentaje)
+     */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const tooltipPercentFormatter = (value: number) => {
+        return [`${formatPercent(value)} %`, 'Porcentaje'];
+    };
+
+    if (loading) {
+        return (
+            <Layout>
+                <div className="flex justify-center items-center h-full">
+                    <div className="text-dark-muted">Cargando aplicación...</div>
+                </div>
+            </Layout>
+        );
+    }
+
+    if (portfolios.length === 0) {
+        return (
+            <Layout>
+                <div className="h-full flex flex-col items-center justify-center p-6">
+                    <p className="text-dark-muted mb-4 text-lg">No tienes carteras creadas</p>
+                    <Link
+                        to="/portfolios"
+                        className="bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-lg
+                         transition-colors font-medium"
+                    >
+                        Crear mi primera cartera
+                    </Link>
+                </div>
+            </Layout>
+        );
+    }
+
     return (
         <Layout>
-            <div className="h-full overflow-y-auto p-6">
-                <div className="space-y-6">
-                    {/* Header */}
-                    <div className="flex justify-between items-center">
-                        <h1 className="text-3xl font-bold">Dashboard</h1>
-                        <Link
-                            to="/portfolios"
-                            className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg
-                         transition-colors font-medium"
-                        >
-                            + Nueva Cartera
-                        </Link>
-                    </div>
-
-                    {/* Portfolios Grid */}
-                    {loading ? (
-                        <div className="text-center py-12 text-dark-muted">Cargando...</div>
-                    ) : portfolios.length === 0 ? (
-                        <div className="text-center py-12">
-                            <p className="text-dark-muted mb-4">No tienes carteras creadas</p>
-                            <Link
-                                to="/portfolios"
-                                className="inline-block bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-lg
-                           transition-colors font-medium"
+            <div className="h-full overflow-y-auto p-3 bg-dark-bg">
+                <div className="space-y-3 max-w-full mx-auto">
+                    {/* Header Row: Title & Selector inline */}
+                    <div className="flex flex-row justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border">
+                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                            📊 Dashboard
+                        </h1>
+                        <div className="w-48">
+                            <select
+                                value={selectedPortfolioId}
+                                onChange={(e) => setSelectedPortfolioId(e.target.value)}
+                                className="w-full bg-dark-bg border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
                             >
-                                Crear mi primera cartera
-                            </Link>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {portfolios.map((portfolio) => (
-                                <Link
-                                    key={portfolio.id}
-                                    to={`/positions?portfolio=${portfolio.id}`}
-                                    className="bg-dark-surface border border-dark-border rounded-lg p-6 
-                             hover:border-primary transition-colors group"
-                                >
-                                    <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-colors">
-                                        {portfolio.name}
-                                    </h3>
-                                    {portfolio.description && (
-                                        <p className="text-dark-muted text-sm mb-4">{portfolio.description}</p>
-                                    )}
-                                    <div className="text-xs text-dark-muted">
-                                        Creada: {new Date(portfolio.created_at).toLocaleDateString()}
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Info */}
-                    <div className="bg-dark-surface border border-dark-border rounded-lg p-6 mt-8">
-                        <h2 className="text-xl font-semibold mb-4">Bienvenido a BolsaV6</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <h3 className="font-medium text-primary mb-2">Gestión de Carteras</h3>
-                                <p className="text-dark-muted">
-                                    Crea y administra múltiples carteras de inversión. Registra tus operaciones
-                                    de compra y venta para llevar un control detallado.
-                                </p>
-                            </div>
-                            <div>
-                                <h3 className="font-medium text-primary mb-2">Cotizaciones en Tiempo Real</h3>
-                                <p className="text-dark-muted">
-                                    Importa cotizaciones históricas y actuales desde Alpha Vantage. Mantén
-                                    tus activos actualizados automáticamente.
-                                </p>
-                            </div>
+                                {portfolios.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
+
+                    {loadingStats || !stats ? (
+                        <div className="text-center py-20 text-dark-muted">Cargando estadísticas...</div>
+                    ) : (
+                        <>
+                            {/* Summary Cards Row - Ultra Compact */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                                    <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Valor Total</h3>
+                                    <div className="text-lg font-bold text-white leading-tight">
+                                        {formatCurrency(stats.total_value)} €
+                                    </div>
+                                </div>
+                                <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                                    <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Invertido</h3>
+                                    <div className="text-lg font-bold text-white leading-tight">
+                                        {formatCurrency(stats.total_invested)} €
+                                    </div>
+                                </div>
+                                <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                                    <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Plusvalía</h3>
+                                    <div className={`text-lg font-bold leading-tight ${stats.total_pl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                        {stats.total_pl >= 0 ? '+' : ''}{formatCurrency(stats.total_pl)} €
+                                        <span className="text-xs ml-2 font-normal opacity-80">
+                                            ({stats.total_pl >= 0 ? '+' : ''}{formatPercent(stats.total_pl_percentage)}%)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Main Content Grid: Top (Evolution) & Bottom (Distribution/Monthly) */}
+                            {/* Reduced height from 180px to 220px subtraction to shrink vertically */}
+                            <div className="grid grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[350px]">
+
+                                {/* Left Column: Evolution (Spans 8 cols) & Monthly (below) */}
+                                <div className="col-span-12 lg:col-span-8 flex flex-col gap-3">
+                                    {/* Evolution Chart */}
+                                    <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex-1 min-h-[150px] flex flex-col transition-all">
+                                        <h2 className="text-xs font-semibold mb-2 text-dark-muted">Evolución (Año Actual)</h2>
+                                        <div className="flex-1 w-full min-h-0">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart data={stats.performance_history}>
+                                                    <defs>
+                                                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                                                            <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                                                    <XAxis
+                                                        dataKey="date"
+                                                        stroke="#9CA3AF"
+                                                        tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit' })}
+                                                        minTickGap={50}
+                                                        tick={{ fontSize: 10 }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        dy={5}
+                                                    />
+                                                    <YAxis
+                                                        stroke="#9CA3AF"
+                                                        tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
+                                                        domain={['auto', 'auto']}
+                                                        tick={{ fontSize: 10 }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        width={30}
+                                                    />
+                                                    <Tooltip
+                                                        contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6', fontSize: '11px', padding: '4px 8px' }}
+                                                        formatter={(value: number) => [formatCurrency(value) + ' €', '']}
+                                                        labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                                                    />
+                                                    <Area
+                                                        type="monotone"
+                                                        dataKey="value"
+                                                        stroke="#3B82F6"
+                                                        strokeWidth={2}
+                                                        fillOpacity={1}
+                                                        fill="url(#colorValue)"
+                                                    />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+
+                                    {/* Monthly Values (Smaller height) */}
+                                    <div className="bg-dark-surface border border-dark-border rounded-lg p-3 h-36 flex flex-col">
+                                        <h2 className="text-xs font-semibold mb-2 text-dark-muted">Valor Mensual</h2>
+                                        <div className="flex-1 w-full min-h-0">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={stats.monthly_values}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                                                    <XAxis
+                                                        dataKey="month"
+                                                        stroke="#9CA3AF"
+                                                        tickFormatter={(str) => str.split('-')[1]}
+                                                        tick={{ fontSize: 10 }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                    />
+                                                    <YAxis
+                                                        stroke="#9CA3AF"
+                                                        tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
+                                                        tick={{ fontSize: 10 }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        width={30}
+                                                    />
+                                                    <Tooltip
+                                                        contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6', fontSize: '11px', padding: '4px 8px' }}
+                                                        cursor={{ fill: '#374151', opacity: 0.2 }}
+                                                        formatter={(value: number) => [formatCurrency(value) + ' €', '']}
+                                                    />
+                                                    <Bar dataKey="value" fill="#10B981" radius={[2, 2, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Asset Allocation (Spans 4 cols) - Full Height */}
+                                <div className="col-span-12 lg:col-span-4 bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col">
+                                    <h2 className="text-xs font-semibold mb-2 text-dark-muted">Distribución</h2>
+                                    <div className="flex-1 w-full min-h-0 relative">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={stats.asset_allocation}
+                                                    cx="50%"
+                                                    cy="40%"
+                                                    innerRadius="40%"
+                                                    outerRadius="65%"
+                                                    paddingAngle={2}
+                                                    dataKey="value"
+                                                >
+                                                    {stats.asset_allocation.map((_entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip
+                                                    contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6', fontSize: '11px', padding: '4px 8px' }}
+                                                    formatter={(value: number, _name: string, props: any) => [
+                                                        formatCurrency(value) + ' €',
+                                                        props.payload.name
+                                                    ]}
+                                                />
+                                                <Legend
+                                                    formatter={(_value, entry: any) => (
+                                                        <div className="flex justify-between w-full text-[10px] leading-tight mb-1">
+                                                            <span className="truncate mr-2 max-w-[80px]" title={entry.payload.name}>{entry.payload.name}</span>
+                                                            <span className="font-mono text-dark-muted">{formatPercent(entry.payload.percentage)}%</span>
+                                                        </div>
+                                                    )}
+                                                    layout="horizontal"
+                                                    align="center"
+                                                    verticalAlign="bottom"
+                                                    iconSize={8}
+                                                    wrapperStyle={{ bottom: 0, left: 0, right: 0, fontSize: '10px' }}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    {/* List of top assets text fallback or simple legend enhancement if needed */}
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </Layout>

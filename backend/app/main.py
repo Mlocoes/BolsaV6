@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 
 # Importar routers
-from app.api import auth, users, assets, portfolios, transactions, quotes, import_transactions, fiscal
+from app.api import assets, transactions, portfolios, quotes, import_transactions, auth, users, fiscal, dashboard
 
 # Crear aplicación
 app = FastAPI(
@@ -51,7 +51,8 @@ app.include_router(portfolios.router, prefix="/api/portfolios", tags=["Carteras"
 app.include_router(transactions.router, prefix="/api/transactions", tags=["Transacciones"])
 app.include_router(quotes.router, prefix="/api/quotes", tags=["Cotizaciones"])
 app.include_router(import_transactions.router, prefix="/api/import", tags=["Importación"])
-app.include_router(fiscal.router, prefix="/api/fiscal", tags=["Fiscalidad"])
+app.include_router(fiscal.router, prefix="/api/fiscal", tags=["fiscal"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 
 # Health check
 @app.get("/health")
