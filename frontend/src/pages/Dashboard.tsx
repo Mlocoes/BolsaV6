@@ -93,22 +93,6 @@ export default function Dashboard() {
         }
     };
 
-    /**
-     * Formateador para tooltips de gráficos (moneda)
-     */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const tooltipCurrencyFormatter = (value: number) => {
-        return [`${formatCurrency(value)} €`, 'Valor'];
-    };
-
-    /**
-     * Formateador para tooltips de gráficos (porcentaje)
-     */
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const tooltipPercentFormatter = (value: number) => {
-        return [`${formatPercent(value)} %`, 'Porcentaje'];
-    };
-
     if (loading) {
         return (
             <Layout>
@@ -189,7 +173,7 @@ export default function Dashboard() {
 
                             {/* Main Content Grid: Top (Evolution) & Bottom (Distribution/Monthly) */}
                             {/* Reduced height from 180px to 220px subtraction to shrink vertically */}
-                            <div className="grid grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[350px]">
+                            <div className="grid grid-cols-12 gap-3 h-[calc(100vh_-_220px)] min-h-[350px]">
 
                                 {/* Left Column: Evolution (Spans 8 cols) & Monthly (below) */}
                                 <div className="col-span-12 lg:col-span-8 flex flex-col gap-3">
