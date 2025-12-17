@@ -45,9 +45,9 @@ export default function Layout({ children }: LayoutProps) {
     };
 
     return (
-        <div className="min-h-screen bg-dark-bg text-dark-text flex flex-col">
+        <div className="h-screen w-screen bg-dark-bg text-dark-text flex flex-col overflow-hidden">
             {/* Header */}
-            <header className="bg-dark-surface border-b border-dark-border sticky top-0 z-50">
+            <header className="bg-dark-surface border-b border-dark-border flex-none z-50">
                 <div className="px-6 py-4">
                     <div className="flex items-center justify-between">
                         <h1 className="text-2xl font-bold text-primary">BolsaV6</h1>
@@ -88,7 +88,7 @@ export default function Layout({ children }: LayoutProps) {
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-hidden">
+            <main className="flex-1 overflow-hidden relative flex flex-col">
                 {children}
             </main>
         </div>

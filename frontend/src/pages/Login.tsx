@@ -24,7 +24,7 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-dark-bg px-4">
+        <div className="h-screen w-screen overflow-y-auto flex items-center justify-center bg-dark-bg px-4">
             <div className="max-w-md w-full space-y-8">
                 {/* Logo/Header */}
                 <div className="text-center">

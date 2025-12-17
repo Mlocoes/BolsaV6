@@ -428,7 +428,7 @@ export default function Transactions() {
                     </div>
                 )}
 
-                <div className="ag-theme-quartz-dark rounded-lg border border-dark-border" style={{ height: '600px', width: '100%', flex: '1 1 auto', minHeight: 0 }}>
+                <div className="ag-theme-quartz-dark rounded-lg border border-dark-border" style={{ width: '100%', flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                     <AgGridReact
                         ref={gridRef}
                         rowData={filteredTransactions}
@@ -443,6 +443,7 @@ export default function Transactions() {
                         animateRows={true}
                         suppressCellFocus={true}
                         domLayout='normal'
+                        containerStyle={{ height: '100%', width: '100%' }}
                     />
                 </div>
             </div>
