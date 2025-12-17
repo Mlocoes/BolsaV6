@@ -19,18 +19,19 @@ class FiscalService:
         # Estructuras de estado
         open_positions: Dict[str, deque[PositionLot]] = {} # asset_id -> Queue of lots
         results: List[FiscalResultItem] = []
+        # Mapa para rastrear consumo de lotes (buy_id -> quantity_sold)
+        buy_consumption_map = {}
         
         # 2. Procesar FIFO
         for op in ops:
             if op.type == TransactionType.BUY:
                 self._process_buy(op, open_positions)
             elif op.type == TransactionType.SELL:
-                sale_results = self._process_sell(op, open_positions)
+                sale_results = self._process_sell(op, open_positions, buy_consumption_map)
                 results.extend(sale_results)
                 
         # 3. Aplicar Regla de los 2 Meses (Wash Sales)
-        # Se aplica sobre las pérdidas generadas
-        self._apply_wash_sale_rules(results, ops)
+        self._apply_wash_sale_rules(results, ops, buy_consumption_map)
         
         # 4. Agrupar por años
         report = self._build_report(portfolio_id, results)
@@ -44,15 +45,12 @@ class FiscalService:
         lot = PositionLot(op, op.quantity)
         open_positions[op.asset_id].append(lot)
 
-    def _process_sell(self, op: FiscalOperation, open_positions: Dict[str, deque[PositionLot]]) -> List[FiscalResultItem]:
+    def _process_sell(self, op: FiscalOperation, open_positions: Dict[str, deque[PositionLot]], buy_consumption_map: Dict[str, Decimal]) -> List[FiscalResultItem]:
         results = []
         quantity_to_sell = op.quantity
         
         if op.asset_id not in open_positions or not open_positions[op.asset_id]:
-            # Venta al descubierto o error de datos. Ignoramos o logueamos.
-            # Para este MVP, asumiremos que si no hay posiciones, no hay coste (ganancia total = venta)
-            # O mejor: no generamos resultado fiscal válido para esa parte.
-            return []
+            return [] # Venta al descubierto
 
         lots = open_positions[op.asset_id]
         
@@ -61,13 +59,16 @@ class FiscalService:
             
             matched_qty = min(quantity_to_sell, current_lot.remaining_quantity)
             
+            # Registrar consumo del lote
+            # buy_id = current_lot.op.id (o hash si es simulado)
+            buy_id = getattr(current_lot.op, 'id', str(id(current_lot.op)))
+            buy_consumption_map[buy_id] = buy_consumption_map.get(buy_id, Decimal(0)) + matched_qty
+            
             # Calcular valores proporcionales
-            # Coste de adquisición = (Precio * Cantidad) + (Comisiones * (Cantidad casada / Cantidad original))
-            # Pero la comision original era por el total del lote.
+            # ... (cálculo igual al anterior) ...
             buy_fees_part = current_lot.op.fees * (matched_qty / current_lot.op.quantity)
             buy_value = (current_lot.op.price * matched_qty) + buy_fees_part
             
-            # Valor de venta = (Precio * Cantidad) - (Comisiones * (Cantidad casada / Cantidad total venta))
             sell_fees_part = op.fees * (matched_qty / op.quantity)
             sell_value = (op.price * matched_qty) - sell_fees_part
             
@@ -99,7 +100,7 @@ class FiscalService:
                 
         return results
 
-    def _apply_wash_sale_rules(self, results: List[FiscalResultItem], all_ops: List[FiscalOperation]):
+    def _apply_wash_sale_rules(self, results: List[FiscalResultItem], all_ops: List[FiscalOperation], buy_consumption_map: Dict[str, Decimal]):
         """
         Aplica la norma anti-aplicación de pérdidas (regla de los 2 meses).
         Si se ha comprado valores homogéneos 2 meses antes o después de una venta con pérdidas.
@@ -131,11 +132,23 @@ class FiscalService:
                     if buy.date == item.acquisition_date:
                         continue
                         
+                    # Verificar si esta compra ha sido VENDIDA (posición cerrada)
+                    # Si ya se vendió, no bloquea la pérdida (o la desbloquea en el mismo ejercicio)
+                    # Para simplificar el reporte anual: si se vendió, ignoremos el wash sale.
+                    buy_id = getattr(buy, 'id', str(id(buy)))
+                    sold_qty = buy_consumption_map.get(buy_id, Decimal(0))
+                    
+                    # DEBUG LOG
+                    # print(f"DEBUG WASH: Buy {buy.asset_symbol} Qty={buy.quantity} Sold={sold_qty}")
+
+                    # Si se ha vendido todo el lote de recompra, saltar
+                    if sold_qty >= buy.quantity:
+                        continue
+
                     # Verificar ventana temporal
                     if (item.sale_date - window) <= buy.date <= (item.sale_date + window):
                         # Esta compra está en la ventana. Es candidata para Wash Sale.
                         # Verificar cuánta cantidad de esta compra está disponible (no usada por otro wash sale)
-                        buy_id = getattr(buy, 'id', str(id(buy))) # Fallback para objetos temporales
                         used_qty = buy_usage_map.get(buy_id, Decimal(0))
                         available_qty = buy.quantity - used_qty
                         

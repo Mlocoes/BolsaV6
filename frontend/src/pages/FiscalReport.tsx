@@ -53,8 +53,24 @@ const FiscalReport: React.FC = () => {
         }
     };
 
-    const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val);
+    const formatCurrency = (val: number | undefined) => {
+        if (val === undefined || val === null) return '';
+        // User requested copy-paste friendly format for Excel: 
+        // No currency symbol, simple decimal formatting.
+        // Using 'es-ES' to ensure comma is used as decimal separator (matches bank report '1.999,99')
+        return new Intl.NumberFormat('es-ES', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(val);
+    };
+
+    const formatQuantity = (val: number | undefined) => {
+        if (val === undefined || val === null) return '';
+        // Same es-ES formatting but with variable decimals for quantities
+        return new Intl.NumberFormat('es-ES', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 6
+        }).format(val);
     };
 
     const formatDate = (dateStr: string) => {
@@ -133,44 +149,60 @@ const FiscalReport: React.FC = () => {
                                 <thead className="bg-gray-50">
                                     <tr>
                                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activo</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Operación Venta</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Operación Origen (FIFO)</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Días</th>
-                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resultado</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha Venta</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Precio Venta</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Venta</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha Adq.</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Precio Adq.</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Coste Adq.</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Resultado</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notas</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {yearSummary.items.map((item, idx) => (
                                         <tr key={idx} className={item.is_wash_sale ? 'bg-yellow-50' : ''}>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="font-medium text-gray-900">{item.asset_symbol}</div>
+                                            <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                                                {item.asset_symbol}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                                {formatDate(item.sale_date)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                                {formatQuantity(item.quantity_sold)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                                {formatCurrency(item.sale_price)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                                {formatCurrency(item.sale_value)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                                {formatDate(item.acquisition_date)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                                {formatCurrency(item.acquisition_price)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                                                {formatCurrency(item.acquisition_value)}
+                                            </td>
+                                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${item.gross_result >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {formatCurrency(item.gross_result)}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
                                                 {item.is_wash_sale && (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                                                        Wash Sale (No computable)
+                                                    <span className="text-yellow-800 bg-yellow-100 px-2 py-0.5 rounded">
+                                                        Wash Sale ({formatCurrency(item.wash_sale_disallowed_loss)})
                                                     </span>
                                                 )}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                <div>{formatDate(item.sale_date)}</div>
-                                                <div>{item.quantity_sold} uds @ {formatCurrency(item.sale_price)}</div>
-                                                <div className="text-xs text-gray-400">Total: {formatCurrency(item.sale_value)}</div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                <div>{formatDate(item.acquisition_date)}</div>
-                                                <div>@ {formatCurrency(item.acquisition_price)}</div>
-                                                <div className="text-xs text-gray-400">Coste: {formatCurrency(item.acquisition_value)}</div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {item.days_held}
-                                            </td>
-                                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${item.gross_result >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                {formatCurrency(item.gross_result)}
+                                                {item.notes && <div className="mt-1">{item.notes}</div>}
                                             </td>
                                         </tr>
                                     ))}
                                     {yearSummary.items.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                                            <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
                                                 No hay operaciones cerradas en este ejercicio.
                                             </td>
                                         </tr>
