@@ -42,6 +42,19 @@ export default function Transactions() {
         notes: ''
     });
 
+    /**
+     * Calcular estadísticas de transacciones filtradas
+     */
+    const filteredTransactions = selectedPortfolio
+        ? transactions.filter(t => t.portfolio_id === selectedPortfolio)
+        : transactions;
+
+    const stats = {
+        total: filteredTransactions.length,
+        buys: filteredTransactions.filter(t => t.transaction_type === 'BUY').length,
+        sells: filteredTransactions.filter(t => t.transaction_type === 'SELL').length
+    };
+
     const columnDefs: ColDef[] = [
         {
             field: 'transaction_date',
@@ -262,200 +275,223 @@ export default function Transactions() {
         setShowForm(true);
     };
 
-    const filteredTransactions = selectedPortfolio
-        ? transactions.filter(t => t.portfolio_id === selectedPortfolio)
-        : transactions;
-
     return (
         <Layout>
-            <div className="p-6 h-full flex flex-col">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-3xl font-bold">Transacciones</h1>
-                    <button
-                        onClick={handleNewTransaction}
-                        className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg"
-                    >
-                        + Nueva Transacción
-                    </button>
-                </div>
-
-                <div className="flex space-x-4 mb-4">
-                    <select
-                        value={selectedPortfolio}
-                        onChange={(e) => setSelectedPortfolio(e.target.value)}
-                        className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg"
-                    >
-                        <option value="">Todas las carteras</option>
-                        {portfolios.map((p) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                    </select>
-                </div>
-
-
-
-                <div className="ag-theme-quartz-dark rounded-lg border border-dark-border" style={{ width: '100%', flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                    <AgGridReact
-                        ref={gridRef}
-                        rowData={filteredTransactions}
-                        columnDefs={columnDefs}
-                        defaultColDef={{
-                            sortable: true,
-                            resizable: true,
-                            filter: true,
-                        }}
-                        pagination={true}
-                        paginationPageSize={20}
-                        animateRows={true}
-                        suppressCellFocus={true}
-                        domLayout='normal'
-                        containerStyle={{ height: '100%', width: '100%' }}
-                    />
-                </div>
-            </div>
-
-            <Modal
-                isOpen={showForm}
-                onClose={() => {
-                    setShowForm(false);
-                    setEditMode(false);
-                    setSelectedTransaction(null);
-                    resetForm();
-                }}
-                title={editMode ? 'Editar Transacción' : 'Nueva Transacción'}
-            >
-                <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Cartera *</label>
-                        <select
-                            value={formData.portfolio_id}
-                            onChange={(e) => setFormData({ ...formData, portfolio_id: e.target.value })}
-                            className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                            required
-                            disabled={editMode}
-                        >
-                            <option value="">Seleccionar cartera</option>
-                            {portfolios.map((p) => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Activo *</label>
-                        <select
-                            value={formData.asset_id}
-                            onChange={(e) => setFormData({ ...formData, asset_id: e.target.value })}
-                            className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                            required
-                            disabled={editMode}
-                        >
-                            <option value="">Seleccionar activo</option>
-                            {assets.map((a) => (
-                                <option key={a.id} value={a.id}>{a.symbol} - {a.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Tipo *</label>
-                        <select
-                            value={formData.transaction_type}
-                            onChange={(e) => setFormData({ ...formData, transaction_type: e.target.value })}
-                            className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                            required
-                        >
-                            <optgroup label="Transacciones">
-                                <option value="BUY">Compra</option>
-                                <option value="SELL">Venta</option>
-                            </optgroup>
-                            <optgroup label="Operaciones Corporativas (Informativas)">
-                                <option value="DIVIDEND">Dividendo</option>
-                                <option value="SPLIT">Split</option>
-                                <option value="CORPORATE">Otra Operación Corporativa</option>
-                            </optgroup>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Fecha *</label>
-                        <input
-                            type="date"
-                            value={formData.transaction_date}
-                            onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
-                            className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Cantidad *</label>
-                        <input
-                            type="number"
-                            step="0.0001"
-                            value={formData.quantity}
-                            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                            className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                            required
-                            min="0"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Precio *</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            value={formData.price}
-                            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                            className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                            required
-                            min="0"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Comisiones</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            value={formData.fees}
-                            onChange={(e) => setFormData({ ...formData, fees: e.target.value })}
-                            className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                            min="0"
-                        />
-                    </div>
-
-                    <div className="col-span-2">
-                        <label className="block text-sm font-medium mb-1">Notas</label>
-                        <textarea
-                            value={formData.notes}
-                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                            className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                            rows={3}
-                            maxLength={500}
-                        />
-                    </div>
-
-                    <div className="col-span-2 flex justify-end space-x-2 mt-4">
+            <div className="h-full overflow-hidden p-3 bg-dark-bg">
+                <div className="space-y-3 max-w-full mx-auto flex flex-col h-full">
+                    {/* Header Row: Title & Action & Selector inline */}
+                    <div className="flex flex-row justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border flex-none">
+                        <div className="flex items-center gap-4">
+                            <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                                💸 Transacciones
+                            </h1>
+                            <div className="w-48">
+                                <select
+                                    value={selectedPortfolio}
+                                    onChange={(e) => setSelectedPortfolio(e.target.value)}
+                                    className="w-full bg-dark-bg border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
+                                >
+                                    <option value="">Todas las carteras</option>
+                                    {portfolios.map((p) => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
                         <button
-                            type="button"
-                            onClick={() => {
-                                setShowForm(false);
-                                setEditMode(false);
-                                setSelectedTransaction(null);
-                                resetForm();
-                            }}
-                            className="bg-dark-border hover:bg-dark-border/80 text-white px-4 py-2 rounded-lg"
+                            onClick={handleNewTransaction}
+                            className="bg-primary hover:bg-primary-dark text-white px-4 py-1 rounded text-xs transition-colors font-medium"
                         >
-                            Cancelar
-                        </button>
-                        <button type="submit" className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg">
-                            {editMode ? 'Actualizar' : 'Crear'}
+                            + Nueva Transacción
                         </button>
                     </div>
-                </form>
-            </Modal>
+
+                    {/* Summary Cards Row */}
+                    <div className="grid grid-cols-3 gap-3 flex-none">
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                            <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Operaciones</h3>
+                            <div className="text-lg font-bold text-white leading-tight">
+                                {stats.total}
+                            </div>
+                        </div>
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                            <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Compras</h3>
+                            <div className="text-lg font-bold text-green-500 leading-tight">
+                                {stats.buys}
+                            </div>
+                        </div>
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                            <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Ventas</h3>
+                            <div className="text-lg font-bold text-red-500 leading-tight">
+                                {stats.sells}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Table Container */}
+                    <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
+                        <AgGridReact
+                            ref={gridRef}
+                            rowData={filteredTransactions}
+                            columnDefs={columnDefs}
+                            defaultColDef={{
+                                sortable: true,
+                                resizable: true,
+                                filter: true,
+                            }}
+                            pagination={true}
+                            paginationPageSize={20}
+                            animateRows={true}
+                            suppressCellFocus={true}
+                            domLayout='normal'
+                            containerStyle={{ height: '100%', width: '100%' }}
+                        />
+                    </div>
+                </div>
+
+                <Modal
+                    isOpen={showForm}
+                    onClose={() => {
+                        setShowForm(false);
+                        setEditMode(false);
+                        setSelectedTransaction(null);
+                        resetForm();
+                    }}
+                    title={editMode ? 'Editar Transacción' : 'Nueva Transacción'}
+                >
+                    <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Cartera *</label>
+                            <select
+                                value={formData.portfolio_id}
+                                onChange={(e) => setFormData({ ...formData, portfolio_id: e.target.value })}
+                                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
+                                required
+                                disabled={editMode}
+                            >
+                                <option value="">Seleccionar cartera</option>
+                                {portfolios.map((p) => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Activo *</label>
+                            <select
+                                value={formData.asset_id}
+                                onChange={(e) => setFormData({ ...formData, asset_id: e.target.value })}
+                                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
+                                required
+                                disabled={editMode}
+                            >
+                                <option value="">Seleccionar activo</option>
+                                {assets.map((a) => (
+                                    <option key={a.id} value={a.id}>{a.symbol} - {a.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Tipo *</label>
+                            <select
+                                value={formData.transaction_type}
+                                onChange={(e) => setFormData({ ...formData, transaction_type: e.target.value })}
+                                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
+                                required
+                            >
+                                <optgroup label="Transacciones">
+                                    <option value="BUY">Compra</option>
+                                    <option value="SELL">Venta</option>
+                                </optgroup>
+                                <optgroup label="Operaciones Corporativas (Informativas)">
+                                    <option value="DIVIDEND">Dividendo</option>
+                                    <option value="SPLIT">Split</option>
+                                    <option value="CORPORATE">Otra Operación Corporativa</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Fecha *</label>
+                            <input
+                                type="date"
+                                value={formData.transaction_date}
+                                onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
+                                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Cantidad *</label>
+                            <input
+                                type="number"
+                                step="0.0001"
+                                value={formData.quantity}
+                                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
+                                required
+                                min="0"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Precio *</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={formData.price}
+                                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
+                                required
+                                min="0"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Comisiones</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={formData.fees}
+                                onChange={(e) => setFormData({ ...formData, fees: e.target.value })}
+                                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
+                                min="0"
+                            />
+                        </div>
+
+                        <div className="col-span-2">
+                            <label className="block text-sm font-medium mb-1">Notas</label>
+                            <textarea
+                                value={formData.notes}
+                                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
+                                rows={3}
+                                maxLength={500}
+                            />
+                        </div>
+
+                        <div className="col-span-2 flex justify-end space-x-2 mt-4">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowForm(false);
+                                    setEditMode(false);
+                                    setSelectedTransaction(null);
+                                    resetForm();
+                                }}
+                                className="bg-dark-border hover:bg-dark-border/80 text-white px-4 py-2 rounded-lg"
+                            >
+                                Cancelar
+                            </button>
+                            <button type="submit" className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg">
+                                {editMode ? 'Actualizar' : 'Crear'}
+                            </button>
+                        </div>
+                    </form>
+                </Modal>
+            </div>
         </Layout>
     );
 }

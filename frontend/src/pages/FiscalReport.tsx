@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { getFiscalReport, FiscalReport as FiscalReportType, FiscalYearSummary } from '../services/fiscalService';
+import { getFiscalReport, FiscalReport as FiscalReportType } from '../services/fiscalService';
 
 import Layout from '../components/Layout';
 
@@ -79,148 +79,140 @@ const FiscalReport: React.FC = () => {
         return new Date(dateStr).toLocaleDateString('es-ES');
     };
 
+    // Obtener el resumen del año seleccionado para mostrarlo de forma fija
+    const currentYearSummary = report?.years.find(y => y.year === selectedYear) || (report?.years.length ? report.years[0] : null);
+
     return (
         <Layout>
-            <div className="h-full flex flex-col p-6 overflow-hidden">
-                <h1 className="text-2xl font-bold mb-6 text-gray-200">Informe Fiscal (FIFO)</h1>
-
-                <div className="bg-dark-surface p-4 rounded-lg border border-dark-border mb-6 flex flex-wrap gap-4 items-end flex-none">
-                    <div>
-                        <label className="block text-sm font-medium text-dark-text">Cartera</label>
-                        <select
-                            value={selectedPortfolioId}
-                            onChange={(e) => setSelectedPortfolioId(e.target.value)}
-                            className="mt-1 block w-64 rounded-md bg-dark-bg border-dark-border shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border text-dark-text"
-                        >
-                            {portfolios.map(p => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                        </select>
+            <div className="h-full overflow-hidden p-3 bg-dark-bg">
+                <div className="space-y-3 max-w-full mx-auto flex flex-col h-full">
+                    {/* Header Row: Title & Actions inline - ALWAYS FIXED */}
+                    <div className="flex flex-row flex-wrap justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border gap-3 flex-none">
+                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                            ⚖️ Informe Fiscal (FIFO)
+                        </h1>
+                        <div className="flex items-center gap-2">
+                            <div className="w-48">
+                                <select
+                                    value={selectedPortfolioId}
+                                    onChange={(e) => setSelectedPortfolioId(e.target.value)}
+                                    className="w-full bg-dark-bg border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
+                                >
+                                    <option value="">Seleccionar cartera</option>
+                                    {portfolios.map((p) => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="w-24">
+                                <input
+                                    type="number"
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                                    className="w-full bg-dark-bg border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
+                                />
+                            </div>
+                            <button
+                                onClick={generateReport}
+                                disabled={loading || !selectedPortfolioId}
+                                className={`px-4 py-1 rounded text-xs transition-colors font-medium border ${loading || !selectedPortfolioId
+                                    ? 'bg-dark-bg border-dark-border text-dark-muted cursor-not-allowed'
+                                    : 'bg-primary border-primary hover:bg-primary-dark text-white'
+                                    }`}
+                            >
+                                {loading ? 'Calculando...' : 'Generar Informe'}
+                            </button>
+                        </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-dark-text">Año Fiscal</label>
-                        <input
-                            type="number"
-                            value={selectedYear}
-                            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                            className="mt-1 block w-32 rounded-md bg-dark-bg border-dark-border shadow-sm focus:border-primary focus:ring-primary sm:text-sm p-2 border text-dark-text"
-                        />
-                    </div>
+                    {error && (
+                        <div className="bg-red-900/20 border border-red-500/50 text-red-200 px-3 py-2 rounded-lg text-xs flex-none">
+                            {error}
+                        </div>
+                    )}
 
-                    <button
-                        onClick={generateReport}
-                        disabled={loading || !selectedPortfolioId}
-                        className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark disabled:opacity-50"
-                    >
-                        {loading ? 'Calculando...' : 'Generar Informe'}
-                    </button>
-                </div>
-
-                {error && (
-                    <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-4 flex-none">
-                        {error}
-                    </div>
-                )}
-
-                <div className="flex-1 overflow-y-auto min-h-0">
-                    {report && report.years.map((yearSummary: FiscalYearSummary) => (
-                        <div key={yearSummary.year} className="mb-8">
-                            <h2 className="text-xl font-bold mb-4 border-b border-dark-border pb-2">Ejercicio {yearSummary.year}</h2>
-
-                            {/* Summary Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                <div className="bg-green-900/20 p-4 rounded-lg shadow-sm border border-green-800">
-                                    <h3 className="text-sm font-medium text-green-400">Ganancias Patrimoniales</h3>
-                                    <p className="text-2xl font-bold text-green-500">{formatCurrency(yearSummary.total_gains)}</p>
+                    {currentYearSummary ? (
+                        <>
+                            {/* Summary Cards Row - FIXED */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-none">
+                                <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                                    <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Ganancias ({currentYearSummary.year})</h3>
+                                    <div className="text-lg font-bold text-green-500 leading-tight">
+                                        {formatCurrency(currentYearSummary.total_gains)}
+                                    </div>
                                 </div>
-                                <div className="bg-red-900/20 p-4 rounded-lg shadow-sm border border-red-800">
-                                    <h3 className="text-sm font-medium text-red-400">Pérdidas Patrimoniales</h3>
-                                    <p className="text-2xl font-bold text-red-500">{formatCurrency(yearSummary.total_losses)}</p>
+                                <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                                    <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Pérdidas ({currentYearSummary.year})</h3>
+                                    <div className="text-lg font-bold text-red-500 leading-tight">
+                                        {formatCurrency(currentYearSummary.total_losses)}
+                                    </div>
                                 </div>
-                                <div className={`p-4 rounded-lg shadow-sm border ${yearSummary.net_result >= 0 ? 'bg-blue-900/20 border-blue-800' : 'bg-orange-900/20 border-orange-800'}`}>
-                                    <h3 className={`text-sm font-medium ${yearSummary.net_result >= 0 ? 'text-blue-400' : 'text-orange-400'}`}>Resultado Neto</h3>
-                                    <p className={`text-2xl font-bold ${yearSummary.net_result >= 0 ? 'text-blue-500' : 'text-orange-500'}`}>
-                                        {formatCurrency(yearSummary.net_result)}
-                                    </p>
+                                <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                                    <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Resultado Neto</h3>
+                                    <div className={`text-lg font-bold leading-tight ${currentYearSummary.net_result >= 0 ? 'text-green-500' : 'text-orange-500'}`}>
+                                        {formatCurrency(currentYearSummary.net_result)}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Detailed Table */}
-                            <div className="bg-dark-surface shadow overflow-hidden rounded-lg border border-dark-border">
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-dark-border">
-                                        <thead className="bg-dark-bg">
+                            {/* Detailed Table Container - FLEX-1 with INTERNAL SCROLL */}
+                            <div className="bg-dark-surface border border-dark-border rounded-lg flex-1 min-h-0 flex flex-col overflow-hidden">
+                                <div className="flex-1 overflow-auto custom-scrollbar">
+                                    <table className="min-w-full divide-y divide-dark-border text-[11px] border-collapse">
+                                        <thead className="sticky top-0 z-10 bg-dark-bg shadow-sm">
                                             <tr>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-dark-muted uppercase tracking-wider">Activo</th>
-                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-dark-muted uppercase tracking-wider">Fecha Venta</th>
-                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-dark-muted uppercase tracking-wider">Cantidad</th>
-                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-dark-muted uppercase tracking-wider">Precio Venta</th>
-                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-dark-muted uppercase tracking-wider">Valor Venta</th>
-                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-dark-muted uppercase tracking-wider">Fecha Adq.</th>
-                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-dark-muted uppercase tracking-wider">Precio Adq.</th>
-                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-dark-muted uppercase tracking-wider">Coste Adq.</th>
-                                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-dark-muted uppercase tracking-wider">Resultado</th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-dark-muted uppercase tracking-wider">Notas</th>
+                                                <th className="px-3 py-2 text-left font-semibold text-dark-muted uppercase border-b border-dark-border">Activo</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">F. Venta</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">Ctd</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">P. Venta</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">F. Adq.</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">P. Adq.</th>
+                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">Resultado</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="bg-dark-surface divide-y divide-dark-border text-dark-text">
-                                            {yearSummary.items.map((item, idx) => (
-                                                <tr key={idx} className={item.is_wash_sale ? 'bg-yellow-900/20' : ''}>
-                                                    <td className="px-6 py-4 whitespace-nowrap font-medium">
-                                                        {item.asset_symbol}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-muted text-right">
-                                                        {formatDate(item.sale_date)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-muted text-right">
-                                                        {formatQuantity(item.quantity_sold)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-muted text-right">
-                                                        {formatCurrency(item.sale_price)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-muted text-right">
-                                                        {formatCurrency(item.sale_value)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-muted text-right">
-                                                        {formatDate(item.acquisition_date)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-muted text-right">
-                                                        {formatCurrency(item.acquisition_price)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-dark-muted text-right">
-                                                        {formatCurrency(item.acquisition_value)}
-                                                    </td>
-                                                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${item.gross_result >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                        <tbody className="divide-y divide-dark-border">
+                                            {currentYearSummary.items.map((item, idx) => (
+                                                <tr key={idx} className={`hover:bg-white/5 transition-colors ${item.is_wash_sale ? 'bg-yellow-900/10' : ''}`}>
+                                                    <td className="px-3 py-1.5 font-medium text-white">{item.asset_symbol}</td>
+                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatDate(item.sale_date)}</td>
+                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatQuantity(item.quantity_sold)}</td>
+                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatCurrency(item.sale_price)}</td>
+                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatDate(item.acquisition_date)}</td>
+                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatCurrency(item.acquisition_price)}</td>
+                                                    <td className={`px-3 py-1.5 text-right font-bold ${item.gross_result >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                                         {formatCurrency(item.gross_result)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-dark-muted">
                                                         {item.is_wash_sale && (
-                                                            <span className="text-yellow-500 bg-yellow-900/20 px-2 py-0.5 rounded border border-yellow-800">
-                                                                Wash Sale ({formatCurrency(item.wash_sale_disallowed_loss)})
+                                                            <span className="block text-[9px] text-yellow-500 font-normal">
+                                                                Wash Sale disallowed
                                                             </span>
                                                         )}
-                                                        {item.notes && <div className="mt-1">{item.notes}</div>}
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {yearSummary.items.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={10} className="px-6 py-4 text-center text-dark-muted">
-                                                        No hay operaciones cerradas en este ejercicio.
-                                                    </td>
-                                                </tr>
-                                            )}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
+                        </>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center bg-dark-surface border border-dark-border rounded-lg min-h-0">
+                            {loading ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                                    <p className="text-xs text-dark-muted tracking-wide">Calculando resultados fiscales método FIFO...</p>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-3xl mb-4 opacity-30">⚖️</div>
+                                    <p className="text-xs text-dark-muted">Selecciona una cartera y genera el informe fiscal.</p>
+                                </>
+                            )}
                         </div>
-                    ))}
+                    )}
                 </div>
             </div>
         </Layout>
     );
-};
+}
 
 export default FiscalReport;

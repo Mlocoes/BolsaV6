@@ -30,6 +30,12 @@ export default function Users() {
         is_admin: false
     });
 
+    const stats = {
+        total: users.length,
+        admins: users.filter(u => u.is_admin).length,
+        regulars: users.filter(u => !u.is_admin).length
+    };
+
     const columnDefs: ColDef[] = [
         { field: 'username', headerName: 'Usuario', width: 150 },
         { field: 'email', headerName: 'Email', flex: 1 },
@@ -52,13 +58,13 @@ export default function Users() {
                 <div className="flex space-x-2 h-full items-center">
                     <button
                         onClick={() => handleEdit(params.data)}
-                        className="bg-primary hover:bg-primary/80 text-white px-3 py-1 rounded text-sm"
+                        className="bg-primary/20 hover:bg-primary/40 text-primary-light px-3 py-1 rounded text-[11px] font-medium transition-colors"
                     >
                         Editar
                     </button>
                     <button
                         onClick={() => handleDelete(params.data.id)}
-                        className="bg-danger hover:bg-danger/80 text-white px-3 py-1 rounded text-sm"
+                        className="bg-red-500/10 hover:bg-red-500/30 text-red-400 px-3 py-1 rounded text-[11px] font-medium transition-colors"
                     >
                         Eliminar
                     </button>
@@ -140,102 +146,132 @@ export default function Users() {
 
     return (
         <Layout>
-            <div className="p-6 h-full flex flex-col">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
-                    <button
-                        onClick={() => setShowForm(true)}
-                        className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg"
-                    >
-                        + Nuevo Usuario
-                    </button>
-                </div>
-
-                {showForm && (
-                    <div className="bg-dark-card p-4 rounded-lg border border-dark-border mb-4">
-                        <h2 className="text-xl font-bold mb-4">{editMode ? 'Editar Usuario' : 'Nuevo Usuario'}</h2>
-                        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Usuario *</label>
-                                <input
-                                    type="text"
-                                    value={formData.username}
-                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                    className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                                    required
-                                    disabled={editMode}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Email *</label>
-                                <input
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                                    required
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <label className="block text-sm font-medium mb-1">
-                                    Contraseña {editMode ? '(dejar vacío para mantener la actual)' : '*'}
-                                </label>
-                                <input
-                                    type="password"
-                                    value={formData.password}
-                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                    className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg"
-                                    required={!editMode}
-                                    minLength={8}
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <label className="flex items-center space-x-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.is_admin}
-                                        onChange={(e) => setFormData({ ...formData, is_admin: e.target.checked })}
-                                        className="w-4 h-4"
-                                    />
-                                    <span className="text-sm font-medium">Administrador</span>
-                                </label>
-                            </div>
-                            <div className="col-span-2 flex space-x-2">
-                                <button type="submit" className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg">
-                                    {editMode ? 'Actualizar' : 'Crear'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowForm(false);
-                                        setEditMode(false);
-                                        setSelectedUser(null);
-                                        setFormData({ username: '', email: '', password: '', is_admin: false });
-                                    }}
-                                    className="bg-dark-border hover:bg-dark-border/80 text-white px-4 py-2 rounded-lg"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </form>
+            <div className="h-full overflow-hidden p-3 bg-dark-bg">
+                <div className="space-y-3 max-w-full mx-auto flex flex-col h-full">
+                    {/* Header Row: Title & Action inline */}
+                    <div className="flex flex-row justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border flex-none">
+                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                            👥 Gestión de Usuarios
+                        </h1>
+                        <button
+                            onClick={() => setShowForm(true)}
+                            className="bg-primary hover:bg-primary-dark text-white px-4 py-1 rounded text-xs transition-colors font-medium border border-primary"
+                        >
+                            + Nuevo Usuario
+                        </button>
                     </div>
-                )}
 
-                <div className="ag-theme-quartz-dark rounded-lg border border-dark-border" style={{ width: '100%', flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                    <AgGridReact
-                        ref={gridRef}
-                        rowData={users}
-                        columnDefs={columnDefs}
-                        defaultColDef={{
-                            sortable: true,
-                            resizable: true,
-                            filter: true,
-                        }}
-                        animateRows={true}
-                        suppressCellFocus={true}
-                        domLayout='normal'
-                        containerStyle={{ height: '100%', width: '100%' }}
-                    />
+                    {showForm && (
+                        <div className="bg-dark-surface p-4 rounded-lg border border-dark-border mb-0 flex-none animate-in fade-in slide-in-from-top-4">
+                            <h2 className="text-sm font-bold mb-4 text-white uppercase tracking-wider">{editMode ? 'Editar Usuario' : 'Nuevo Usuario'}</h2>
+                            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                                <div>
+                                    <label className="block text-[10px] uppercase font-bold text-dark-muted mb-1">Usuario *</label>
+                                    <input
+                                        type="text"
+                                        value={formData.username}
+                                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                        className="w-full px-2 py-1 bg-dark-bg border border-dark-border rounded text-xs text-white focus:outline-none focus:border-primary"
+                                        required
+                                        disabled={editMode}
+                                        placeholder="Username"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] uppercase font-bold text-dark-muted mb-1">Email *</label>
+                                    <input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        className="w-full px-2 py-1 bg-dark-bg border border-dark-border rounded text-xs text-white focus:outline-none focus:border-primary"
+                                        required
+                                        placeholder="email@example.com"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] uppercase font-bold text-dark-muted mb-1">
+                                        Contraseña {editMode ? '(vacía = igual)' : '*'}
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                        className="w-full px-2 py-1 bg-dark-bg border border-dark-border rounded text-xs text-white focus:outline-none focus:border-primary"
+                                        required={!editMode}
+                                        minLength={8}
+                                        placeholder="********"
+                                    />
+                                </div>
+                                <div className="flex items-center space-x-3 h-[28px]">
+                                    <label className="flex items-center space-x-2 cursor-pointer group">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.is_admin}
+                                            onChange={(e) => setFormData({ ...formData, is_admin: e.target.checked })}
+                                            className="w-3.5 h-3.5 rounded border-dark-border bg-dark-bg text-primary focus:ring-primary focus:ring-offset-dark-surface"
+                                        />
+                                        <span className="text-xs text-dark-text group-hover:text-white transition-colors">Admin</span>
+                                    </label>
+                                    <div className="flex-1"></div>
+                                    <button type="submit" className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded text-xs font-medium transition-colors">
+                                        {editMode ? 'Actualizar' : 'Crear'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowForm(false);
+                                            setEditMode(false);
+                                            setSelectedUser(null);
+                                            setFormData({ username: '', email: '', password: '', is_admin: false });
+                                        }}
+                                        className="bg-dark-bg border border-dark-border hover:bg-dark-border/50 text-dark-muted hover:text-white px-3 py-1 rounded text-xs transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Summary Cards Row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-none">
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                            <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Total Usuarios</h3>
+                            <div className="text-lg font-bold text-white leading-tight">
+                                {stats.total}
+                            </div>
+                        </div>
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                            <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Administradores</h3>
+                            <div className="text-lg font-bold text-primary-light leading-tight">
+                                {stats.admins}
+                            </div>
+                        </div>
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                            <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Regulares</h3>
+                            <div className="text-lg font-bold text-dark-text leading-tight">
+                                {stats.regulars}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Table Container */}
+                    <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
+                        <AgGridReact
+                            ref={gridRef}
+                            rowData={users}
+                            columnDefs={columnDefs}
+                            defaultColDef={{
+                                sortable: true,
+                                resizable: true,
+                                filter: true,
+                            }}
+                            animateRows={true}
+                            suppressCellFocus={true}
+                            domLayout='normal'
+                            containerStyle={{ height: '100%', width: '100%' }}
+                        />
+                    </div>
                 </div>
             </div>
         </Layout>
