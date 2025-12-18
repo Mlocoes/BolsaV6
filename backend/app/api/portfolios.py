@@ -136,6 +136,7 @@ async def delete_portfolio(
 @router.get("/{portfolio_id}/positions")
 async def get_portfolio_positions(
     portfolio_id: str,
+    online: bool = False,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -180,8 +181,6 @@ async def get_portfolio_positions(
         
         if transaction.transaction_type == TransactionType.BUY:
             # Compra: sumar cantidad y calcular precio promedio
-            old_quantity = positions[asset_id]["quantity"]
-            old_invested = positions[asset_id]["total_invested"]
             new_invested = (transaction.quantity * transaction.price) + transaction.fees
             
             positions[asset_id]["quantity"] += transaction.quantity
@@ -202,19 +201,33 @@ async def get_portfolio_positions(
                 else:
                     positions[asset_id]["average_price"] = Decimal("0")
     
-    # Filtrar solo posiciones con cantidad > 0 y obtener precios actuales
+    # Filtrar solo posiciones con cantidad > 0
+    active_symbols = [pos["symbol"] for pos in positions.values() if pos["quantity"] > 0]
+    
+    # Obtener precios online si se solicita
+    online_prices = {}
+    if online and active_symbols:
+        from app.services.yfinance_service import yfinance_service
+        online_prices = await yfinance_service.get_multiple_current_quotes(active_symbols)
+    
+    # Procesar posiciones finales
     active_positions = []
     for pos in positions.values():
         if pos["quantity"] > 0:
-            # Obtener la última cotización del activo
-            quote_result = await db.execute(
-                select(Quote).where(
-                    Quote.asset_id == pos["asset_id"]
-                ).order_by(desc(Quote.date)).limit(1)
-            )
-            latest_quote = quote_result.scalar_one_or_none()
+            if online and pos["symbol"] in online_prices and online_prices[pos["symbol"]]:
+                current_price = online_prices[pos["symbol"]]["close"]
+                source = "online"
+            else:
+                # Fallback a la última cotización del histórico
+                quote_result = await db.execute(
+                    select(Quote).where(
+                        Quote.asset_id == pos["asset_id"]
+                    ).order_by(desc(Quote.date)).limit(1)
+                )
+                latest_quote = quote_result.scalar_one_or_none()
+                current_price = float(latest_quote.close) if latest_quote else 0.0
+                source = "historic"
             
-            current_price = float(latest_quote.close) if latest_quote else 0.0
             quantity = float(pos["quantity"])
             avg_price = float(pos["average_price"])
             cost_basis = float(pos["total_invested"])
@@ -232,7 +245,8 @@ async def get_portfolio_positions(
                 "cost_basis": cost_basis,
                 "current_value": current_value,
                 "profit_loss": profit_loss,
-                "profit_loss_percent": profit_loss_percent
+                "profit_loss_percent": profit_loss_percent,
+                "source": source
             })
     
     return active_positions

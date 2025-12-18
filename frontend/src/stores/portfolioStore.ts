@@ -8,7 +8,7 @@ interface PortfolioState {
   positions: any[];
   loadPortfolios: () => Promise<void>;
   selectPortfolio: (portfolioId: string) => void;
-  loadPositions: (portfolioId: string) => Promise<void>;
+  loadPositions: (portfolioId: string, online?: boolean) => Promise<void>;
 }
 
 export const usePortfolioStore = create<PortfolioState>((set, get) => ({
@@ -31,13 +31,15 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
       get().loadPositions(portfolio.id);
     }
   },
-  loadPositions: async (portfolioId: string) => {
+  loadPositions: async (portfolioId: string, online: boolean = false) => {
     try {
-        const response = await api.get(`/portfolios/${portfolioId}/positions`);
-        set({ positions: response.data });
+      const response = await api.get(`/portfolios/${portfolioId}/positions?online=${online}`);
+      set({ positions: response.data });
     } catch (error) {
-        console.error('Error loading positions:', error);
-        toast.error('Error al cargar las posiciones de la cartera. Por favor, inténtelo de nuevo.');
+      console.error('Error loading positions:', error);
+      if (!online) { // No molestar con errores en el refresco automático de fondo
+        toast.error('Error al cargar las posiciones de la cartera.');
+      }
     }
   }
 }));

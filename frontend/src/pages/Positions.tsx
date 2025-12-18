@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef } from 'ag-grid-community';
 import Layout from '../components/Layout';
@@ -10,7 +10,8 @@ import { formatCurrency, formatQuantity, formatPercent } from '../utils/formatte
  */
 export default function Positions() {
     const gridRef = useRef<AgGridReact>(null);
-    const { portfolios, selectedPortfolio, positions, loadPortfolios, selectPortfolio } = usePortfolioStore();
+    const [lastSync, setLastSync] = useState<Date | null>(null);
+    const { portfolios, selectedPortfolio, positions, loadPortfolios, selectPortfolio, loadPositions } = usePortfolioStore();
 
     /**
      * Calcula estadísticas resumen de las posiciones filtradas
@@ -44,6 +45,7 @@ export default function Positions() {
             field: 'current_price',
             headerName: 'Precio Actual',
             width: 120,
+            cellClass: (params) => params.data.source === 'online' ? 'text-green-400 font-medium' : '',
             valueFormatter: (params) => formatCurrency(params.value)
         },
         {
@@ -83,15 +85,46 @@ export default function Positions() {
         loadPortfolios();
     }, [loadPortfolios]);
 
+    // Refresco automático de precios online
+    useEffect(() => {
+        if (!selectedPortfolio) return;
+
+        // Función para cargar precios online
+        const refreshOnline = async () => {
+            console.log("⏱️ Refrescando precios online...");
+            await loadPositions(selectedPortfolio.id, true);
+            setLastSync(new Date());
+        };
+
+        // Ejecución inmediata la primera vez
+        refreshOnline();
+
+        // El timer dispara el refresco cada 60 segundos
+        const timer = setInterval(refreshOnline, 60000);
+
+        return () => clearInterval(timer);
+    }, [selectedPortfolio, loadPositions]);
+
     return (
         <Layout>
             <div className="h-full overflow-hidden p-3 bg-dark-bg">
                 <div className="space-y-3 max-w-full mx-auto flex flex-col h-full">
                     {/* Header Row: Title & Selector inline */}
                     <div className="flex flex-row justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border flex-none">
-                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
-                            📈 Posiciones
-                        </h1>
+                        <div className="flex items-center gap-4">
+                            <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                                📈 Posiciones
+                            </h1>
+                            {lastSync && (
+                                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/10 border border-green-500/20 rounded-full">
+                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                                    <span className="text-[10px] text-green-500 font-medium uppercase tracking-tight">Tiempo Real</span>
+                                    <span className="text-[10px] text-green-500/60 ml-1">
+                                        {lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
                         <div className="w-48">
                             <select
                                 value={selectedPortfolio ? selectedPortfolio.id : ''}
