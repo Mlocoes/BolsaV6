@@ -50,7 +50,7 @@ export default function Quotes() {
             headerName: 'Fecha',
             flex: 1,
             minWidth: 100,
-            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString() : '-'
+            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : '-'
         },
         {
             field: 'open',
@@ -100,6 +100,9 @@ export default function Quotes() {
         return () => clearTimeout(timer);
     }, [selectedAsset, startDate, endDate]);
 
+    /**
+     * Carga el catálogo de activos
+     */
     const loadAssets = async () => {
         try {
             const response = await api.get('/assets/');
@@ -113,6 +116,9 @@ export default function Quotes() {
         }
     };
 
+    /**
+     * Carga las cotizaciones filtradas por activo y fechas
+     */
     const loadQuotes = async () => {
         const currentReq = ++requestCount.current;
         setLoading(true);
@@ -148,6 +154,9 @@ export default function Quotes() {
         }
     };
 
+    /**
+     * Inicia la sincronización masiva de cotizaciones de todos los activos
+     */
     const handleSyncAll = async () => {
         setSyncing(true);
         try {
@@ -234,8 +243,11 @@ export default function Quotes() {
                             paginationPageSize={50}
                             animateRows={true}
                             suppressCellFocus={true}
-                            rowHeight={32}
-                            headerHeight={36}
+                            onGridReady={(params) => {
+                                params.api.sizeColumnsToFit();
+                            }}
+                            rowHeight={28}
+                            headerHeight={32}
                         />
                     </div>
                 </div>

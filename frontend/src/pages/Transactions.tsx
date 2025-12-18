@@ -60,7 +60,7 @@ export default function Transactions() {
             field: 'transaction_date',
             headerName: 'Fecha',
             width: 120,
-            valueFormatter: (params) => new Date(params.value).toLocaleDateString()
+            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
         },
         {
             field: 'transaction_type',
@@ -160,6 +160,9 @@ export default function Transactions() {
         }
     }, [selectedPortfolio]);
 
+    /**
+     * Carga las carteras disponibles
+     */
     const loadPortfolios = async () => {
         try {
             const response = await api.get('/portfolios');
@@ -174,6 +177,9 @@ export default function Transactions() {
         }
     };
 
+    /**
+     * Carga el catálogo de activos
+     */
     const loadAssets = async () => {
         try {
             const response = await api.get('/assets');
@@ -184,6 +190,9 @@ export default function Transactions() {
         }
     };
 
+    /**
+     * Carga las transacciones de la cartera seleccionada
+     */
     const loadTransactions = async () => {
         try {
             const response = await api.get(`/transactions/portfolio/${selectedPortfolio}`);
@@ -194,6 +203,9 @@ export default function Transactions() {
         }
     };
 
+    /**
+     * Procesa el guardado (creación/edición) de una transacción
+     */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -226,6 +238,9 @@ export default function Transactions() {
         }
     };
 
+    /**
+     * Prepara el formulario para editar una transacción existente
+     */
     const handleEdit = (transaction: Transaction) => {
         setSelectedTransaction(transaction);
         setEditMode(true);
@@ -242,6 +257,9 @@ export default function Transactions() {
         setShowForm(true);
     };
 
+    /**
+     * Elimina una transacción tras confirmación
+     */
     const handleDelete = async (id: string) => {
         if (!confirm('¿Estás seguro de eliminar esta transacción?')) return;
 
@@ -255,6 +273,9 @@ export default function Transactions() {
         }
     };
 
+    /**
+     * Resetea el estado del formulario a sus valores por defecto
+     */
     const resetForm = () => {
         setFormData({
             portfolio_id: selectedPortfolio || (portfolios.length > 0 ? portfolios[0].id : ''),
@@ -268,6 +289,9 @@ export default function Transactions() {
         });
     };
 
+    /**
+     * Abre el modal para crear una nueva transacción
+     */
     const handleNewTransaction = () => {
         resetForm();
         setEditMode(false);
@@ -343,6 +367,9 @@ export default function Transactions() {
                             paginationPageSize={20}
                             animateRows={true}
                             suppressCellFocus={true}
+                            onGridReady={(params) => {
+                                params.api.sizeColumnsToFit();
+                            }}
                             domLayout='normal'
                             containerStyle={{ height: '100%', width: '100%' }}
                         />

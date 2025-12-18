@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { ColDef } from 'ag-grid-community';
 import api from '../services/api';
 import { getFiscalReport, FiscalReport as FiscalReportType } from '../services/fiscalService';
-
+import { formatCurrency, formatQuantity } from '../utils/formatters';
 import Layout from '../components/Layout';
 
 interface Portfolio {
@@ -15,6 +17,7 @@ export const getPortfolios = async (): Promise<Portfolio[]> => {
 };
 
 const FiscalReport: React.FC = () => {
+    const gridRef = useRef<AgGridReact>(null);
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -22,10 +25,73 @@ const FiscalReport: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
 
+    const columnDefs: ColDef[] = [
+        {
+            field: 'asset_symbol',
+            headerName: 'Activo',
+            width: 100,
+            pinned: 'left',
+            cellStyle: { fontWeight: 'bold' }
+        },
+        {
+            field: 'sale_date',
+            headerName: 'F. Venta',
+            width: 100,
+            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
+        },
+        {
+            field: 'quantity_sold',
+            headerName: 'Ctd',
+            width: 90,
+            valueFormatter: (params) => formatQuantity(params.value)
+        },
+        {
+            field: 'sale_price',
+            headerName: 'P. Venta',
+            width: 100,
+            valueFormatter: (params) => formatCurrency(params.value)
+        },
+        {
+            field: 'acquisition_date',
+            headerName: 'F. Adq.',
+            width: 100,
+            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
+        },
+        {
+            field: 'acquisition_price',
+            headerName: 'P. Adq.',
+            width: 100,
+            valueFormatter: (params) => formatCurrency(params.value)
+        },
+        {
+            field: 'gross_result',
+            headerName: 'Resultado',
+            flex: 1,
+            minWidth: 100,
+            cellStyle: (params) => {
+                if (params.value != null && params.value >= 0) {
+                    return { color: '#10b981', fontWeight: 'bold' };
+                }
+                return { color: '#ef4444', fontWeight: 'bold' };
+            },
+            valueFormatter: (params) => formatCurrency(params.value)
+        },
+        {
+            field: 'is_wash_sale',
+            headerName: 'Wash Sale',
+            width: 100,
+            valueFormatter: (params) => params.value ? 'SÍ' : 'No',
+            cellStyle: (params) => params.value ? { color: '#f59e0b' } : undefined
+        }
+    ];
+
     useEffect(() => {
         loadPortfolios();
     }, []);
 
+    /**
+     * Carga la lista de carteras disponibles
+     */
     const loadPortfolios = async () => {
         try {
             const data = await getPortfolios();
@@ -39,6 +105,9 @@ const FiscalReport: React.FC = () => {
         }
     };
 
+    /**
+     * Genera el informe fiscal para la cartera y el año seleccionados
+     */
     const generateReport = async () => {
         if (!selectedPortfolioId) return;
 
@@ -53,30 +122,6 @@ const FiscalReport: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    const formatCurrency = (val: number | undefined) => {
-        if (val === undefined || val === null) return '';
-        // User requested copy-paste friendly format for Excel: 
-        // No currency symbol, simple decimal formatting.
-        // Using 'es-ES' to ensure comma is used as decimal separator (matches bank report '1.999,99')
-        return new Intl.NumberFormat('es-ES', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(val);
-    };
-
-    const formatQuantity = (val: number | undefined) => {
-        if (val === undefined || val === null) return '';
-        // Same es-ES formatting but with variable decimals for quantities
-        return new Intl.NumberFormat('es-ES', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 6
-        }).format(val);
-    };
-
-    const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString('es-ES');
     };
 
     // Obtener el resumen del año seleccionado para mostrarlo de forma fija
@@ -156,42 +201,25 @@ const FiscalReport: React.FC = () => {
                             </div>
 
                             {/* Detailed Table Container - FLEX-1 with INTERNAL SCROLL */}
-                            <div className="bg-dark-surface border border-dark-border rounded-lg flex-1 min-h-0 flex flex-col overflow-hidden">
-                                <div className="flex-1 overflow-auto custom-scrollbar">
-                                    <table className="min-w-full divide-y divide-dark-border text-[11px] border-collapse">
-                                        <thead className="sticky top-0 z-10 bg-dark-bg shadow-sm">
-                                            <tr>
-                                                <th className="px-3 py-2 text-left font-semibold text-dark-muted uppercase border-b border-dark-border">Activo</th>
-                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">F. Venta</th>
-                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">Ctd</th>
-                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">P. Venta</th>
-                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">F. Adq.</th>
-                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">P. Adq.</th>
-                                                <th className="px-3 py-2 text-right font-semibold text-dark-muted uppercase border-b border-dark-border">Resultado</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-dark-border">
-                                            {currentYearSummary.items.map((item, idx) => (
-                                                <tr key={idx} className={`hover:bg-white/5 transition-colors ${item.is_wash_sale ? 'bg-yellow-900/10' : ''}`}>
-                                                    <td className="px-3 py-1.5 font-medium text-white">{item.asset_symbol}</td>
-                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatDate(item.sale_date)}</td>
-                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatQuantity(item.quantity_sold)}</td>
-                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatCurrency(item.sale_price)}</td>
-                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatDate(item.acquisition_date)}</td>
-                                                    <td className="px-3 py-1.5 text-right text-dark-text">{formatCurrency(item.acquisition_price)}</td>
-                                                    <td className={`px-3 py-1.5 text-right font-bold ${item.gross_result >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                                        {formatCurrency(item.gross_result)}
-                                                        {item.is_wash_sale && (
-                                                            <span className="block text-[9px] text-yellow-500 font-normal">
-                                                                Wash Sale disallowed
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                            <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
+                                <AgGridReact
+                                    ref={gridRef}
+                                    rowData={currentYearSummary.items}
+                                    columnDefs={columnDefs}
+                                    defaultColDef={{
+                                        sortable: true,
+                                        resizable: true,
+                                        filter: true,
+                                        suppressMovable: true,
+                                    }}
+                                    pagination={true}
+                                    paginationPageSize={50}
+                                    animateRows={true}
+                                    suppressCellFocus={true}
+                                    onGridReady={(params) => {
+                                        params.api.sizeColumnsToFit();
+                                    }}
+                                />
                             </div>
                         </>
                     ) : (

@@ -5,12 +5,15 @@ import Layout from '../components/Layout';
 import { usePortfolioStore } from '../stores/portfolioStore';
 import { formatCurrency, formatQuantity, formatPercent } from '../utils/formatters';
 
+/**
+ * Página de Posiciones Actuales
+ */
 export default function Positions() {
     const gridRef = useRef<AgGridReact>(null);
     const { portfolios, selectedPortfolio, positions, loadPortfolios, selectPortfolio } = usePortfolioStore();
 
     /**
-     * Calcular estadísticas de las posiciones actuales
+     * Calcula estadísticas resumen de las posiciones filtradas
      */
     const stats = {
         totalValue: positions.reduce((acc, pos) => acc + (pos.current_value || 0), 0),
@@ -143,6 +146,9 @@ export default function Positions() {
                                     }}
                                     animateRows={true}
                                     suppressCellFocus={true}
+                                    onGridReady={(params) => {
+                                        params.api.sizeColumnsToFit();
+                                    }}
                                     domLayout='normal'
                                     containerStyle={{ height: '100%', width: '100%' }}
                                 />

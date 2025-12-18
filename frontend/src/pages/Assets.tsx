@@ -77,6 +77,9 @@ export default function Assets() {
         }
     }, [assets]);
 
+    /**
+     * Carga el catálogo completo de activos
+     */
     const loadAssets = async () => {
         try {
             const response = await api.get('/assets');
@@ -87,6 +90,9 @@ export default function Assets() {
         }
     };
 
+    /**
+     * Procesa el envío del formulario de nuevo activo
+     */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -101,6 +107,9 @@ export default function Assets() {
         }
     };
 
+    /**
+     * Inicia la descarga manual de históricos para un activo
+     */
     const handleFetchQuotes = async (assetId: string, symbol: string) => {
         try {
             console.log('🔄 Iniciando importación de cotizaciones para:', symbol, assetId);
@@ -113,6 +122,9 @@ export default function Assets() {
         }
     };
 
+    /**
+     * Elimina un activo tras confirmación
+     */
     const handleDelete = async (assetId: string) => {
         if (!confirm('¿Estás seguro de eliminar este activo?')) return;
 

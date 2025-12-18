@@ -38,7 +38,7 @@ export default function Portfolios() {
             field: 'created_at',
             headerName: 'Creada',
             width: 150,
-            valueFormatter: (params) => new Date(params.value).toLocaleDateString()
+            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
         },
         {
             headerName: 'Acciones',
@@ -60,6 +60,9 @@ export default function Portfolios() {
         loadPortfolios();
     }, []);
 
+    /**
+     * Carga las carteras desde la API
+     */
     const loadPortfolios = async () => {
         try {
             const response = await api.get('/portfolios');
@@ -70,6 +73,9 @@ export default function Portfolios() {
         }
     };
 
+    /**
+     * Procesa el envío del formulario de nueva cartera
+     */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -84,6 +90,9 @@ export default function Portfolios() {
         }
     };
 
+    /**
+     * Elimina una cartera tras confirmación
+     */
     const handleDelete = async (id: string) => {
         if (!confirm('¿Estás seguro de eliminar esta cartera?')) return;
 
@@ -190,6 +199,9 @@ export default function Portfolios() {
                             }}
                             animateRows={true}
                             suppressCellFocus={true}
+                            onGridReady={(params) => {
+                                params.api.sizeColumnsToFit();
+                            }}
                             domLayout='normal'
                             containerStyle={{ height: '100%', width: '100%' }}
                         />

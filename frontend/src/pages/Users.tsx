@@ -49,7 +49,7 @@ export default function Users() {
             field: 'created_at',
             headerName: 'Creado',
             width: 150,
-            valueFormatter: (params) => new Date(params.value).toLocaleDateString()
+            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
         },
         {
             headerName: 'Acciones',
@@ -105,7 +105,7 @@ export default function Users() {
                 toast.success('Usuario actualizado correctamente');
             } else {
                 // Crear nuevo usuario
-                await api.post('/users', formData);
+                await api.post('/admin/users', formData);
                 toast.success('Usuario creado correctamente');
             }
             setShowForm(false);
@@ -119,23 +119,31 @@ export default function Users() {
         }
     };
 
+    /**
+     * Maneja la acción de editar un usuario, precargando el formulario.
+     * @param user El objeto de usuario a editar.
+     */
     const handleEdit = (user: User) => {
         setSelectedUser(user);
         setEditMode(true);
         setFormData({
             username: user.username,
             email: user.email,
-            password: '',
+            password: '', // Password is not pre-filled for security
             is_admin: user.is_admin
         });
         setShowForm(true);
     };
 
+    /**
+     * Elimina un usuario tras confirmación.
+     * @param userId El ID del usuario a eliminar.
+     */
     const handleDelete = async (userId: string) => {
         if (!confirm('¿Estás seguro de eliminar este usuario?')) return;
 
         try {
-            await api.delete(`/users/${userId}`);
+            await api.delete(`/admin/users/${userId}`);
             toast.success('Usuario eliminado correctamente');
             loadUsers();
         } catch (error) {
@@ -268,6 +276,9 @@ export default function Users() {
                             }}
                             animateRows={true}
                             suppressCellFocus={true}
+                            onGridReady={(params) => {
+                                params.api.sizeColumnsToFit();
+                            }}
                             domLayout='normal'
                             containerStyle={{ height: '100%', width: '100%' }}
                         />
