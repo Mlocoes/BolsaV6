@@ -25,33 +25,50 @@ async def login(
     
     Crea una sesión efímera en Redis y establece cookie HttpOnly
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔐 Intento de login para usuario: {credentials.username}")
+    
     # Buscar usuario
-    result = await db.execute(
-        select(User).where(User.username == credentials.username)
-    )
-    user = result.scalar_one_or_none()
+    try:
+        result = await db.execute(
+            select(User).where(User.username == credentials.username)
+        )
+        user = result.scalar_one_or_none()
+        logger.debug(f"👤 Usuario encontrado: {user is not None}")
+    except Exception as e:
+        logger.error(f"❌ Error buscando usuario: {str(e)}")
+        raise e
     
     if not user or not verify_password(credentials.password, user.hashed_password):
+        logger.warning(f"⚠️ Credenciales inválidas para: {credentials.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales inválidas"
         )
     
     if not user.is_active:
+        logger.warning(f"⚠️ Usuario inactivo: {credentials.username}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuario inactivo"
         )
     
     # Crear sesión en Redis
-    session_id = await session_manager.create_session(
-        user_id=str(user.id),
-        user_data={
-            "username": user.username,
-            "email": user.email,
-            "is_admin": user.is_admin
-        }
-    )
+    logger.info(f"🎫 Creando sesión para {user.username}...")
+    try:
+        session_id = await session_manager.create_session(
+            user_id=str(user.id),
+            user_data={
+                "username": user.username,
+                "email": user.email,
+                "is_admin": user.is_admin
+            }
+        )
+        logger.info(f"✅ Sesión creada: {session_id[:8]}...")
+    except Exception as e:
+        logger.error(f"❌ Error creando sesión: {str(e)}")
+        raise e
     
     # Establecer cookie HttpOnly
     response.set_cookie(
@@ -79,27 +96,27 @@ async def logout(
     
     Elimina la sesión de Redis y la cookie
     """
-    # Obtener session_id de la cookie (ya validada por get_current_user)
-    # Necesitamos acceder directamente a la cookie para obtener el ID
-    from fastapi import Request
+    # El current_user ya contiene el session_id si lo sacamos del get_current_user
+    # O podemos obtenerlo directamente si extendemos el get_current_user
+    # Para este caso, vamos a usar el session_id si está guardado en el current_user 
+    # o simplemente limpiar la cookie.
     
-    @router.post("/logout")
-    async def logout_inner(
-        request: Request,
-        response: Response,
-        current_user: dict = Depends(get_current_user)
-    ):
-        session_id = request.cookies.get("session_id")
-        
-        if session_id:
-            await session_manager.delete_session(session_id)
-        
-        # Eliminar cookie
-        response.delete_cookie(key="session_id")
-        
-        return {"message": "Logout exitoso"}
+    # Nota: Si el usuario está aquí, es porque get_current_user validó la sesión.
+    # Necesitamos el ID exacto para borrarlo de Redis.
     
-    return await logout_inner(response, current_user)
+    session_id = current_user.get("session_id")
+    if session_id:
+        await session_manager.delete_session(session_id)
+    
+    # Eliminar cookie
+    response.delete_cookie(
+        key="session_id",
+        httponly=True,
+        secure=False,
+        samesite="lax"
+    )
+    
+    return {"message": "Logout exitoso"}
 
 
 @router.get("/me", response_model=UserResponse)

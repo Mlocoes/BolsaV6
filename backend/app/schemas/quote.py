@@ -21,3 +21,16 @@ class QuoteResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class AssetSimple(BaseModel):
+    """Schema simplificado para Asset"""
+    symbol: str
+    name: str
+
+    class Config:
+        from_attributes = True
+
+class QuoteResponseWithAsset(QuoteResponse):
+    """Schema para cotización incluyendo info del activo"""
+    asset: AssetSimple

@@ -4,20 +4,48 @@ API de Cotizaciones
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
+from sqlalchemy.orm import joinedload
 from typing import List, Optional
 from datetime import datetime, date
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.asset import Asset
 from app.models.quote import Quote
-from app.schemas.quote import QuoteResponse
+from app.schemas.quote import QuoteResponse, QuoteResponseWithAsset
 from app.services.finnhub_service import finnhub_service
 from app.services.alpha_vantage_service import alpha_vantage_service
 
 router = APIRouter()
 
 
-@router.get("/asset/{asset_id}", response_model=List[QuoteResponse])
+@router.get("/", response_model=List[QuoteResponseWithAsset])
+async def get_all_quotes(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = 500,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Obtener cotizaciones de todos los activos, ordenadas por fecha descendente.
+    Incluye información del activo asociado.
+    """
+    query = select(Quote).options(joinedload(Quote.asset)).order_by(Quote.date.desc())
+    
+    if start_date:
+        query = query.where(Quote.date >= start_date)
+    if end_date:
+        query = query.where(Quote.date <= end_date)
+    
+    query = query.limit(limit)
+    
+    result = await db.execute(query)
+    quotes = result.scalars().all()
+    
+    return [QuoteResponseWithAsset.model_validate(q) for q in quotes]
+
+
+@router.get("/asset/{asset_id}", response_model=List[QuoteResponseWithAsset])
 async def get_asset_quotes(
     asset_id: str,
     start_date: Optional[date] = None,
@@ -34,8 +62,8 @@ async def get_asset_quotes(
             detail="Activo no encontrado"
         )
     
-    # Construir query
-    query = select(Quote).where(Quote.asset_id == asset_id)
+    # Construir query con joinedload para info del activo
+    query = select(Quote).options(joinedload(Quote.asset)).where(Quote.asset_id == asset_id)
     
     if start_date:
         query = query.where(Quote.date >= start_date)
@@ -47,7 +75,7 @@ async def get_asset_quotes(
     result = await db.execute(query)
     quotes = result.scalars().all()
     
-    return [QuoteResponse.model_validate(q) for q in quotes]
+    return [QuoteResponseWithAsset.model_validate(q) for q in quotes]
 
 
 @router.post("/asset/{asset_id}/fetch-history", status_code=status.HTTP_202_ACCEPTED)
@@ -117,6 +145,24 @@ async def fetch_latest_quote(
     return {
         "message": f"Actualización iniciada para {asset.symbol}",
         "asset_id": asset_id
+    }
+
+
+@router.post("/sync-all", status_code=status.HTTP_202_ACCEPTED)
+async def sync_all_quotes_manual(
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Sincronizar cotizaciones de todos los activos manualmente
+    """
+    from app.services.scheduler_service import scheduler_service
+    
+    # Ejecutar como tarea en background
+    background_tasks.add_task(scheduler_service.sync_all_quotes)
+    
+    return {
+        "message": "Sincronización de todos los activos iniciada en segundo plano"
     }
 
 

@@ -7,6 +7,7 @@ from app.core.config import settings
 
 # Importar routers
 from app.api import assets, transactions, portfolios, quotes, import_transactions, auth, users, fiscal, dashboard
+from app.services.scheduler_service import scheduler_service
 
 # Crear aplicación
 app = FastAPI(
@@ -77,6 +78,8 @@ async def startup_event():
     """Evento de inicio"""
     from app.core.session import session_manager
     await session_manager.connect()
+    # Iniciar programador de tareas
+    scheduler_service.start()
 
 
 # Shutdown event
@@ -85,3 +88,5 @@ async def shutdown_event():
     """Evento de cierre"""
     from app.core.session import session_manager
     await session_manager.disconnect()
+    # Detener programador de tareas
+    scheduler_service.shutdown()
