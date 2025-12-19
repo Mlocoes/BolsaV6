@@ -1,12 +1,16 @@
 """
 API de Cotizaciones
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import joinedload
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timezone
+from decimal import Decimal
+import pandas as pd
+import io
+import traceback
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.asset import Asset
@@ -164,6 +168,182 @@ async def sync_all_quotes_manual(
     return {
         "message": "Sincronización de todos los activos iniciada en segundo plano"
     }
+
+
+@router.post("/import/excel/{asset_id}", status_code=status.HTTP_200_OK)
+async def import_quotes_from_excel(
+    asset_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Importar cotizaciones históricas desde archivo Excel/CSV.
+    
+    Formato esperado:
+    Fecha	Último	Apertura	Máximo	Mínimo	Vol.	% var.
+    """
+    # Verificar que el activo existe
+    asset_result = await db.execute(select(Asset).where(Asset.id == asset_id))
+    asset = asset_result.scalar_one_or_none()
+    
+    if not asset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Activo no encontrado"
+        )
+    
+    # Validar extensión del archivo
+    if not file.filename.endswith(('.xlsx', '.xls', '.csv')):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo debe ser un Excel (.xlsx, .xls) o CSV (.csv)"
+        )
+    
+    try:
+        # Leer el contenido del archivo
+        contents = await file.read()
+        
+        if file.filename.endswith('.csv'):
+            # Detectar separador si es CSV (comúnmente ; o , en español)
+            # Intentamos con punto y coma primero que es común en Excel español
+            try:
+                df = pd.read_csv(io.BytesIO(contents), sep=';')
+                if len(df.columns) <= 1:
+                    df = pd.read_csv(io.BytesIO(contents), sep=',')
+            except:
+                df = pd.read_csv(io.BytesIO(contents))
+        else:
+            df = pd.read_excel(io.BytesIO(contents))
+        
+        # Mapeo de columnas (normalización)
+        column_mapping = {
+            'Fecha': 'date',
+            'Último': 'close',
+            'Apertura': 'open',
+            'Máximo': 'high',
+            'Mínimo': 'low',
+            'Vol.': 'volume',
+            '% var.': 'percent_change'
+        }
+        
+        # Verificar columnas mínimas requeridas
+        required = ['Fecha', 'Último']
+        missing = [col for col in required if col not in df.columns]
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Faltan columnas requeridas: {', '.join(missing)}"
+            )
+        
+        # Renombrar columnas existentes
+        df = df.rename(columns={c: column_mapping[c] for c in df.columns if c in column_mapping})
+        
+        quotes_created = 0
+        quotes_skipped = 0
+        errors = []
+        
+        for index, row in df.iterrows():
+            try:
+                # 1. Procesar Fecha
+                raw_date = row['date']
+                if pd.isna(raw_date):
+                    continue
+                
+                if isinstance(raw_date, str):
+                    try:
+                        # Formato común DD/MM/YYYY
+                        quote_date = datetime.strptime(raw_date, '%d/%m/%Y')
+                    except ValueError:
+                        quote_date = pd.to_datetime(raw_date)
+                else:
+                    quote_date = pd.to_datetime(raw_date)
+                
+                # Normalizar a medianoche UTC
+                quote_date = datetime.combine(quote_date.date(), datetime.min.time(), tzinfo=timezone.utc)
+                
+                # 2. Procesar Números (manejar formato español con coma)
+                def clean_decimal(val):
+                    if pd.isna(val) or val == '': return Decimal('0')
+                    if isinstance(val, (int, float, Decimal)): return Decimal(str(val))
+                    # Quitar símbolos y cambiar coma por punto
+                    s = str(val).replace('.', '').replace(',', '.').replace('%', '').strip()
+                    return Decimal(s) if s else Decimal('0')
+
+                close_val = clean_decimal(row.get('close', 0))
+                open_val = clean_decimal(row.get('open', close_val))
+                high_val = clean_decimal(row.get('high', close_val))
+                low_val = clean_decimal(row.get('low', close_val))
+                
+                # 3. Procesar Volumen (manejar M, K)
+                def parse_volume(val):
+                    if pd.isna(val) or val == '': return 0
+                    if isinstance(val, (int, float)): return int(val)
+                    s = str(val).upper().replace(',', '.').strip()
+                    multiplier = 1
+                    if 'M' in s:
+                        multiplier = 1000000
+                        s = s.replace('M', '')
+                    elif 'K' in s:
+                        multiplier = 1000
+                        s = s.replace('K', '')
+                    
+                    try:
+                        return int(float(s) * multiplier)
+                    except:
+                        return 0
+
+                volume_val = parse_volume(row.get('volume', 0))
+                
+                # 4. Verificar duplicados
+                existing = await db.execute(
+                    select(Quote).where(
+                        and_(
+                            Quote.asset_id == asset_id,
+                            Quote.date == quote_date
+                        )
+                    )
+                )
+                
+                if existing.scalar_one_or_none():
+                    quotes_skipped += 1
+                    continue
+                
+                # 5. Crear cotización
+                new_quote = Quote(
+                    asset_id=asset_id,
+                    date=quote_date,
+                    open=open_val,
+                    high=high_val,
+                    low=low_val,
+                    close=close_val,
+                    volume=volume_val,
+                    source="manual_import"
+                )
+                db.add(new_quote)
+                quotes_created += 1
+                
+            except Exception as e:
+                errors.append(f"Fila {index + 2}: {str(e)}")
+                quotes_skipped += 1
+        
+        await db.commit()
+        
+        return {
+            "success": True,
+            "quotes_created": quotes_created,
+            "quotes_skipped": quotes_skipped,
+            "errors": errors if errors else None,
+            "message": f"✅ Importación completada: {quotes_created} nuevas cotizaciones para {asset.symbol}. {quotes_skipped} omitidas."
+        }
+        
+    except Exception as e:
+        await db.rollback()
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al procesar el archivo: {str(e)}"
+        )
 
 
 async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool = False):
