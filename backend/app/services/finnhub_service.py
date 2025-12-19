@@ -161,6 +161,38 @@ class FinnhubService:
             logger.error(f"❌ Error obteniendo cotización actual de {symbol}: {str(e)}")
             return None
 
+    async def search_symbols(self, query: str) -> List[Dict]:
+        """
+        Buscar activos usando Finnhub Symbol Search
+        """
+        try:
+            response = self.client.symbol_lookup(query)
+            # Finnhub devuelve 'result'
+            results = response.get('result', [])
+            return results # [{description, displaySymbol, symbol, type}, ...]
+        except Exception as e:
+            logger.error(f"❌ Error en búsqueda Finnhub: {str(e)}")
+            return []
+
+    async def get_company_profile(self, symbol: str) -> Optional[Dict]:
+        """
+        Obtener perfil de compañía desde Finnhub
+        """
+        try:
+            res = self.client.company_profile2(symbol=symbol.upper())
+            if not res or 'name' not in res:
+                return None
+            
+            return {
+                "name": res.get('name'),
+                "currency": res.get('currency'),
+                "market": res.get('exchange'),
+                "industry": res.get('finnhubIndustry')
+            }
+        except Exception as e:
+            logger.error(f"❌ Error en profile Finnhub para {symbol}: {str(e)}")
+            return None
+
 
 # Instancia global del servicio
 finnhub_service = FinnhubService()

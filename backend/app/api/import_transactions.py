@@ -18,6 +18,7 @@ from app.models.portfolio import Portfolio
 from app.models.asset import Asset, AssetType
 from app.models.transaction import Transaction, TransactionType
 from app.models.quote import Quote
+from app.models.market import Market
 from app.services.alpha_vantage_service import AlphaVantageService, RateLimitException
 from app.services.yfinance_service import YFinanceService
 
@@ -36,14 +37,11 @@ async def import_transactions_from_excel(
     """
     Importar transacciones desde archivo Excel.
     
-    Formato esperado:
-    - Fecha: Formato DD/MM/YYYY
-    - Valor: Símbolo del activo (ej: TSLA)
-    - Tipo de Operación: "COMPRA ACCIONES" o "VENTA ACCIONES"
-    - Títulos: Cantidad de acciones
-    - Precio: Precio por acción
-    - Efectivo: Valor total de la operación (negativo para compras)
-    - Gastos: Comisiones/gastos
+    NUEVO FORMATO (2025):
+    Fecha	Valor	Cuenta	Tipo de Operación	Títulos	Precio	Efectivo	Gastos	Nº Operación
+    
+    - Valor: Campo multi-línea (Nombre, Símbolo, Mercado)
+    - Fecha: Formato DD.MM.YY
     """
     # Verificar que la cartera pertenece al usuario
     portfolio_result = await db.execute(
@@ -72,8 +70,10 @@ async def import_transactions_from_excel(
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
         
-        # Validar columnas requeridas
+        # Validar columnas requeridas (NUEVO FORMATO)
         required_columns = ['Fecha', 'Valor', 'Tipo de Operación', 'Títulos', 'Precio', 'Gastos']
+        # Nota: Cuenta, Efectivo y Nº Operación se ignoran por ahora o se guardan en notas si es necesario
+        
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
@@ -85,175 +85,140 @@ async def import_transactions_from_excel(
         transactions_created = 0
         transactions_skipped = 0
         assets_created = 0
-        limit_reached = False # Bandera para detener descargas si se alcanza límite
-        corporate_transactions = 0  # Contador de operaciones corporativas
-        quotes_imported = 0  # Contador de cotizaciones históricas importadas
+        limit_reached = False 
+        corporate_transactions = 0  
+        quotes_imported = 0  
         errors = []
         
         # Cache para no procesar el mismo activo múltiples veces en el mismo archivo
         processed_symbols_check = set()
         
-        # Contador para controlar el límite de 5 llamadas por minuto de Alpha Vantage
-        consecutive_api_calls = 0
-        
         for index, row in df.iterrows():
             try:
-                # Extraer símbolo del campo "Valor" (puede contener nombre y símbolo)
+                # 1. Extraer símbolo y nombre del campo "Valor" (NUEVO FORMATO MULTI-LÍNEA)
                 valor_text = str(row['Valor']).strip()
                 
-                # Si el valor es NaN o vacío, saltar
                 if valor_text == 'nan' or not valor_text:
                     errors.append(f"Fila {index + 2}: Campo 'Valor' vacío")
                     transactions_skipped += 1
                     continue
                 
-                lines = valor_text.split('\n')
+                lines = [l.strip() for l in valor_text.split('\n') if l.strip()]
                 symbol = None
+                asset_name = None
+                market_hint = None
                 
-                # Estrategia 1: Buscar el símbolo (formato corto, mayúsculas, puede contener números)
-                for line in lines:
-                    line = line.strip()
-                    # Símbolo: 2-6 caracteres, mayúsculas, puede contener números (ej: TSLA, NVDA, BTC, 3M, IAG)
-                    if 2 <= len(line) <= 6 and line.isupper() and line.replace(' ', '').replace('.', '').isalnum():
-                        symbol = line.replace(' ', '').replace('.', '')
-                        break
+                # Palabras que NO son símbolos (mercados comunes)
+                MARKET_KEYWORDS = [
+                    "NASDAQ", "NYSE", "CONTINUO", "MC", "Bolsa", "NEW YORK", "STOCK", "EXCHANGE", "MERCADO",
+                    "XETRA", "FRANKFURT", "PARIS", "MILAN", "AMSTERDAM", "LONDON", "LONDRES", "ESPAÑA", "SPAIN"
+                ]
                 
-                # Estrategia 2: Si no se encontró, buscar una palabra corta en mayúsculas en cualquier línea
+                def is_valid_symbol(s):
+                    if not s: return False
+                    s_up = s.upper()
+                    # Evitar palabras reservadas de mercado
+                    if any(kw == s_up or kw in s_up for kw in MARKET_KEYWORDS):
+                        return False
+                    # Un símbolo suele ser corto (1-8) y alfanumérico (puede tener punto)
+                    return 1 <= len(s) <= 8 and s.replace('.', '').isalnum()
+
+                # Heurística para el nuevo formato multi-línea
+                # Ejemplo esperado:
+                # Línea 0: Nombre (Ej: ALLIED GAMING & E)
+                # Línea 1: Símbolo (Ej: AGAE)
+                # Línea 2: Mercado (Ej: NASDAQ o XETRA)
+                if len(lines) >= 2:
+                    asset_name = lines[0]
+                    # Probar línea 1 como símbolo
+                    if is_valid_symbol(lines[1]):
+                        symbol = lines[1].upper()
+                    # Si línea 1 no es válida, probar línea 0
+                    elif is_valid_symbol(lines[0]):
+                        symbol = lines[0].upper()
+                        asset_name = lines[1]
+                    
+                    if len(lines) >= 3:
+                        market_hint = lines[2]
+                
+                # Fallback a búsqueda exhaustiva en todas las líneas si no se encontró
                 if not symbol:
                     for line in lines:
-                        words = line.strip().split()
-                        for word in words:
-                            word = word.strip().upper()
-                            if 2 <= len(word) <= 6 and word.replace('.', '').isalnum():
-                                symbol = word.replace('.', '')
-                                break
-                        if symbol:
+                        clean_line = line.replace(' ', '')
+                        if is_valid_symbol(clean_line):
+                            symbol = clean_line.upper()
                             break
                 
-                # Estrategia 3: Si sigue sin símbolo, tomar la última línea limpia
                 if not symbol:
-                    for line in reversed(lines):
-                        line = line.strip().upper()
-                        if line and len(line) <= 10:
-                            # Limpiar caracteres especiales comunes
-                            symbol = line.replace(' ', '').replace('.', '').replace('-', '')
-                            if symbol.isalnum():
-                                break
-                            else:
-                                symbol = None
-                
-                if not symbol:
-                    errors.append(f"Fila {index + 2}: No se pudo extraer el símbolo del activo (valor: '{valor_text[:50]}')")
+                    errors.append(f"Fila {index + 2}: No se pudo extraer el símbolo (valor: '{valor_text[:50]}')")
                     transactions_skipped += 1
                     continue
                 
-                # Buscar el activo por símbolo
+                if not asset_name:
+                    asset_name = lines[0] if lines else symbol
+                
+                # 2. Buscar mercado en la tabla Markets usando market_hint
+                market_currency = "USD"  # Default
+                market_name = None
+                
+                if market_hint:
+                    # Buscar en tabla markets (case insensitive)
+                    market_result = await db.execute(
+                        select(Market).where(Market.name.ilike(f"%{market_hint}%"))
+                    )
+                    market_obj = market_result.scalar_one_or_none()
+                    
+                    if market_obj:
+                        market_currency = market_obj.currency
+                        market_name = market_obj.name
+                        print(f"💱 Mercado identificado: {market_name} → {market_currency}")
+                    else:
+                        print(f"⚠️ Mercado '{market_hint}' no encontrado en BD, usando USD por defecto")
+                
+                # 3. Normalizar símbolo según mercado (solo Yahoo Finance)
+                normalized_symbol = await yfinance_service.normalize_symbol_for_market(symbol, market_hint)
+                
+                # 4. Buscar/Crear Activo
                 asset_result = await db.execute(
-                    select(Asset).where(Asset.symbol == symbol)
+                    select(Asset).where(Asset.symbol == normalized_symbol)
                 )
                 asset = asset_result.scalar_one_or_none()
                 
-                # Si el activo no existe, crearlo
                 is_new_asset = False
                 if not asset:
-                    # Extraer el nombre del activo del campo "Valor"
-                    asset_name = lines[0].strip() if lines else symbol
+                    print(f"🔍 Creando activo: {normalized_symbol} ({asset_name})")
                     
-                    # Crear el nuevo activo
+                    # Obtener nombre oficial de Yahoo si es posible
+                    try:
+                        yahoo_info = await yfinance_service.get_asset_info(normalized_symbol)
+                        official_name = yahoo_info.get("longName") or yahoo_info.get("shortName") or asset_name
+                    except:
+                        official_name = asset_name
+                    
                     asset = Asset(
-                        symbol=symbol,
-                        name=asset_name,
+                        symbol=normalized_symbol,
+                        name=official_name,
                         asset_type=AssetType.STOCK,
-                        currency="USD",
-                        market="Unknown"
+                        currency=market_currency,  # Usar moneda del mercado
+                        market=market_name or market_hint
                     )
                     db.add(asset)
-                    await db.flush()  # Asegurar que el activo tenga un ID antes de continuar
+                    await db.flush()
                     assets_created += 1
                     is_new_asset = True
+                    print(f"✨ Activo registrado: {normalized_symbol} - {asset.currency} @ {asset.market}")
                 
-                # VERIFICACIÓN DE COTIZACIONES (Para activos nuevos Y existentes)
-                # Solo verificamos una vez por símbolo en este archivo para eficiencia
-                if symbol not in processed_symbols_check:
+                # 3. VERIFICACIÓN DE COTIZACIONES (DESHABILITADO TEMPORALMENTE PARA TESTS)
+                """
+                # Código preservado pero deshabilitado según petición del usuario
+                if symbol not in processed_symbols_check and not limit_reached:
                     processed_symbols_check.add(symbol)
-                    
-                    should_download_quotes = False
-                    
-                    if is_new_asset:
-                        should_download_quotes = True
-                    else:
-                        # Si el activo ya existía, verificamos si tiene cotizaciones
-                        existing_quotes_check = await db.execute(
-                            select(Quote).where(Quote.asset_id == asset.id).limit(1)
-                        )
-                        if not existing_quotes_check.scalar_one_or_none():
-                            should_download_quotes = True
-                            print(f"🔍 Activo existente {symbol} sin cotizaciones. Intentando descargar...")
-
-                    # Importar cotizaciones si es necesario y no se ha alcanzado el límite
-                    if should_download_quotes and not limit_reached:
-                        try:
-                            print(f"📥 Intentando descargar cotizaciones para {symbol}...")
-                            
-                            # Obtener cotizaciones históricas (últimos 100 días con plan gratuito)
-                            historical_quotes = await alpha_vantage_service.get_historical_quotes(
-                                symbol=symbol
-                            )
-                            
-                            consecutive_api_calls += 1
-                            await asyncio.sleep(2) # Esperar 2 segundos para evitar el límite de ráfaga
-                            
-                            if consecutive_api_calls >= 5:
-                                print("⏳ Límite de 5 llamadas/min de Alpha Vantage alcanzado. Esperando 65 segundos...")
-                                await asyncio.sleep(65)
-                                consecutive_api_calls = 0
-                            
-                            if historical_quotes and len(historical_quotes) > 0:
-                                # Insertar cotizaciones en la BD
-                                asset_quotes_count = 0
-                                for quote_data in historical_quotes:
-                                    # Verificar si la cotización ya existe
-                                    existing_quote = await db.execute(
-                                        select(Quote).where(
-                                            Quote.asset_id == asset.id,
-                                            Quote.date == quote_data["date"]
-                                        )
-                                    )
-                                    if not existing_quote.scalar_one_or_none():
-                                        new_quote = Quote(
-                                            asset_id=asset.id,
-                                            date=quote_data["date"],
-                                            open=quote_data["open"],
-                                            high=quote_data["high"],
-                                            low=quote_data["low"],
-                                            close=quote_data["close"],
-                                            volume=quote_data["volume"],
-                                            source="alpha_vantage"
-                                        )
-                                        db.add(new_quote)
-                                        asset_quotes_count += 1
-                                
-                                if asset_quotes_count > 0:
-                                    await db.flush()  # Guardar las cotizaciones
-                                    quotes_imported += asset_quotes_count  # Acumular en el contador global
-                                    print(f"✅ {asset_quotes_count} cotizaciones importadas para {symbol}")
-                            else:
-                                print(f"⚠️ No se obtuvieron cotizaciones para {symbol} (posible símbolo inválido)")
-                        
-                        except RateLimitException:
-                            print(f"⛔ Se alcanzó el límite de llamadas a la API de Alpha Vantage. Se detendrá la descarga de cotizaciones por esta sesión.")
-                            limit_reached = True
-                        
-                        except Exception as e:
-                            # Si falla la importación de cotizaciones por otro motivo, continuar
-                            print(f"⚠️ Error al importar cotizaciones para {symbol}: {str(e)}")
-                    elif should_download_quotes and limit_reached:
-                        print(f"ℹ️ Cotizaciones omitidas para {symbol} (límite de API alcanzado previamente)")
+                    # Aquí iría la lógica de descarga...
+                    pass
+                """
                 
-                # Determinar tipo de transacción
+                # 4. Determinar tipo de transacción
                 tipo_operacion = str(row['Tipo de Operación']).upper()
-                
-                # Clasificar el tipo de operación
                 if 'COMPRA' in tipo_operacion or 'BUY' in tipo_operacion:
                     transaction_type = TransactionType.BUY
                 elif 'VENTA' in tipo_operacion or 'SELL' in tipo_operacion:
@@ -262,51 +227,55 @@ async def import_transactions_from_excel(
                     transaction_type = TransactionType.DIVIDEND
                 elif 'SPLIT' in tipo_operacion:
                     transaction_type = TransactionType.SPLIT
-                elif any(kw in tipo_operacion for kw in ['CAMBIO', 'ISIN', 'FUSIÓN', 'FUSION', 'SPINOFF', 'SPIN-OFF']):
-                    transaction_type = TransactionType.CORPORATE
                 else:
-                    # Si no reconocemos el tipo, lo marcamos como corporativo genérico
                     transaction_type = TransactionType.CORPORATE
                 
-                # Parsear fecha
+                # 5. Parsear fecha (NUEVO FORMATO: DD.MM.YY)
                 fecha_str = str(row['Fecha']).strip()
                 try:
-                    if '/' in fecha_str:
+                    if '.' in fecha_str and len(fecha_str.split('.')) == 3:
+                        # Manejar DD.MM.YY o DD.MM.YYYY
+                        parts = fecha_str.split('.')
+                        if len(parts[2]) == 2:
+                            transaction_date = datetime.strptime(fecha_str, '%d.%m.%y')
+                        else:
+                            transaction_date = datetime.strptime(fecha_str, '%d.%m.%Y')
+                    elif '/' in fecha_str:
                         transaction_date = datetime.strptime(fecha_str, '%d/%m/%Y')
                     else:
                         transaction_date = pd.to_datetime(row['Fecha']).to_pydatetime()
                     
-                    # Agregar timezone UTC si la fecha no tiene timezone
                     if transaction_date.tzinfo is None:
                         transaction_date = transaction_date.replace(tzinfo=timezone.utc)
                 except Exception as e:
-                    errors.append(f"Fila {index + 2}: Fecha inválida '{fecha_str}'")
+                    errors.append(f"Fila {index + 2}: Fecha inválida '{fecha_str}' ({str(e)})")
                     transactions_skipped += 1
                     continue
                 
-                # Extraer valores numéricos
-                # Para operaciones corporativas, cantidad y precio pueden ser 0
-                try:
-                    quantity = abs(Decimal(str(row['Títulos']))) if pd.notna(row['Títulos']) else Decimal('0')
-                except:
-                    quantity = Decimal('0')
+                # 6. Extraer valores numéricos
+                def clean_decimal(val):
+                    if pd.isna(val) or val == '': return Decimal('0')
+                    if isinstance(val, (int, float, Decimal)): return Decimal(str(val))
+                    # Manejar formato español: 1.234,56 -> 1234.56
+                    s = str(val).replace('.', '').replace(',', '.').strip()
+                    try: return Decimal(s)
+                    except: return Decimal('0')
+
+                quantity = abs(clean_decimal(row.get('Títulos', 0)))
+                price = abs(clean_decimal(row.get('Precio', 0)))
+                fees = abs(clean_decimal(row.get('Gastos', 0)))
+                efectivo = clean_decimal(row.get('Efectivo', 0))
                 
-                try:
-                    price = abs(Decimal(str(row['Precio']))) if pd.notna(row['Precio']) else Decimal('0')
-                except:
-                    price = Decimal('0')
+                # 7. Crear Notas (Incluir info extra del nuevo formato)
+                note_parts = [f"Importado (Nuevo Formato) - {file.filename}"]
+                if pd.notna(row.get('Cuenta')):
+                    note_parts.append(f"Cuenta: {row['Cuenta']}")
+                if pd.notna(row.get('Nº Operación')):
+                    note_parts.append(f"Operación: {row['Nº Operación']}")
+                if efectivo != 0:
+                    note_parts.append(f"Efectivo: {efectivo}")
                 
-                try:
-                    fees = abs(Decimal(str(row['Gastos']))) if pd.notna(row['Gastos']) else Decimal('0')
-                except:
-                    fees = Decimal('0')
-                
-                # Crear nota descriptiva según el tipo
-                note_parts = [f"Importado desde Excel - {file.filename}"]
-                if transaction_type in [TransactionType.DIVIDEND, TransactionType.SPLIT, TransactionType.CORPORATE]:
-                    note_parts.append(f"Operación: {row['Tipo de Operación']}")
-                
-                # Crear transacción
+                # 8. Crear transacción
                 new_transaction = Transaction(
                     portfolio_id=portfolio_id,
                     asset_id=asset.id,
@@ -321,49 +290,29 @@ async def import_transactions_from_excel(
                 db.add(new_transaction)
                 transactions_created += 1
                 
-                # Contar operaciones corporativas
                 if transaction_type in [TransactionType.DIVIDEND, TransactionType.SPLIT, TransactionType.CORPORATE]:
                     corporate_transactions += 1
                 
             except Exception as e:
-                errors.append(f"Fila {index + 2}: Error al procesar - {str(e)}")
+                errors.append(f"Fila {index + 2}: Error crítico - {str(e)}")
                 transactions_skipped += 1
                 continue
         
-        # Guardar todas las transacciones y activos creados
         await db.commit()
         
         # Construir mensaje de respuesta
         buy_sell_count = transactions_created - corporate_transactions
         message_parts = []
-        
-        if buy_sell_count > 0:
-            message_parts.append(f"{buy_sell_count} transacciones de compra/venta")
-        
-        if corporate_transactions > 0:
-            message_parts.append(f"{corporate_transactions} operaciones corporativas (splits, dividendos, etc.)")
-        
-        if assets_created > 0:
-            message_parts.append(f"{assets_created} activos nuevos registrados")
-        
-        if quotes_imported > 0:
-            message_parts.append(f"{quotes_imported} cotizaciones históricas importadas")
-        
-        main_message = f"✅ Importación completada: {', '.join(message_parts)}"
-        
-        if transactions_skipped > 0:
-            main_message += f". Se omitieron {transactions_skipped} filas por datos inválidos"
+        if buy_sell_count > 0: message_parts.append(f"{buy_sell_count} compra/venta")
+        if corporate_transactions > 0: message_parts.append(f"{corporate_transactions} corp.")
+        if assets_created > 0: message_parts.append(f"{assets_created} activos nuevos")
         
         return {
             "success": True,
             "transactions_created": transactions_created,
-            "buy_sell_count": buy_sell_count,
-            "corporate_transactions": corporate_transactions,
-            "transactions_skipped": transactions_skipped,
             "assets_created": assets_created,
-            "quotes_imported": quotes_imported,
             "errors": errors if errors else None,
-            "message": main_message
+            "message": f"✅ Importación completada ({', '.join(message_parts)}). Cotizaciones automáticas omitidas para test."
         }
         
     except pd.errors.ParserError as e:

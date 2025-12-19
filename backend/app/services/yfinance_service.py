@@ -251,6 +251,213 @@ class YFinanceService:
                 
         return results
 
+    async def get_asset_metadata(self, symbol: str, name_hint: Optional[str] = None, market_hint: Optional[str] = None) -> Dict[str, str]:
+        """
+        Obtener metadatos usando investigación multi-fuente inteligente.
+        Cruza resultados de Yahoo, Alpha Vantage y Finnhub para encontrar el activo real.
+        """
+        from app.services.alpha_vantage_service import alpha_vantage_service
+        from app.services.finnhub_service import finnhub_service
+
+        search_query = f"{name_hint or ''} {symbol} {market_hint or ''}".strip()
+        logger.info(f"🔎 Iniciando investigación para: '{search_query}'")
+
+        best_ticker = symbol.upper()
+        detected_name = name_hint or symbol
+        detected_currency = "USD"
+        detected_market = market_hint or "Unknown"
+
+        try:
+            loop = asyncio.get_event_loop()
+            
+            # 1. Búsqueda paralela inicial para encontrar tickers candidatos
+            # Manejamos excepciones individualmente para que una API bloqueada no mate el proceso
+            async def safe_yf_search():
+                try: return await loop.run_in_executor(executor, lambda: yf.Search(search_query, max_results=8).quotes)
+                except: return []
+
+            async def safe_av_search():
+                try: return await alpha_vantage_service.search_symbols(search_query)
+                except: return []
+
+            async def safe_fh_search():
+                try: return await finnhub_service.search_symbols(search_query)
+                except: return []
+
+            results = await asyncio.gather(safe_yf_search(), safe_av_search(), safe_fh_search())
+            yf_results, av_results, fh_results = results
+
+            # 2. SISTEMA DE PUNTUACIÓN DE CANDIDATOS
+            candidates = [] # List of {ticker, score, name, currency, market, source}
+
+            # Procesar Yahoo
+            for q in (yf_results or []):
+                q_sym = str(q.get('symbol', '')).upper()
+                q_exch = str(q.get('exchDisp', '')).upper()
+                score = 0
+                if symbol.upper() in q_sym: score += 10
+                if market_hint:
+                    mh = market_hint.upper()
+                    if any(k in q_exch for k in ["MC", "MCE", "MADRID", "SPAIN", "CONTINUO"]): score += 30
+                candidates.append({
+                    "symbol": q_sym, "score": score, "name": q.get('longname') or q.get('shortname'),
+                    "currency": None, "market": q_exch, "source": "Yahoo"
+                })
+
+            # Procesar Alpha Vantage
+            for q in (av_results or []):
+                q_sym = str(q.get('symbol', '')).upper()
+                q_region = str(q.get('region', '')).upper()
+                score = 0
+                if symbol.upper() in q_sym: score += 10
+                if market_hint:
+                    mh = market_hint.upper()
+                    if any(k in q_region for k in ["SPAIN", "MADRID", "XETRA", "GERMANY"]): score += 30
+                candidates.append({
+                    "symbol": q_sym, "score": score, "name": q.get('name'),
+                    "currency": q.get('currency'), "market": q_region, "source": "AlphaVantage"
+                })
+
+            # Procesar Finnhub
+            for q in (fh_results or []):
+                q_sym = str(q.get('symbol', '')).upper()
+                q_desc = str(q.get('description', '')).upper()
+                score = 0
+                if symbol.upper() in q_sym: score += 10
+                if market_hint and (market_hint.upper() in q_desc or market_hint.upper() in q_sym): score += 20
+                candidates.append({
+                    "symbol": q_sym, "score": score, "name": q_desc,
+                    "currency": None, "market": None, "source": "Finnhub"
+                })
+
+            # 3. SELECCIÓN Y REFINAMIENTO
+            if candidates:
+                # Ordenar por puntuación (desc) y longitud de símbolo (preferimos símbolos más específicos como DIA.MC sobre DIA si el score es alto)
+                candidates.sort(key=lambda x: (x['score'], len(x['symbol'])), reverse=True)
+                top = candidates[0]
+                best_ticker = top["symbol"]
+                detected_name = top["name"] or detected_name
+                detected_currency = top["currency"] or detected_currency
+                detected_market = top["market"] or detected_market
+
+            # 4. EXTRACCIÓN DETALLADA (Agnóstica pero jerárquica)
+            # Consultamos por el ticker ganador en las tres fuentes para asegurar la moneda
+            async def get_details():
+                dt_tasks = [
+                    loop.run_in_executor(executor, lambda: yf.Ticker(best_ticker).info),
+                    alpha_vantage_service.get_company_profile(best_ticker),
+                    finnhub_service.get_company_profile(best_ticker)
+                ]
+                dt_res = await asyncio.gather(*dt_tasks, return_exceptions=True)
+                return [r if not isinstance(r, Exception) else None for r in dt_res]
+
+            details = await get_details()
+            yf_info, av_info, fh_info = details
+
+            # Consolidación final de metadatos (evitando el fallo general a USD)
+            # Priorizamos datos explícitos de AV y Finnhub sobre Yahoo si este último devuelve datos genéricos
+            info_sources = [av_info, fh_info, yf_info]
+            for info in info_sources:
+                if info and info.get('currency'):
+                    # Si la moneda encontrada NO es USD, o si es USD pero la fuente es muy fiable para ese activo
+                    curr = info.get('currency')
+                    if curr != 'USD' or detected_currency == 'USD':
+                        detected_currency = curr
+                        detected_name = info.get('name') or info.get('longName') or detected_name
+                        detected_market = info.get('market') or info.get('exchange') or detected_market
+                        if curr != 'USD': break # Paramos si encontramos una moneda real no-USD
+
+            # Normalización de símbolo para Yahoo (nuestra base para cotizaciones futuras)
+            # Si detectamos que es España por el nombre o mercado pero el símbolo no tiene .MC, lo corregimos
+            if not '.' in best_ticker:
+                if any(k in str(detected_market).upper() for k in ["SPAIN", "MADRID", "MCE", "CONTINUO"]):
+                    best_ticker = f"{best_ticker}.MC"
+
+            logger.info(f"✅ Descubrimiento final: {best_ticker} ({detected_name}) - {detected_currency} @ {detected_market}")
+            return {
+                "name": detected_name,
+                "currency": detected_currency,
+                "market": detected_market,
+                "symbol": best_ticker
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Error crítico en motor de descubrimiento: {str(e)}")
+            return {"name": symbol.upper(), "currency": "USD", "market": "Unknown", "symbol": symbol.upper()}
+
+        except Exception as e:
+            logger.error(f"❌ Error en investigación multi-fuente: {str(e)}")
+            return {"name": symbol.upper(), "currency": "USD", "market": "Unknown", "symbol": symbol.upper()}
+
+
+    async def normalize_symbol_for_market(self, symbol: str, market_hint: Optional[str] = None) -> str:
+        """
+        Normaliza el símbolo para Yahoo Finance según el mercado.
+        Ejemplo: DIA + CONTINUO → DIA.MC
+        """
+        # Si ya tiene sufijo, no modificar
+        if '.' in symbol:
+            return symbol.upper()
+        
+        symbol_upper = symbol.upper()
+        
+        if not market_hint:
+            return symbol_upper
+        
+        market_upper = market_hint.upper()
+        
+        # Mapeo de mercados a sufijos de Yahoo Finance
+        market_suffixes = {
+            "CONTINUO": ".MC",      # España - Mercado Continuo
+            "MCE": ".MC",           # España - Madrid
+            "MADRID": ".MC",        # España
+            "XETRA": ".DE",         # Alemania
+            "FRANKFURT": ".F",      # Alemania - Frankfurt
+            "PARIS": ".PA",         # Francia
+            "MILAN": ".MI",         # Italia
+            "AMSTERDAM": ".AS",     # Holanda
+            "LSE": ".L",            # Reino Unido
+            "LONDON": ".L",         # Reino Unido
+            "SWX": ".SW",           # Suiza
+            "TORONTO": ".TO",       # Canadá
+        }
+        
+        for market_key, suffix in market_suffixes.items():
+            if market_key in market_upper:
+                normalized = f"{symbol_upper}{suffix}"
+                logger.info(f"🔄 Símbolo normalizado: {symbol} → {normalized} (mercado: {market_hint})")
+                return normalized
+        
+        # Si no coincide con ningún mercado conocido, asumir USA (sin sufijo)
+        logger.info(f"ℹ️ Símbolo sin normalizar (mercado USA o desconocido): {symbol_upper}")
+        return symbol_upper
+    
+    async def get_asset_info(self, symbol: str) -> Dict:
+        """
+        Obtiene información básica del activo de Yahoo Finance.
+        Simplificado - solo Yahoo, sin otras fuentes.
+        """
+        try:
+            logger.info(f"🔍 Obteniendo info de {symbol} desde Yahoo Finance")
+            
+            def _get_info():
+                ticker = yf.Ticker(symbol)
+                return ticker.info
+            
+            loop = asyncio.get_event_loop()
+            info = await loop.run_in_executor(executor, _get_info)
+            
+            if info:
+                logger.info(f"✅ Info obtenida para {symbol}")
+                return info
+            
+            logger.warning(f"⚠️ No se pudo obtener info para {symbol}")
+            return {}
+            
+        except Exception as e:
+            logger.error(f"❌ Error obteniendo info de {symbol}: {str(e)}")
+            return {}
+
 
 # Instancia global
 yfinance_service = YFinanceService()

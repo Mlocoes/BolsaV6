@@ -129,7 +129,63 @@ class AlphaVantageService:
             raise
 
         except Exception as e:
-            logger.error(f"❌ Error obteniendo datos de Alpha Vantage para {symbol}: {str(e)}", exc_info=True)
+            logger.error(f"❌ Error obteniendo cotización actual de {symbol}: {str(e)}")
+            return None
+    
+    async def search_symbols(self, keywords: str) -> List[Dict]:
+        """
+        Buscar símbolos usando Alpha Vantage Symbol Search
+        """
+        if not self.ts: return []
+        try:
+            # La librería alpha_vantage no siempre expone search directamente en TimeSeries, 
+            # pero podemos usar una llamada custom si es necesario o ver si está disponible.
+            # Nota: la librería 'alpha_vantage' tiene un módulo 'Custom' para esto.
+            from alpha_vantage.custom_api import CustomAPI
+            custom = CustomAPI(key=settings.ALPHA_VANTAGE_API_KEY)
+            data, _ = custom.get_custom_api(function="SYMBOL_SEARCH", keywords=keywords)
+            
+            # Alpha Vantage devuelve 'bestMatches'
+            matches = data.get('bestMatches', [])
+            results = []
+            for m in matches:
+                results.append({
+                    "symbol": m.get('1. symbol'),
+                    "name": m.get('2. name'),
+                    "type": m.get('3. type'),
+                    "region": m.get('4. region'),
+                    "marketOpen": m.get('5. marketOpen'),
+                    "marketClose": m.get('6. marketClose'),
+                    "timezone": m.get('7. timezone'),
+                    "currency": m.get('8. currency'),
+                    "matchScore": float(m.get('9. matchScore', 0))
+                })
+            return results
+        except Exception as e:
+            logger.error(f"❌ Error en búsqueda Alpha Vantage: {str(e)}")
+            return []
+
+    async def get_company_profile(self, symbol: str) -> Optional[Dict]:
+        """
+        Obtener perfil detallado de la compañía desde Alpha Vantage (OVERVIEW)
+        """
+        if not self.ts: return None
+        try:
+            from alpha_vantage.custom_api import CustomAPI
+            custom = CustomAPI(key=settings.ALPHA_VANTAGE_API_KEY)
+            data, _ = custom.get_custom_api(function="OVERVIEW", symbol=symbol.upper())
+            
+            if not data or "Symbol" not in data:
+                return None
+            
+            return {
+                "name": data.get('Name'),
+                "currency": data.get('Currency'),
+                "market": f"{data.get('Exchange')} ({data.get('Country')})",
+                "asset_type": data.get('AssetType')
+            }
+        except Exception as e:
+            logger.error(f"❌ Error en OVERVIEW Alpha Vantage para {symbol}: {str(e)}")
             return None
 
 

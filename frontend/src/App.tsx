@@ -15,6 +15,7 @@ import Quotes from './pages/Quotes';
 import Import from './pages/Import';
 import Users from './pages/Users';
 import FiscalReport from './pages/FiscalReport';
+import Administration from './pages/Administration';
 import './styles/index.css';
 
 function App() {
@@ -111,6 +112,15 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <FiscalReport />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/administration"
+                    element={
+                        <ProtectedRoute>
+                            <Administration />
                         </ProtectedRoute>
                     }
                 />

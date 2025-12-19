@@ -21,6 +21,7 @@ export default function Assets() {
     const gridRef = useRef<AgGridReact>(null);
     const [assets, setAssets] = useState<Asset[]>([]);
     const [showForm, setShowForm] = useState(false);
+    const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [formData, setFormData] = useState({
         symbol: '',
         name: '',
@@ -46,20 +47,29 @@ export default function Assets() {
         { field: 'market', headerName: 'Mercado', width: 120 },
         {
             headerName: 'Acciones',
-            width: 200,
+            width: 250,
             cellRenderer: (params: any) => (
                 <div className="flex space-x-2 h-full items-center">
                     <button
-                        onClick={() => handleFetchQuotes(params.data.id, params.data.symbol)}
-                        className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded text-sm"
+                        onClick={() => handleEdit(params.data)}
+                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                        title="Editar"
                     >
-                        Importar
+                        ✏️
+                    </button>
+                    <button
+                        onClick={() => handleFetchQuotes(params.data.id, params.data.symbol)}
+                        className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded text-sm transition-colors"
+                        title="Importar Cotizaciones"
+                    >
+                        📥
                     </button>
                     <button
                         onClick={() => handleDelete(params.data.id)}
-                        className="bg-danger hover:bg-danger/80 text-white px-3 py-1 rounded text-sm"
+                        className="bg-danger hover:bg-danger/80 text-white px-3 py-1 rounded text-sm transition-colors"
+                        title="Eliminar"
                     >
-                        Eliminar
+                        🗑️
                     </button>
                 </div>
             ),
@@ -73,7 +83,7 @@ export default function Assets() {
     // Refrescar grid cuando cambien los assets
     useEffect(() => {
         if (gridRef.current?.api && assets.length > 0) {
-            gridRef.current.api.updateGridOptions({ rowData: assets });
+            gridRef.current.api.setGridOption('rowData', assets);
         }
     }, [assets]);
 
@@ -91,19 +101,43 @@ export default function Assets() {
     };
 
     /**
-     * Procesa el envío del formulario de nuevo activo
+     * Prepara el formulario para editar un activo
+     */
+    const handleEdit = (asset: Asset) => {
+        setEditingAsset(asset);
+        setFormData({
+            symbol: asset.symbol,
+            name: asset.name,
+            asset_type: asset.asset_type,
+            currency: asset.currency,
+            market: asset.market || ''
+        });
+        setShowForm(true);
+    };
+
+    /**
+     * Procesa el envío del formulario (creación o edición)
      */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await api.post('/assets', formData);
+            if (editingAsset) {
+                // Actualizar activo existente
+                await api.patch(`/assets/${editingAsset.id}`, formData);
+                toast.success('Activo actualizado correctamente');
+            } else {
+                // Crear nuevo activo
+                await api.post('/assets', formData);
+                toast.success('Activo creado correctamente');
+            }
+
             setShowForm(false);
+            setEditingAsset(null);
             setFormData({ symbol: '', name: '', asset_type: 'stock', currency: 'USD', market: '' });
-            toast.success('Activo creado correctamente');
             loadAssets();
         } catch (error) {
-            console.error('Error creating asset:', error);
-            toast.error('Error al crear activo. Por favor, verifique los datos.');
+            console.error('Error saving asset:', error);
+            toast.error('Error al guardar el activo. Por favor, verifique los datos.');
         }
     };
 
@@ -148,7 +182,11 @@ export default function Assets() {
                             💼 Catálogo de Activos
                         </h1>
                         <button
-                            onClick={() => setShowForm(true)}
+                            onClick={() => {
+                                setEditingAsset(null);
+                                setFormData({ symbol: '', name: '', asset_type: 'stock', currency: 'USD', market: '' });
+                                setShowForm(true);
+                            }}
                             className="bg-primary hover:bg-primary-dark text-white px-4 py-1 rounded text-xs transition-colors font-medium"
                         >
                             + Nuevo Activo
@@ -157,7 +195,9 @@ export default function Assets() {
 
                     {showForm && (
                         <div className="bg-dark-surface p-4 rounded-lg border border-dark-border mb-0 flex-none animate-in fade-in slide-in-from-top-4">
-                            <h2 className="text-sm font-bold mb-4 text-white uppercase tracking-wider">Nuevo Activo</h2>
+                            <h2 className="text-sm font-bold mb-4 text-white uppercase tracking-wider">
+                                {editingAsset ? `Editar Activo: ${editingAsset.symbol}` : 'Nuevo Activo'}
+                            </h2>
                             <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                 <div>
                                     <label className="block text-[10px] uppercase font-bold text-dark-muted mb-1">Símbolo</label>
@@ -165,9 +205,10 @@ export default function Assets() {
                                         type="text"
                                         value={formData.symbol}
                                         onChange={(e) => setFormData({ ...formData, symbol: e.target.value.toUpperCase() })}
-                                        className="w-full px-2 py-1 bg-dark-bg border border-dark-border rounded text-xs text-white focus:outline-none focus:border-primary"
+                                        className="w-full px-2 py-1 bg-dark-bg border border-dark-border rounded text-xs text-white focus:outline-none focus:border-primary disabled:opacity-50"
                                         required
                                         placeholder="AAPL"
+                                        disabled={editingAsset !== null}
                                     />
                                 </div>
                                 <div>
@@ -192,6 +233,7 @@ export default function Assets() {
                                         <option value="etf">ETF</option>
                                         <option value="crypto">Cripto</option>
                                         <option value="bond">Bono</option>
+                                        <option value="fund">Fondo</option>
                                     </select>
                                 </div>
                                 <div>
@@ -201,7 +243,8 @@ export default function Assets() {
                                         value={formData.currency}
                                         onChange={(e) => setFormData({ ...formData, currency: e.target.value.toUpperCase() })}
                                         className="w-full px-2 py-1 bg-dark-bg border border-dark-border rounded text-xs text-white focus:outline-none focus:border-primary"
-                                        placeholder="USD"
+                                        placeholder="EUR / USD"
+                                        required
                                     />
                                 </div>
                                 <div>
@@ -211,19 +254,22 @@ export default function Assets() {
                                         value={formData.market}
                                         onChange={(e) => setFormData({ ...formData, market: e.target.value })}
                                         className="w-full px-2 py-1 bg-dark-bg border border-dark-border rounded text-xs text-white focus:outline-none focus:border-primary"
-                                        placeholder="NASDAQ"
+                                        placeholder="NASDAQ / MC"
                                     />
                                 </div>
                                 <div className="col-span-2 md:col-span-5 flex justify-end space-x-2 mt-2">
                                     <button
                                         type="button"
-                                        onClick={() => setShowForm(false)}
+                                        onClick={() => {
+                                            setShowForm(false);
+                                            setEditingAsset(null);
+                                        }}
                                         className="bg-dark-border hover:bg-dark-border/80 text-white px-3 py-1 rounded text-xs transition-colors"
                                     >
                                         Cancelar
                                     </button>
                                     <button type="submit" className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded text-xs transition-colors font-medium">
-                                        Crear
+                                        {editingAsset ? 'Actualizar' : 'Crear'}
                                     </button>
                                 </div>
                             </form>
