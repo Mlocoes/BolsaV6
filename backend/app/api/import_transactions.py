@@ -121,25 +121,39 @@ async def import_transactions_from_excel(
                     if any(kw == s_up or kw in s_up for kw in MARKET_KEYWORDS):
                         return False
                     # Un símbolo suele ser corto (1-8) y alfanumérico (puede tener punto)
-                    return 1 <= len(s) <= 8 and s.replace('.', '').isalnum()
+                    return 1 <= len(s) <= 20 and s.replace('.', '').replace(' ', '').isalnum()
 
-                # Heurística para el nuevo formato multi-línea
-                # Ejemplo esperado:
-                # Línea 0: Nombre (Ej: ALLIED GAMING & E)
-                # Línea 1: Símbolo (Ej: AGAE)
-                # Línea 2: Mercado (Ej: NASDAQ o XETRA)
-                if len(lines) >= 2:
+                # Detectar formato del campo Valor
+                # Formato 1 (3 líneas): Nombre | Símbolo | Mercado
+                # Formato 2 (2 líneas): Símbolo | Mercado
+                
+                if len(lines) == 2:
+                    # Formato 2 líneas: Símbolo en línea 0, Mercado en línea 1
+                    symbol = lines[0].replace(' ', '').upper()  # DIA, BEDBATH, etc
+                    asset_name = lines[0]  # Usar el símbolo como nombre por ahora
+                    market_hint = lines[1]  # CONTINUO, NASDAQ, etc
+                    
+                elif len(lines) >= 3:
+                    # Formato 3 líneas: intentar detectar dónde está cada cosa
                     asset_name = lines[0]
                     # Probar línea 1 como símbolo
-                    if is_valid_symbol(lines[1]):
+                    if is_valid_symbol(lines[1]) and not any(kw in lines[1].upper() for kw in MARKET_KEYWORDS):
                         symbol = lines[1].upper()
+                        market_hint = lines[2]
                     # Si línea 1 no es válida, probar línea 0
                     elif is_valid_symbol(lines[0]):
                         symbol = lines[0].upper()
                         asset_name = lines[1]
-                    
-                    if len(lines) >= 3:
-                        market_hint = lines[2]
+                        market_hint = lines[2] if len(lines) >= 3 else None
+                    else:
+                        # Fallback: buscar en todas las líneas
+                        symbol = None
+                        
+                elif len(lines) == 1:
+                    # Solo una línea: asumir que es el símbolo
+                    symbol = lines[0].replace(' ', '').upper()
+                    asset_name = lines[0]
+                    market_hint = None
                 
                 # Fallback a búsqueda exhaustiva en todas las líneas si no se encontró
                 if not symbol:
