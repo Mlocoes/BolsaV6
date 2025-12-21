@@ -21,7 +21,7 @@ app = FastAPI(
 # Configurar CORS
 # En desarrollo: permite cualquier origen de red local automáticamente
 # En producción: solo los orígenes configurados en CORS_ORIGINS
-if settings.ENVIRONMENT == "development":
+if settings.is_cors_permissive:
     # Modo desarrollo: CORS permisivo para facilitar desarrollo en red local
     app.add_middleware(
         CORSMiddleware,

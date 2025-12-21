@@ -62,7 +62,8 @@ async def login(
             user_data={
                 "username": user.username,
                 "email": user.email,
-                "is_admin": user.is_admin
+                "is_admin": user.is_admin,
+                "base_currency": user.base_currency
             }
         )
         logger.info(f"✅ Sesión creada: {session_id[:8]}...")

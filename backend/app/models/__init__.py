@@ -8,6 +8,7 @@ from app.models.quote import Quote
 from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction, TransactionType
 from app.models.result import Result
+from app.models.market import Market
 
 __all__ = [
     "Base",
@@ -19,4 +20,5 @@ __all__ = [
     "Transaction",
     "TransactionType",
     "Result",
+    "Market",
 ]

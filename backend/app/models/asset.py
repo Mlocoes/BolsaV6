@@ -18,6 +18,7 @@ class AssetType(str, enum.Enum):
     FUND = "fund"    # Fondo de inversión
     CRYPTO = "crypto"  # Criptomoneda
     BOND = "bond"    # Bono
+    CURRENCY = "currency" # Moneda
     OTHER = "other"  # Otro
 
 
@@ -28,7 +29,7 @@ class Asset(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     symbol = Column(String(20), unique=True, nullable=False, index=True)  # Ticker
     name = Column(String(255), nullable=False)
-    asset_type = Column(SQLEnum(AssetType), nullable=False, default=AssetType.STOCK)
+    asset_type = Column(SQLEnum(AssetType, native_enum=False), nullable=False, default=AssetType.STOCK)
     currency = Column(String(10), default="USD", nullable=False)
     market = Column(String(50))  # Ej: NASDAQ, NYSE, etc
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

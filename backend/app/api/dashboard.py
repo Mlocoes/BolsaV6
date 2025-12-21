@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import datetime
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.services.dashboard_service import dashboard_service
 from app.schemas.dashboard import DashboardStats
 
@@ -13,6 +14,7 @@ router = APIRouter()
 async def get_dashboard_stats(
     portfolio_id: str,
     year: Optional[int] = Query(None, description="Year to analyze"),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -21,9 +23,11 @@ async def get_dashboard_stats(
     """
     if year is None:
         year = datetime.now().year
+    
+    user_id = current_user["user_id"]
         
     try:
-        stats = await dashboard_service.get_stats(portfolio_id, year, db)
+        stats = await dashboard_service.get_stats(portfolio_id, year, user_id, db)
         return stats
     except Exception as e:
         print(f"Error calculating dashboard stats: {e}")

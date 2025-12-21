@@ -4,6 +4,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { UserProvider } from './context/UserContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -16,48 +17,50 @@ import Import from './pages/Import';
 import Users from './pages/Users';
 import FiscalReport from './pages/FiscalReport';
 import Administration from './pages/Administration';
+import Settings from './pages/Settings';
 import './styles/index.css';
 
 function App() {
     return (
         <BrowserRouter>
-            <ToastContainer
-                position="top-right"
-                autoClose={5000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-            />
-            <Routes>
-                <Route path="/login" element={<Login />} />
-
-                <Route
-                    path="/"
-                    element={
-                        <ProtectedRoute>
-                            <Dashboard />
-                        </ProtectedRoute>
-                    }
+            <UserProvider>
+                <ToastContainer
+                    position="top-right"
+                    autoClose={5000}
+                    hideProgressBar={false}
+                    newestOnTop={false}
+                    closeOnClick
+                    rtl={false}
+                    pauseOnFocusLoss
+                    draggable
+                    pauseOnHover
                 />
+                <Routes>
+                    <Route path="/login" element={<Login />} />
 
-                <Route
-                    path="/positions"
-                    element={
-                        <ProtectedRoute>
-                            <Positions />
-                        </ProtectedRoute>
-                    }
-                />
+                    <Route
+                        path="/"
+                        element={
+                            <ProtectedRoute>
+                                <Dashboard />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route
-                    path="/assets"
-                    element={
-                        <ProtectedRoute>
-                            <Assets />
+                    <Route
+                        path="/positions"
+                        element={
+                            <ProtectedRoute>
+                                <Positions />
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
+                        path="/assets"
+                        element={
+                            <ProtectedRoute>
+                                <Assets />
                         </ProtectedRoute>
                     }
                 />
@@ -125,8 +128,18 @@ function App() {
                     }
                 />
 
+                <Route
+                    path="/settings"
+                    element={
+                        <ProtectedRoute>
+                            <Settings />
+                        </ProtectedRoute>
+                    }
+                />
+
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+        </UserProvider>
         </BrowserRouter>
     );
 }

@@ -3,13 +3,28 @@
  * Usan locale 'es-ES' (coma decimal) y evitan símbolos de moneda/porcentaje
  */
 
-export const formatCurrency = (val: number | undefined | null): string => {
+export const formatCurrency = (val: number | undefined | null, currency?: string): string => {
     if (val === undefined || val === null) return '';
     return new Intl.NumberFormat('es-ES', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
         useGrouping: true
     }).format(val);
+};
+
+/**
+ * Obtiene el símbolo de una moneda
+ */
+export const getCurrencySymbol = (currency: string): string => {
+    const symbols: Record<string, string> = {
+        EUR: '€',
+        USD: '$',
+        GBP: '£',
+        JPY: '¥',
+        CHF: 'CHF',
+        CAD: 'C$',
+    };
+    return symbols[currency] || currency;
 };
 
 export const formatQuantity = (val: number | undefined | null): string => {

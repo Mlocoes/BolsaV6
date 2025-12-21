@@ -22,7 +22,8 @@ import {
 import Layout from '../components/Layout';
 import api from '../services/api';
 import { getDashboardStats, DashboardStats } from '../services/dashboardService';
-import { formatCurrency, formatPercent } from '../utils/formatters';
+import { formatCurrency, formatPercent, getCurrencySymbol } from '../utils/formatters';
+import { useUser } from '../context/UserContext';
 
 interface Portfolio {
     id: string;
@@ -34,11 +35,15 @@ interface Portfolio {
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'];
 
 export default function Dashboard() {
+    const { user } = useUser();
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadingStats, setLoadingStats] = useState(false);
+
+    // Obtener símbolo de moneda del usuario
+    const currencySymbol = user ? getCurrencySymbol(user.base_currency) : '€';
 
     /**
      * Cargar carteras al inicio
@@ -151,19 +156,19 @@ export default function Dashboard() {
                                 <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
                                     <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Valor Total</h3>
                                     <div className="text-lg font-bold text-white leading-tight">
-                                        {formatCurrency(stats.total_value)} €
+                                        {formatCurrency(stats.total_value)} {currencySymbol}
                                     </div>
                                 </div>
                                 <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
                                     <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Invertido</h3>
                                     <div className="text-lg font-bold text-white leading-tight">
-                                        {formatCurrency(stats.total_invested)} €
+                                        {formatCurrency(stats.total_invested)} {currencySymbol}
                                     </div>
                                 </div>
                                 <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
                                     <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Plusvalía</h3>
                                     <div className={`text-lg font-bold leading-tight ${stats.total_pl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        {stats.total_pl >= 0 ? '+' : ''}{formatCurrency(stats.total_pl)} €
+                                        {stats.total_pl >= 0 ? '+' : ''}{formatCurrency(stats.total_pl)} {currencySymbol}
                                         <span className="text-xs ml-2 font-normal opacity-80">
                                             ({stats.total_pl >= 0 ? '+' : ''}{formatPercent(stats.total_pl_percentage)}%)
                                         </span>
@@ -211,7 +216,7 @@ export default function Dashboard() {
                                                     />
                                                     <Tooltip
                                                         contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6', fontSize: '11px', padding: '4px 8px' }}
-                                                        formatter={(value: number) => [formatCurrency(value) + ' €', '']}
+                                                        formatter={(value: number) => [formatCurrency(value) + ' ' + currencySymbol, '']}
                                                         labelFormatter={(label) => new Date(label).toLocaleDateString()}
                                                     />
                                                     <Area
@@ -253,7 +258,7 @@ export default function Dashboard() {
                                                     <Tooltip
                                                         contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6', fontSize: '11px', padding: '4px 8px' }}
                                                         cursor={{ fill: '#374151', opacity: 0.2 }}
-                                                        formatter={(value: number) => [formatCurrency(value) + ' €', '']}
+                                                        formatter={(value: number) => [formatCurrency(value) + ' ' + currencySymbol, '']}
                                                     />
                                                     <Bar dataKey="value" fill="#10B981" radius={[2, 2, 0, 0]} />
                                                 </BarChart>
@@ -284,7 +289,7 @@ export default function Dashboard() {
                                                 <Tooltip
                                                     contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#F3F4F6', fontSize: '11px', padding: '4px 8px' }}
                                                     formatter={(value: number, _name: string, props: any) => [
-                                                        formatCurrency(value) + ' €',
+                                                        formatCurrency(value) + ' ' + currencySymbol,
                                                         props.payload.name
                                                     ]}
                                                 />

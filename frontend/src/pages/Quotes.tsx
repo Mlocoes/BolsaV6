@@ -123,6 +123,16 @@ export default function Quotes() {
         const currentReq = ++requestCount.current;
         setLoading(true);
         try {
+            // Validar fechas antes de hacer la petición
+            if (startDate && isNaN(Date.parse(startDate))) {
+                toast.error('Fecha de inicio inválida');
+                return;
+            }
+            if (endDate && isNaN(Date.parse(endDate))) {
+                toast.error('Fecha de fin inválida');
+                return;
+            }
+
             const params = new URLSearchParams();
             if (startDate) params.append('start_date', startDate);
             if (endDate) params.append('end_date', endDate);
@@ -141,11 +151,15 @@ export default function Quotes() {
             }));
 
             setQuotes(mappedData);
-        } catch (error) {
+        } catch (error: any) {
             // Solo mostrar error si es la última petición
             if (currentReq === requestCount.current) {
                 console.error('Error loading quotes:', error);
-                toast.error('Error al cargar las cotizaciones.');
+                if (error.response?.status === 422) {
+                    toast.error('Fechas inválidas. Verifica el formato.');
+                } else {
+                    toast.error('Error al cargar las cotizaciones.');
+                }
             }
         } finally {
             if (currentReq === requestCount.current) {

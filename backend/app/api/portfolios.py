@@ -11,8 +11,9 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction, TransactionType
-from app.models.asset import Asset
+from app.models.asset import Asset, AssetType
 from app.models.quote import Quote
+from app.models.user import User
 from app.schemas.portfolio import PortfolioCreate, PortfolioUpdate, PortfolioResponse
 
 router = APIRouter()
@@ -141,6 +142,11 @@ async def get_portfolio_positions(
     db: AsyncSession = Depends(get_db)
 ):
     """Obtener posiciones actuales de una cartera"""
+    # Obtener moneda base del usuario
+    user_result = await db.execute(select(User).where(User.id == current_user["user_id"]))
+    user = user_result.scalar_one()
+    base_currency = user.base_currency or "EUR"
+
     # Verificar que la cartera pertenece al usuario
     result = await db.execute(
         select(Portfolio).where(
@@ -174,6 +180,8 @@ async def get_portfolio_positions(
                 "asset_id": asset_id,
                 "symbol": asset.symbol,
                 "name": asset.name,
+                "currency": asset.currency,
+                "asset_type": asset.asset_type,
                 "quantity": Decimal("0"),
                 "average_price": Decimal("0"),
                 "total_invested": Decimal("0")
@@ -239,6 +247,8 @@ async def get_portfolio_positions(
                 "asset_id": pos["asset_id"],
                 "symbol": pos["symbol"],
                 "name": pos["name"],
+                "currency": pos["currency"],
+                "asset_type": pos["asset_type"],
                 "quantity": quantity,
                 "avg_price": avg_price,
                 "current_price": current_price,
@@ -248,5 +258,74 @@ async def get_portfolio_positions(
                 "profit_loss_percent": profit_loss_percent,
                 "source": source
             })
+
+    # Prepare list of needed exchange rates
+    needed_pairs = set()
+    for pos in active_positions:
+        if pos.get("currency") != base_currency:
+             needed_pairs.add(f"{pos['currency']}{base_currency}=X")
+
+    # Fetch exchange rates
+    exchange_rates = {}
+    if needed_pairs:
+        # Check database for latest quotes of these currency pairs
+        # OR fallback to 1.0 if not found
+        # Ideally we should look for Asset with symbol=pair
+        # For MVP, we assume we can look up by symbol directly or fetch online
+        
+        if online and needed_pairs:
+             # Fetch online for these pairs
+             from app.services.yfinance_service import yfinance_service
+             currency_quotes = await yfinance_service.get_multiple_current_quotes(list(needed_pairs))
+             for pair, data in currency_quotes.items():
+                 if data:
+                     exchange_rates[pair] = data["close"]
+        
+        # If not online or missed some, try DB
+        missing_pairs = [p for p in needed_pairs if p not in exchange_rates]
+        if missing_pairs:
+            # Look for assets with these symbols
+            assets_result = await db.execute(select(Asset).where(Asset.symbol.in_(missing_pairs)))
+            currency_assets = assets_result.scalars().all()
+            for ca in currency_assets:
+                # Get latest quote
+                q_res = await db.execute(select(Quote).where(Quote.asset_id == ca.id).order_by(desc(Quote.date)).limit(1))
+                latest = q_res.scalar_one_or_none()
+                if latest:
+                    exchange_rates[ca.symbol] = float(latest.close)
+
+    # Apply conversion
+    for pos in active_positions:
+        asset_currency = pos.get("currency", "USD") # Default to USD if missing, but should be there
+        if asset_currency != base_currency:
+            pair_symbol = f"{asset_currency}{base_currency}=X"
+            rate = exchange_rates.get(pair_symbol)
+            if not rate:
+                 # Try reverse pair?
+                 reverse_pair = f"{base_currency}{asset_currency}=X"
+                 reverse_rate = exchange_rates.get(reverse_pair)
+                 if reverse_rate:
+                     rate = 1.0 / reverse_rate
+            
+            if rate:
+                pos["current_price"] *= rate
+                pos["current_value"] *= rate
+                pos["cost_basis"] *= rate # Using current rate for simplified "homogenization"
+                pos["avg_price"] *= rate
+                pos["profit_loss"] = pos["current_value"] - pos["cost_basis"]
+                # profit_loss_percent remains same technically if bought in foreign currency, 
+                # but valid to recalc based on converted values
+                pos["profit_loss_percent"] = (pos["profit_loss"] / pos["cost_basis"] * 100) if pos["cost_basis"] > 0 else 0.0
+                
+                # Append info that it is converted
+                pos["converted"] = True
+                pos["original_currency"] = asset_currency
+                pos["exchange_rate"] = rate
+                pos["currency"] = base_currency
+            else:
+                 # Could not convert
+                 pos["conversion_error"] = f"Missing rate for {asset_currency}->{base_currency}"
     
     return active_positions
+
+

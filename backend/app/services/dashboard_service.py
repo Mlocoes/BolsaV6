@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 from collections import defaultdict
@@ -9,15 +9,29 @@ import logging
 from app.models.transaction import Transaction, TransactionType
 from app.models.quote import Quote
 from app.models.asset import Asset, AssetType
+from app.models.user import User
 from app.schemas.dashboard import DashboardStats, PerformancePoint, MonthlyValue, AssetAllocation
+from app.services.forex_service import forex_service
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 class DashboardService:
-    async def get_stats(self, portfolio_id: str, year: int, db: AsyncSession) -> DashboardStats:
+    async def get_stats(
+        self, 
+        portfolio_id: str, 
+        year: int, 
+        user_id: str,
+        db: AsyncSession
+    ) -> DashboardStats:
         logger.info(f"Dashboard stats requested for portfolio {portfolio_id}, year {year}")
         try:
+            # 0. Obtener moneda base del usuario
+            user_result = await db.execute(select(User).where(User.id == user_id))
+            user = user_result.scalar_one_or_none()
+            base_currency = user.base_currency if user else "EUR"
+            logger.info(f"Using base currency: {base_currency}")
+            
             # 1. Fetch all transactions (ordered by date)
             result = await db.execute(
                 select(Transaction)
@@ -110,13 +124,30 @@ class DashboardService:
                     if current_date in quotes_map[aid_str]:
                         last_known_prices[aid_str] = quotes_map[aid_str][current_date]
                 
-                # Calculate Total Value
+                # Calculate Total Value (con conversión de moneda)
                 day_value = 0.0
                 
                 for aid, qty in current_holdings.items():
                     if qty != 0: 
                         price = last_known_prices.get(aid, 0.0)
-                        day_value += float(qty) * price
+                        asset_obj = assets.get(aid)
+                        
+                        if asset_obj and price > 0:
+                            # Valor en moneda del activo
+                            value_in_asset_currency = float(qty) * price
+                            
+                            # Convertir a moneda base del usuario
+                            converted_value = await forex_service.convert_value(
+                                value_in_asset_currency,
+                                asset_obj.currency,
+                                base_currency,
+                                current_date,
+                                db
+                            )
+                            day_value += converted_value
+                        else:
+                            # Fallback sin conversión
+                            day_value += float(qty) * price
                 
                 performance_history.append(PerformancePoint(
                     date=current_date,
@@ -134,7 +165,7 @@ class DashboardService:
             # 7. Convert Monthly Map to List
             monthly_values = [MonthlyValue(month=k, value=v) for k, v in monthly_map.items()]
             
-            # 8. Asset Allocation (Current State)
+            # 8. Asset Allocation (Current State) - con conversión de moneda
             allocation: List[AssetAllocation] = []
             total_value = 0.0
             
@@ -142,10 +173,26 @@ class DashboardService:
                 if qty > 0.000001: # Show only positive holdings (ignore dust)
                     aid_str = str(aid)
                     price = last_known_prices.get(aid_str, 0.0)
-                    asset_val = float(qty) * price
+                    asset_obj = assets.get(aid_str)
+                    
+                    if asset_obj and price > 0:
+                        # Valor en moneda del activo
+                        value_in_asset_currency = float(qty) * price
+                        
+                        # Convertir a moneda base del usuario
+                        asset_val = await forex_service.convert_value(
+                            value_in_asset_currency,
+                            asset_obj.currency,
+                            base_currency,
+                            end_date,  # Usar última fecha del año
+                            db
+                        )
+                    else:
+                        # Fallback sin conversión
+                        asset_val = float(qty) * price
+                    
                     total_value += asset_val
                     
-                    asset_obj = assets.get(aid_str)
                     name = asset_obj.name if asset_obj else "Unknown"
                     symbol = asset_obj.symbol if asset_obj else "???"
                     # Convert Enum to string safely
@@ -166,7 +213,7 @@ class DashboardService:
                 for item in allocation:
                     item.percentage = round((item.value / total_value) * 100, 2)
                     
-            # Calculate Total Invested (Cost Basis approximation)
+            # Calculate Total Invested (Cost Basis approximation) - con conversión
             cost_basis_map = defaultdict(float) # asset_id -> total_cost
             current_holdings_replay = defaultdict(float) 
             avg_price_map = defaultdict(float)
@@ -192,7 +239,22 @@ class DashboardService:
             real_total_invested = 0.0
             for aid, qty in current_holdings_replay.items():
                 if qty > 0.000001:
-                    real_total_invested += qty * avg_price_map[aid]
+                    cost_in_asset_currency = qty * avg_price_map[aid]
+                    asset_obj = assets.get(aid)
+                    
+                    if asset_obj:
+                        # Convertir costo a moneda base del usuario
+                        converted_cost = await forex_service.convert_value(
+                            cost_in_asset_currency,
+                            asset_obj.currency,
+                            base_currency,
+                            end_date,  # Usar última fecha del año
+                            db
+                        )
+                        real_total_invested += converted_cost
+                    else:
+                        # Fallback sin conversión
+                        real_total_invested += cost_in_asset_currency
                     
             total_pl = total_value - real_total_invested
             total_pl_percentage = (total_pl / real_total_invested * 100) if real_total_invested > 0 else 0.0

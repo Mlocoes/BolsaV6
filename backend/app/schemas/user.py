@@ -12,6 +12,7 @@ class UserBase(BaseModel):
     """Base para User"""
     username: str = Field(..., min_length=3, max_length=50)
     email: str
+    base_currency: str = Field(default="EUR", min_length=3, max_length=3)
     
     @field_validator('email')
     @classmethod
@@ -38,6 +39,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=6)
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
+    base_currency: Optional[str] = Field(None, min_length=3, max_length=3)
     
     @field_validator('email')
     @classmethod
@@ -59,6 +61,7 @@ class UserResponse(UserBase):
     id: UUID
     is_active: bool
     is_admin: bool
+    base_currency: str
     created_at: datetime
     
     class Config:
@@ -75,3 +78,16 @@ class LoginResponse(BaseModel):
     """Schema para respuesta de login"""
     user: UserResponse
     message: str = "Login exitoso"
+
+
+class UserPreferencesUpdate(BaseModel):
+    """Schema para actualizar preferencias de usuario"""
+    base_currency: str = Field(..., min_length=3, max_length=3)
+    
+    @field_validator('base_currency')
+    @classmethod
+    def validate_currency(cls, v: str) -> str:
+        """Validar código de moneda"""
+        if not v.isalpha():
+            raise ValueError('El código de moneda debe contener solo letras')
+        return v.upper()

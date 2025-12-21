@@ -43,8 +43,11 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // Sesión expirada o no autenticado
-            window.location.href = '/login';
+            // No redirigir si es el endpoint /auth/me (carga inicial)
+            if (!error.config?.url?.includes('/auth/me')) {
+                // Sesión expirada o no autenticado en otras llamadas
+                window.location.href = '/login';
+            }
         }
         return Promise.reject(error);
     }
