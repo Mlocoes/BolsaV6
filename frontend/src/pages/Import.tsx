@@ -23,9 +23,15 @@ export default function Import() {
             const response = await api.get('/quotes/assets/coverage');
             setCoverageData(response.data);
             setShowCoverageModal(true);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error:', error);
-            toast.error('Error al obtener información de cobertura.');
+            if (error.response?.status === 401) {
+                toast.error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+                window.location.href = '/login';
+            } else {
+                const errorMsg = error.response?.data?.detail || 'Error al obtener información de cobertura.';
+                toast.error(errorMsg);
+            }
         } finally {
             setLoading(false);
         }
@@ -477,7 +483,7 @@ export default function Import() {
                             <div>
                                 <h2 className="text-lg font-bold text-white">Estado de Cotizaciones</h2>
                                 <p className="text-xs text-dark-muted mt-1">
-                                    {coverageData.stats.total_assets} activos • {coverageData.stats.no_data} sin datos • {coverageData.stats.incomplete} incompletos • {coverageData.stats.complete} completos
+                                    {coverageData.stats.total_assets} activos • {coverageData.stats.no_data} sin datos • {coverageData.stats.incomplete_data} incompletos • {coverageData.stats.complete} completos
                                 </p>
                             </div>
                             <button
@@ -492,10 +498,10 @@ export default function Import() {
                         <div className="p-4 border-b border-dark-border flex gap-3">
                             <button
                                 onClick={() => handleStartBulkImport(false)}
-                                disabled={importingBulk || coverageData.stats.no_data + coverageData.stats.incomplete + coverageData.stats.outdated === 0}
+                                disabled={importingBulk || coverageData.stats.no_data + coverageData.stats.incomplete_data + coverageData.stats.outdated === 0}
                                 className="px-4 py-2 bg-primary hover:bg-primary/80 text-white rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {importingBulk ? 'Importando...' : `Importar Faltantes (${coverageData.stats.no_data + coverageData.stats.incomplete + coverageData.stats.outdated})`}
+                                {importingBulk ? 'Importando...' : `Importar Faltantes (${coverageData.stats.no_data + coverageData.stats.incomplete_data + coverageData.stats.outdated})`}
                             </button>
                             <button
                                 onClick={() => handleStartBulkImport(true)}
@@ -537,7 +543,7 @@ export default function Import() {
                                             'complete': { color: 'text-green-400', bg: 'bg-green-500/20', icon: '🟢', label: 'Completo' }
                                         };
                                         
-                                        const status = statusConfig[asset.reason] || statusConfig['no_data'];
+                                        const status = statusConfig[asset.reason as keyof typeof statusConfig] || statusConfig['no_data'];
                                         
                                         return (
                                             <tr key={asset.asset_id} className="border-b border-dark-border/50 hover:bg-dark-border/30">

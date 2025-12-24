@@ -1,13 +1,14 @@
 """
 API de Cotizaciones
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import joinedload
 from typing import List, Optional
 from datetime import datetime, date, timezone
 from decimal import Decimal
+from pydantic import BaseModel
 import pandas as pd
 import io
 import traceback
@@ -23,6 +24,12 @@ import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+# Modelo para el body de bulk import
+class BulkImportRequest(BaseModel):
+    asset_ids: Optional[List[str]] = None
+    force_refresh: bool = False
 
 
 @router.get("/", response_model=List[QuoteResponseWithAsset])
@@ -577,7 +584,7 @@ async def get_all_assets_coverage(
     stats = {
         "total_assets": len(assets),
         "no_data": 0,
-        "incomplete": 0,
+        "incomplete_data": 0,
         "outdated": 0,
         "complete": 0
     }
@@ -606,9 +613,8 @@ async def get_all_assets_coverage(
 
 @router.post("/import/bulk-historical", status_code=status.HTTP_202_ACCEPTED)
 async def import_bulk_historical(
-    asset_ids: Optional[List[str]] = None,
-    force_refresh: bool = False,
-    background_tasks: BackgroundTasks = BackgroundTasks(),
+    request: BulkImportRequest,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -623,9 +629,9 @@ async def import_bulk_historical(
     Usa Polygon.io (hasta 500 días) como prioridad, con fallback a yfinance.
     """
     # Obtener activos a procesar
-    if asset_ids:
+    if request.asset_ids:
         result = await db.execute(
-            select(Asset).where(Asset.id.in_(asset_ids))
+            select(Asset).where(Asset.id.in_(request.asset_ids))
         )
     else:
         result = await db.execute(select(Asset).order_by(Asset.symbol))
@@ -642,13 +648,13 @@ async def import_bulk_historical(
     background_tasks.add_task(
         _bulk_import_historical,
         assets=[{"id": str(a.id), "symbol": a.symbol} for a in assets],
-        force_refresh=force_refresh
+        force_refresh=request.force_refresh
     )
     
     return {
         "message": f"Importación masiva iniciada para {len(assets)} activos",
         "total_assets": len(assets),
-        "force_refresh": force_refresh
+        "force_refresh": request.force_refresh
     }
 
 

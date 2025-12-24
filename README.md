@@ -1,146 +1,204 @@
-# BolsaV6 - Sistema de Gestión de Carteras de Inversión
+# 💼 BolsaV6 - Sistema de Gestión de Carteras de Inversión
 
-Sistema profesional, seguro y escalable para gestión de carteras de inversión con arquitectura moderna.
+![Version](https://img.shields.io/badge/version-6.0-blue)
+![Python](https://img.shields.io/badge/python-3.11+-green)
+![React](https://img.shields.io/badge/react-18.2-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## 🚀 Características
+Sistema profesional y completo para gestión de carteras de inversión con seguimiento de rendimiento, importación de datos, cálculos fiscales y análisis avanzado.
 
-### Backend (Python/FastAPI)
-- **API RESTful asíncrona** con FastAPI
-- **PostgreSQL** con SQLAlchemy async
-- **Redis** para sesiones efímeras (se pierden al reload)
-- **Alpha Vantage API** para cotizaciones
-- **Seguridad robusta**: Bcrypt, rate limiting, CORS
-- **Docker** containerizado
+---
 
-### Frontend (React/TypeScript)
-- **React 18 + TypeScript** con Vite
-- **AG Grid** para tablas tipo Excel
-- **Tema oscuro profesional** con Tailwind CSS
-- **Responsive** (desktop + móvil)
-- **Recharts** para gráficos
+## 📋 Índice
 
-### Base de Datos
-- **6 Tablas**: Users, Assets, Quotes, Portfolios, Transactions, Results
-- **Snapshots diarios** de posiciones
-- **Índices optimizados** para consultas rápidas
+- [Características](#-características)
+- [Stack Tecnológico](#-stack-tecnológico)
+- [Arquitectura](#-arquitectura)
+- [Instalación Rápida](#-instalación-rápida)
+- [Uso](#-uso)
+- [Documentación](#-documentación)
+- [APIs Externas](#-apis-externas)
+- [Estructura del Proyecto](#-estructura-del-proyecto)
+- [Desarrollo](#-desarrollo)
+- [Troubleshooting](#-troubleshooting)
 
-## 📋 Prerrequisitos
+---
 
-- **Docker** 20.10+
-- **Docker Compose** 2.0+ (o docker-compose 1.29+)
-- **Python** 3.10+ (para el script de instalación)
-- **Git**
+## ✨ Características
 
-## ⚡ Instalación Rápida
+### Gestión de Carteras
+- ✅ **Múltiples carteras** por usuario
+- ✅ **Transacciones** (compra, venta, dividendos, splits)
+- ✅ **Posiciones actuales** con P/L en tiempo real
+- ✅ **Histórico de rendimiento** (30/90/365 días)
+- ✅ **Distribución por activo** con gráficos interactivos
 
-### Opción 1: Instalación Automática (Recomendado)
+### Cotizaciones de Mercado
+- ✅ **Integración con Polygon.io** (500-730 días de históricos)
+- ✅ **Finnhub** para cotizaciones en tiempo real
+- ✅ **Yahoo Finance** para sincronización diaria automática
+- ✅ **Importación masiva inteligente** con verificación de cobertura
+- ✅ **Soporte multi-activo**: acciones, ETFs, criptomonedas, divisas
 
-```bash
-# Clonar repositorio
-git clone https://github.com/Mlocoes/BolsaV6.git
-cd BolsaV6
+### Análisis Fiscal
+- ✅ **Cálculo de plusvalías/minusvalías** con método FIFO
+- ✅ **Wash Sale Rule** (30 días antes/después)
+- ✅ **Informes fiscales detallados** por año
+- ✅ **Exportación a PDF** para declaración de impuestos
 
-# Ejecutar instalador
-chmod +x install.sh
-./scripts/install.sh
+### Importación de Datos
+- ✅ **Importación desde Excel** (transacciones)
+- ✅ **Importación masiva de cotizaciones** con estado de cobertura
+- ✅ **Plantillas descargables**
+- ✅ **Validación automática** de formatos
+
+### Administración
+- ✅ **Gestión de usuarios** con roles (admin/usuario)
+- ✅ **Catálogo de activos** con búsqueda y filtros
+- ✅ **Gestión de mercados** bursátiles
+- ✅ **Configuración personalizada** (moneda base, preferencias)
+
+---
+
+## 🛠️ Stack Tecnológico
+
+### Backend
+- **Framework**: FastAPI 0.104+ (Python 3.11)
+- **ORM**: SQLAlchemy 2.0 con Alembic
+- **Base de Datos**: PostgreSQL 15
+- **Cache/Sesiones**: Redis 7
+- **Testing**: Pytest
+
+### Frontend
+- **Framework**: React 18.2 con TypeScript
+- **Build Tool**: Vite 5.0
+- **UI/Estilos**: Tailwind CSS 3.4
+- **Gráficos**: Recharts 2.10
+- **Estado**: Zustand 4.4
+
+### Infraestructura
+- **Contenedores**: Docker + Docker Compose
+
+### APIs Externas
+- **Polygon.io**: Cotizaciones históricas
+- **Finnhub**: Cotizaciones tiempo real
+- **Yahoo Finance**: Sincronización diaria
+
+---
+
+## 🏗️ Arquitectura
+
+```
+┌──────────────┐
+│   Frontend   │  React + Vite
+│  Port: 3000  │
+└──────┬───────┘
+       │ HTTP/REST
+       ▼
+┌──────────────┐
+│  Backend API │  FastAPI
+│  Port: 8000  │
+└──┬───────┬───┘
+   │       │
+   ▼       ▼
+┌────┐  ┌──────┐
+│ DB │  │Redis │
+└────┘  └──────┘
 ```
 
-El instalador se encargará automáticamente de:
-- ✅ Verificar e instalar dependencias
-- ✅ Configurar credenciales
-- ✅ Construir e iniciar servicios
-- ✅ Ejecutar migraciones
-- ✅ Crear usuario administrador
+---
 
-### Opción 2: Instalación Manual
+## 🚀 Instalación Rápida
 
+### Requisitos Previos
+- Docker 20.10+
+- Docker Compose 2.0+
+- Git
+
+### Pasos
+
+1. **Clonar el repositorio**
 ```bash
-# 1. Clonar repositorio
 git clone https://github.com/Mlocoes/BolsaV6.git
 cd BolsaV6
+```
 
-# 2. Configurar variables de entorno
+2. **Configurar variables de entorno**
+```bash
 cp .env.example .env
-nano .env  # Editar con sus credenciales
-
-# 3. Iniciar servicios
-docker compose up -d
-
-# 4. Ejecutar migraciones
-docker compose exec backend alembic upgrade head
-
-# 5. Crear usuario administrador
-docker compose exec backend python create_admin.py
+nano .env  # Editar con tus valores
 ```
 
-📖 **Documentación completa:** Ver [docs/INSTALACION.md](docs/INSTALACION.md)
-
-### Accesos
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **Documentación API**: http://localhost:8000/docs
-
-### Scripts de Gestión
-
+3. **Levantar servicios**
 ```bash
-# Iniciar el sistema
-./scripts/start.sh
-
-# Detener el sistema
-./scripts/stop.sh
-
-# Validar esquema de BD
-./scripts/validate_schema.sh
-
-# Ver logs
-docker compose logs -f
+docker compose up -d
 ```
 
-## 📂 Estructura
+4. **Acceder**
+- Frontend: http://localhost:3000
+- Backend Docs: http://localhost:8000/docs
 
+5. **Login inicial**
 ```
-BolsaV6/
-├── backend/              # FastAPI Backend
-│   ├── app/
-│   │   ├── api/          # Endpoints
-│   │   ├── core/         # Config, DB, Security
-│   │   ├── models/       # SQLAlchemy Models
-│   │   ├── schemas/      # Pydantic Schemas
-│   │   ├── services/     # Business Logic
-│   │   └── main.py
-│   ├── alembic/          # DB Migrations
-│   └── Dockerfile
-├── frontend/             # React Frontend
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   └── stores/
-│   └── Dockerfile
-├── scripts/              # Utility Scripts
-│   ├── install.sh        # Instalación automática
-│   ├── start.sh          # Iniciar servicios
-│   ├── stop.sh           # Detener servicios
-│   ├── validate_schema.sh # Validar esquema BD
-│   └── README.md         # Documentación de scripts
-├── docs/                 # Documentación
-│   ├── INDEX.md          # Índice de documentación
-│   ├── README.md         # Este archivo
-│   ├── INSTALACION.md    # Guía de instalación
-│   ├── ESQUEMA_BASE_DATOS.md  # Schema BD
-│   └── ...
-├── docker-compose.yml
-└── .env.example
+Usuario: admin
+Contraseña: admin123
 ```
 
-## 🔒 Seguridad
+---
 
-- **Sesiones efímeras**: Se pierden al recargar página (login requerido)
-- **Contraseñas hasheadas**: Bcrypt
-- **Variables de entorno**: Nunca hardcodeadas
-- **CORS configurado**
-- **Rate limiting** en endpoints críticos
+## 📖 Documentación Completa
+
+- **[Base de Datos](./docs/DATABASE_DOCUMENTATION.md)**: Esquema completo, tablas, relaciones
+- **[Backend](./docs/BACKEND_DOCUMENTATION.md)**: APIs, servicios, autenticación
+- **[Frontend](./docs/FRONTEND_DOCUMENTATION.md)**: Componentes, pantallas, servicios
+
+---
+
+## 🔑 APIs Externas
+
+### Polygon.io (Históricos)
+1. Registrarse en https://polygon.io/
+2. Copiar API key
+3. Agregar a `.env`: `POLYGON_API_KEY=tu-key`
+
+### Finnhub (Tiempo Real)
+1. Registrarse en https://finnhub.io/
+2. Copiar API key
+3. Agregar a `.env`: `FINNHUB_API_KEY=tu-key`
+
+---
+
+## 👨‍💻 Desarrollo
+
+### Migraciones de BD
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+### Ver Logs
+```bash
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+### Testing
+```bash
+docker compose exec backend pytest
+```
+
+---
+
+## 🐛 Troubleshooting
+
+Ver [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) para solución de problemas comunes.
+
+---
 
 ## 📄 Licencia
 
-MIT
+MIT License
+
+---
+
+**Última actualización**: Diciembre 2024  
+**Versión**: 6.0
