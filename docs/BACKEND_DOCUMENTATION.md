@@ -68,8 +68,8 @@ El backend de BolsaV6 está construido con **FastAPI** (Python 3.11+), un framew
                    ▼
     ┌──────────────────────────────────────────────┐
     │            Data Layer (SQLAlchemy)           │
-    │  • User • Asset • Portfolio • Transaction   │
-    │  • Quote • Result • Market                  │
+    │  • User • Asset • Portfolio • Transaction    │
+    │  • Quote • Result • Market                   │
     └──────────────┬───────────────────────────────┘
                    │
     ┌──────────────┴───────────────┐
