@@ -12,25 +12,56 @@ export default function Import() {
     const [selectedPortfolio, setSelectedPortfolio] = useState('');
     const [assets, setAssets] = useState<any[]>([]);
     const [selectedAsset, setSelectedAsset] = useState('');
+    const [showCoverageModal, setShowCoverageModal] = useState(false);
+    const [coverageData, setCoverageData] = useState<any>(null);
+    const [importingBulk, setImportingBulk] = useState(false);
 
     const handleImportHistorical = async () => {
         setLoading(true);
         try {
-            // TODO: Implementar importación masiva de históricos
-            toast.info('Funcionalidad en desarrollo');
+            // Obtener cobertura de todos los activos
+            const response = await api.get('/quotes/assets/coverage');
+            setCoverageData(response.data);
+            setShowCoverageModal(true);
         } catch (error) {
             console.error('Error:', error);
-            toast.error('Error al importar. Por favor, inténtelo de nuevo.');
+            toast.error('Error al obtener información de cobertura.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleStartBulkImport = async (forceRefresh: boolean = false) => {
+        setImportingBulk(true);
+        try {
+            const response = await api.post('/quotes/import/bulk-historical', {
+                force_refresh: forceRefresh
+            });
+            
+            toast.success(response.data.message, { autoClose: 5000 });
+            toast.info('La importación se está ejecutando en segundo plano. Esto puede tardar varios minutos.');
+            
+            // Cerrar modal y refrescar después de unos segundos
+            setTimeout(() => {
+                setShowCoverageModal(false);
+                handleImportHistorical(); // Refrescar cobertura
+            }, 3000);
+            
+        } catch (error: any) {
+            console.error('Error:', error);
+            const errorMsg = error.response?.data?.detail || 'Error al iniciar importación masiva.';
+            toast.error(errorMsg);
+        } finally {
+            setImportingBulk(false);
         }
     };
 
     const handleImportLatest = async () => {
         setLoading(true);
         try {
-            // TODO: Implementar actualización de últimas cotizaciones
-            toast.info('Funcionalidad en desarrollo');
+            const response = await api.post('/quotes/sync-all');
+            toast.success(response.data.message);
+            toast.info('La sincronización se está ejecutando en segundo plano.');
         } catch (error) {
             console.error('Error:', error);
             toast.error('Error al actualizar. Por favor, inténtelo de nuevo.');
@@ -436,6 +467,117 @@ export default function Import() {
                     </div>
                 </div>
             </div>
+
+            {/* Modal de Cobertura */}
+            {showCoverageModal && coverageData && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-dark-surface border border-dark-border rounded-lg max-w-6xl w-full max-h-[90vh] flex flex-col">
+                        {/* Header */}
+                        <div className="p-4 border-b border-dark-border flex justify-between items-center">
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Estado de Cotizaciones</h2>
+                                <p className="text-xs text-dark-muted mt-1">
+                                    {coverageData.stats.total_assets} activos • {coverageData.stats.no_data} sin datos • {coverageData.stats.incomplete} incompletos • {coverageData.stats.complete} completos
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setShowCoverageModal(false)}
+                                className="text-dark-muted hover:text-white transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Botones de Acción */}
+                        <div className="p-4 border-b border-dark-border flex gap-3">
+                            <button
+                                onClick={() => handleStartBulkImport(false)}
+                                disabled={importingBulk || coverageData.stats.no_data + coverageData.stats.incomplete + coverageData.stats.outdated === 0}
+                                className="px-4 py-2 bg-primary hover:bg-primary/80 text-white rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {importingBulk ? 'Importando...' : `Importar Faltantes (${coverageData.stats.no_data + coverageData.stats.incomplete + coverageData.stats.outdated})`}
+                            </button>
+                            <button
+                                onClick={() => handleStartBulkImport(true)}
+                                disabled={importingBulk}
+                                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium disabled:opacity-50"
+                            >
+                                {importingBulk ? 'Importando...' : 'Forzar Reimportar Todo'}
+                            </button>
+                            <div className="flex-1"></div>
+                            <button
+                                onClick={() => handleImportHistorical()}
+                                disabled={importingBulk}
+                                className="px-4 py-2 bg-dark-bg hover:bg-dark-border text-white rounded text-sm font-medium"
+                            >
+                                🔄 Refrescar
+                            </button>
+                        </div>
+
+                        {/* Tabla de Cobertura */}
+                        <div className="flex-1 overflow-auto p-4">
+                            <table className="w-full text-xs">
+                                <thead className="sticky top-0 bg-dark-surface">
+                                    <tr className="border-b border-dark-border">
+                                        <th className="text-left py-2 px-3 text-dark-muted font-semibold">Símbolo</th>
+                                        <th className="text-left py-2 px-3 text-dark-muted font-semibold">Nombre</th>
+                                        <th className="text-right py-2 px-3 text-dark-muted font-semibold">Cotizaciones</th>
+                                        <th className="text-center py-2 px-3 text-dark-muted font-semibold">Primera</th>
+                                        <th className="text-center py-2 px-3 text-dark-muted font-semibold">Última</th>
+                                        <th className="text-center py-2 px-3 text-dark-muted font-semibold">Días</th>
+                                        <th className="text-center py-2 px-3 text-dark-muted font-semibold">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {coverageData.assets.map((asset: any) => {
+                                        const statusConfig = {
+                                            'no_data': { color: 'text-red-400', bg: 'bg-red-500/20', icon: '🔴', label: 'Sin datos' },
+                                            'incomplete_data': { color: 'text-yellow-400', bg: 'bg-yellow-500/20', icon: '🟡', label: 'Incompleto' },
+                                            'outdated': { color: 'text-orange-400', bg: 'bg-orange-500/20', icon: '🟠', label: 'Desactualizado' },
+                                            'complete': { color: 'text-green-400', bg: 'bg-green-500/20', icon: '🟢', label: 'Completo' }
+                                        };
+                                        
+                                        const status = statusConfig[asset.reason] || statusConfig['no_data'];
+                                        
+                                        return (
+                                            <tr key={asset.asset_id} className="border-b border-dark-border/50 hover:bg-dark-border/30">
+                                                <td className="py-2 px-3 font-mono text-white">{asset.symbol}</td>
+                                                <td className="py-2 px-3 text-dark-muted">{asset.name}</td>
+                                                <td className="py-2 px-3 text-right text-white font-semibold">
+                                                    {asset.coverage.total_quotes || 0}
+                                                </td>
+                                                <td className="py-2 px-3 text-center text-dark-muted">
+                                                    {asset.coverage.first_date || '-'}
+                                                </td>
+                                                <td className="py-2 px-3 text-center text-dark-muted">
+                                                    {asset.coverage.last_date || '-'}
+                                                </td>
+                                                <td className="py-2 px-3 text-center text-dark-muted">
+                                                    {asset.coverage.days_since_last_update !== null ? asset.coverage.days_since_last_update : '-'}
+                                                </td>
+                                                <td className="py-2 px-3 text-center">
+                                                    <span className={`${status.bg} ${status.color} px-2 py-1 rounded text-[10px] font-semibold`}>
+                                                        {status.icon} {status.label}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Footer con notas */}
+                        <div className="p-4 border-t border-dark-border bg-dark-bg/50">
+                            <div className="text-[10px] text-dark-muted space-y-1">
+                                <p>• <strong className="text-white">Completo:</strong> ≥400 cotizaciones (aprox. 1.5 años de datos)</p>
+                                <p>• <strong className="text-white">Desactualizado:</strong> Más de 7 días sin actualizar</p>
+                                <p>• <strong className="text-white">Importación:</strong> Usa Polygon.io (hasta 500 días) con rate limit de 5 req/min</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </Layout>
     );
 }

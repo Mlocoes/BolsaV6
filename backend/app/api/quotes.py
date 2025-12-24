@@ -18,8 +18,11 @@ from app.models.quote import Quote
 from app.schemas.quote import QuoteResponse, QuoteResponseWithAsset
 from app.services.finnhub_service import finnhub_service
 from app.services.alpha_vantage_service import alpha_vantage_service
+from sqlalchemy import func
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=List[QuoteResponseWithAsset])
@@ -425,3 +428,340 @@ async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool 
             await db.rollback()
             logger.error(f"❌ Error guardando cotizaciones para {symbol}: {str(e)}")
             raise e
+
+
+async def _get_asset_quote_coverage(asset_id: str, db: AsyncSession) -> dict:
+    """
+    Obtener información sobre la cobertura de cotizaciones de un activo
+    
+    Retorna:
+        - has_quotes: bool - Si tiene al menos una cotización
+        - total_quotes: int - Cantidad total de cotizaciones
+        - first_date: date - Fecha de la primera cotización
+        - last_date: date - Fecha de la última cotización
+        - days_since_last_update: int - Días desde la última actualización
+        - is_complete: bool - Si tiene ≥400 cotizaciones (considerado completo)
+        - needs_update: bool - Si han pasado >7 días sin actualizar
+    """
+    result = await db.execute(
+        select(
+            func.count(Quote.id).label("total_quotes"),
+            func.min(Quote.date).label("first_date"),
+            func.max(Quote.date).label("last_date")
+        ).where(Quote.asset_id == asset_id)
+    )
+    
+    row = result.one()
+    
+    if row.total_quotes == 0:
+        return {
+            "has_quotes": False,
+            "total_quotes": 0,
+            "first_date": None,
+            "last_date": None,
+            "days_since_last_update": None,
+            "is_complete": False,
+            "needs_update": True
+        }
+    
+    first_date = row.first_date.date() if row.first_date else None
+    last_date = row.last_date.date() if row.last_date else None
+    
+    # Calcular días desde última actualización
+    from datetime import date as date_type
+    today = date_type.today()
+    days_since_last_update = (today - last_date).days if last_date else None
+    
+    # Considerar completo si tiene ≥400 cotizaciones (aprox 1.5 años de días hábiles)
+    is_complete = row.total_quotes >= 400
+    
+    # Necesita actualización si han pasado más de 7 días
+    needs_update = days_since_last_update > 7 if days_since_last_update else False
+    
+    return {
+        "has_quotes": True,
+        "total_quotes": row.total_quotes,
+        "first_date": first_date,
+        "last_date": last_date,
+        "days_since_last_update": days_since_last_update,
+        "is_complete": is_complete,
+        "needs_update": needs_update
+    }
+
+
+async def _check_asset_needs_import(asset_id: str, db: AsyncSession) -> dict:
+    """
+    Verificar si un activo necesita importación de histórico
+    
+    Retorna:
+        - needs_import: bool
+        - reason: str ("no_data", "incomplete_data", "outdated", "complete")
+        - coverage: dict (información de cobertura)
+    """
+    coverage = await _get_asset_quote_coverage(asset_id, db)
+    
+    if not coverage["has_quotes"]:
+        return {
+            "needs_import": True,
+            "reason": "no_data",
+            "message": "Sin cotizaciones",
+            "coverage": coverage
+        }
+    
+    if not coverage["is_complete"]:
+        return {
+            "needs_import": True,
+            "reason": "incomplete_data",
+            "message": f"Datos parciales ({coverage['total_quotes']} cotizaciones)",
+            "coverage": coverage
+        }
+    
+    if coverage["needs_update"]:
+        return {
+            "needs_import": True,
+            "reason": "outdated",
+            "message": f"Desactualizado ({coverage['days_since_last_update']} días)",
+            "coverage": coverage
+        }
+    
+    return {
+        "needs_import": False,
+        "reason": "complete",
+        "message": f"Completo ({coverage['total_quotes']} cotizaciones)",
+        "coverage": coverage
+    }
+
+
+@router.get("/asset/{asset_id}/coverage")
+async def get_asset_coverage(
+    asset_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Obtener información de cobertura de cotizaciones para un activo específico
+    """
+    # Verificar que el activo existe
+    asset_result = await db.execute(select(Asset).where(Asset.id == asset_id))
+    asset = asset_result.scalar_one_or_none()
+    
+    if not asset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Activo no encontrado"
+        )
+    
+    check = await _check_asset_needs_import(asset_id, db)
+    
+    return {
+        "asset_id": asset_id,
+        "symbol": asset.symbol,
+        "name": asset.name,
+        **check
+    }
+
+
+@router.get("/assets/coverage")
+async def get_all_assets_coverage(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Obtener información de cobertura de cotizaciones para todos los activos
+    """
+    # Obtener todos los activos
+    result = await db.execute(select(Asset).order_by(Asset.symbol))
+    assets = result.scalars().all()
+    
+    coverage_list = []
+    stats = {
+        "total_assets": len(assets),
+        "no_data": 0,
+        "incomplete": 0,
+        "outdated": 0,
+        "complete": 0
+    }
+    
+    for asset in assets:
+        check = await _check_asset_needs_import(str(asset.id), db)
+        
+        coverage_list.append({
+            "asset_id": str(asset.id),
+            "symbol": asset.symbol,
+            "name": asset.name,
+            "needs_import": check["needs_import"],
+            "reason": check["reason"],
+            "message": check["message"],
+            "coverage": check["coverage"]
+        })
+        
+        # Actualizar estadísticas
+        stats[check["reason"]] += 1
+    
+    return {
+        "assets": coverage_list,
+        "stats": stats
+    }
+
+
+@router.post("/import/bulk-historical", status_code=status.HTTP_202_ACCEPTED)
+async def import_bulk_historical(
+    asset_ids: Optional[List[str]] = None,
+    force_refresh: bool = False,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Importar histórico de cotizaciones de forma masiva
+    
+    Parámetros:
+        - asset_ids: Lista opcional de IDs de activos (si no se especifica, procesa todos)
+        - force_refresh: Si es True, reimporta incluso si ya tiene datos completos
+    
+    El proceso verifica la cobertura de cada activo y solo importa los que necesitan datos.
+    Usa Polygon.io (hasta 500 días) como prioridad, con fallback a yfinance.
+    """
+    # Obtener activos a procesar
+    if asset_ids:
+        result = await db.execute(
+            select(Asset).where(Asset.id.in_(asset_ids))
+        )
+    else:
+        result = await db.execute(select(Asset).order_by(Asset.symbol))
+    
+    assets = result.scalars().all()
+    
+    if not assets:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No se encontraron activos para procesar"
+        )
+    
+    # Agregar tarea en background
+    background_tasks.add_task(
+        _bulk_import_historical,
+        assets=[{"id": str(a.id), "symbol": a.symbol} for a in assets],
+        force_refresh=force_refresh
+    )
+    
+    return {
+        "message": f"Importación masiva iniciada para {len(assets)} activos",
+        "total_assets": len(assets),
+        "force_refresh": force_refresh
+    }
+
+
+async def _bulk_import_historical(assets: List[dict], force_refresh: bool = False):
+    """
+    Función helper para importación masiva en background
+    
+    Itera sobre cada activo, verifica si necesita importación y ejecuta el fetch.
+    Implementa rate limiting para no sobrecargar las APIs externas.
+    """
+    import asyncio
+    from app.core.database import AsyncSessionLocal
+    from app.services.polygon_service import polygon_service
+    from app.services.yfinance_service import yfinance_service
+    
+    logger.info(f"🚀 Iniciando importación masiva de {len(assets)} activos")
+    
+    async with AsyncSessionLocal() as db:
+        processed = 0
+        skipped = 0
+        imported = 0
+        errors = []
+        
+        for asset_data in assets:
+            asset_id = asset_data["id"]
+            symbol = asset_data["symbol"]
+            
+            try:
+                # Verificar si necesita importación
+                if not force_refresh:
+                    check = await _check_asset_needs_import(asset_id, db)
+                    
+                    if not check["needs_import"]:
+                        logger.info(f"⏩ Saltando {symbol}: {check['message']}")
+                        skipped += 1
+                        processed += 1
+                        continue
+                    
+                    logger.info(f"📥 Importando {symbol}: {check['message']}")
+                else:
+                    logger.info(f"🔄 Forzando reimportación de {symbol}")
+                
+                # Intentar con Polygon.io primero (hasta 500 días)
+                logger.info(f"📊 Usando Polygon.io para {symbol}")
+                quotes_data = await polygon_service.get_historical_quotes(symbol)
+                
+                # Si Polygon falla, usar yfinance como fallback
+                if not quotes_data:
+                    logger.warning(f"⚠️ Polygon.io falló para {symbol}, intentando yfinance...")
+                    quotes_data = await yfinance_service.get_historical_quotes(symbol, period="2y")
+                
+                if not quotes_data:
+                    logger.warning(f"❌ No se pudieron obtener datos para {symbol}")
+                    errors.append(f"{symbol}: Sin datos disponibles")
+                    processed += 1
+                    continue
+                
+                # Guardar cotizaciones
+                saved_count = 0
+                for quote_data in quotes_data:
+                    quote_date = quote_data["date"]
+                    if isinstance(quote_date, datetime):
+                        quote_date = datetime.combine(quote_date.date(), datetime.min.time())
+                    
+                    # Verificar duplicados
+                    existing = await db.execute(
+                        select(Quote).where(
+                            and_(
+                                Quote.asset_id == asset_id,
+                                Quote.date == quote_date
+                            )
+                        )
+                    )
+                    
+                    if existing.scalar_one_or_none():
+                        continue
+                    
+                    new_quote = Quote(
+                        asset_id=asset_id,
+                        date=quote_date,
+                        open=quote_data["open"],
+                        high=quote_data["high"],
+                        low=quote_data["low"],
+                        close=quote_data["close"],
+                        volume=quote_data.get("volume", 0),
+                        source="polygon"
+                    )
+                    db.add(new_quote)
+                    saved_count += 1
+                
+                await db.commit()
+                logger.info(f"✅ {symbol}: {saved_count} cotizaciones nuevas guardadas")
+                imported += 1
+                processed += 1
+                
+                # Rate limiting: esperar 12 segundos entre requests (5 req/min de Polygon)
+                if processed < len(assets):
+                    logger.debug(f"⏱️ Esperando 12s (rate limit)...")
+                    await asyncio.sleep(12)
+                
+            except Exception as e:
+                logger.error(f"❌ Error procesando {symbol}: {str(e)}")
+                errors.append(f"{symbol}: {str(e)}")
+                await db.rollback()
+                processed += 1
+        
+        logger.info(f"""
+        ═══════════════════════════════════════
+        📊 IMPORTACIÓN MASIVA COMPLETADA
+        ═══════════════════════════════════════
+        Total procesados: {processed}
+        Importados: {imported}
+        Saltados: {skipped}
+        Errores: {len(errors)}
+        ═══════════════════════════════════════
+        """)
