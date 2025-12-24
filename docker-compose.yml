@@ -64,8 +64,8 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    environment:
-      - VITE_API_URL=http://localhost:8000/api
+    env_file:
+      - ./frontend/.env
     command: npm run dev -- --host 0.0.0.0
 
 volumes:

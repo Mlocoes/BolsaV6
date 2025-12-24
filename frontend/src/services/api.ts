@@ -6,7 +6,7 @@ import axios from 'axios';
 /**
  * Determina la URL base de la API de forma inteligente:
  * 1. Si hay VITE_API_URL definida, la usa (producción/custom)
- * 2. Si no, detecta automáticamente según el origen del navegador
+ * 2. Detecta automáticamente usando el mismo hostname que el navegador
  */
 function getApiUrl(): string {
     // Si hay variable de entorno, usarla (producción o configuración manual)
@@ -14,10 +14,9 @@ function getApiUrl(): string {
         return import.meta.env.VITE_API_URL;
     }
     
-    // Detección automática basada en el origen del navegador
+    // Detección automática: usar el mismo hostname que el navegador pero puerto 8000
+    // Esto funciona tanto si accedes por localhost como por IP de red
     const { protocol, hostname } = window.location;
-    
-    // Construir URL del backend en el mismo host, puerto 8000
     const apiUrl = `${protocol}//${hostname}:8000/api`;
     
     return apiUrl;
@@ -25,10 +24,10 @@ function getApiUrl(): string {
 
 const API_URL = getApiUrl();
 
-// Debug: Mostrar la URL que se está usando
-console.log('🔗 API URL configurada:', API_URL);
-console.log('🔗 Origen del navegador:', window.location.origin);
-console.log('🔗 VITE_API_URL:', import.meta.env.VITE_API_URL || '(no definida - modo automático)');
+// Debug: Mostrar configuración (solo en desarrollo)
+if (import.meta.env.DEV) {
+    console.log('✓ API URL configurada:', API_URL);
+}
 
 export const api = axios.create({
     baseURL: API_URL,
