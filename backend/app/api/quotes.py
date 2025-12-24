@@ -350,7 +350,7 @@ async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool 
     """
     Función helper para obtener y guardar cotizaciones
     
-    - Si full_history=True: Usa Alpha Vantage para obtener hasta 100 días de histórico
+    - Si full_history=True: Usa Polygon.io para obtener hasta 500 días de histórico
     - Si full_history=False: Usa Finnhub para obtener solo cotización actual
     
     Ejecutada en background
@@ -363,9 +363,10 @@ async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool 
     
     # Decidir qué servicio usar
     if full_history:
-        # Usar Alpha Vantage para histórico (últimos 100 días gratis)
-        logger.info(f"📊 Usando Alpha Vantage para histórico de {symbol} (últimos 100 días)")
-        quotes_data = await alpha_vantage_service.get_historical_quotes(symbol)
+        # Usar Polygon.io para histórico (hasta 500 días sin límite diario)
+        logger.info(f"📊 Usando Polygon.io para histórico de {symbol} (hasta 500 días)")
+        from app.services.polygon_service import polygon_service
+        quotes_data = await polygon_service.get_historical_quotes(symbol)
     else:
         # Usar Finnhub para cotización actual
         logger.info(f"📊 Usando Finnhub para cotización actual de {symbol}")
