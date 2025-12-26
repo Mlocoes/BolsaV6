@@ -146,6 +146,10 @@ export default function Import() {
                         '#': idx + 1,
                         'Error': err
                     })));
+                    console.log('Errores detallados:');
+                    result.errors.forEach((err: string, idx: number) => {
+                        console.log(`  ${idx + 1}. ${err}`);
+                    });
                     console.groupEnd();
 
                     // Mostrar solo un resumen si hay muchos errores

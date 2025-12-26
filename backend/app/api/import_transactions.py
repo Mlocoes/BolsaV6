@@ -70,6 +70,9 @@ async def import_transactions_from_excel(
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
         
+        print(f"📂 Archivo Excel leído: {len(df)} filas")
+        print(f"📋 Columnas encontradas: {list(df.columns)}")
+        
         # Validar columnas requeridas (NUEVO FORMATO)
         required_columns = ['Fecha', 'Valor', 'Tipo de Operación', 'Títulos', 'Precio', 'Gastos']
         # Nota: Cuenta, Efectivo y Nº Operación se ignoran por ahora o se guardan en notas si es necesario
@@ -95,11 +98,15 @@ async def import_transactions_from_excel(
         
         for index, row in df.iterrows():
             try:
-                # 1. Extraer símbolo y nombre del campo "Valor" (NUEVO FORMATO MULTI-LÍNEA)
+                print(f"\n🔄 Procesando fila {index + 2}: {row.get('Valor', 'N/A')[:50]}")
+                
+                # 1. Extraer símbolo y nombre del campo "Valor" (SOPORTA FORMATO MULTI-LÍNEA Y SIMPLE)
                 valor_text = str(row['Valor']).strip()
                 
                 if valor_text == 'nan' or not valor_text:
-                    errors.append(f"Fila {index + 2}: Campo 'Valor' vacío")
+                    error_msg = f"Fila {index + 2}: Campo 'Valor' vacío"
+                    errors.append(error_msg)
+                    print(f"❌ {error_msg}")
                     transactions_skipped += 1
                     continue
                 
@@ -121,17 +128,19 @@ async def import_transactions_from_excel(
                     if any(kw == s_up or kw in s_up for kw in MARKET_KEYWORDS):
                         return False
                     # Un símbolo suele ser corto (1-8) y alfanumérico (puede tener punto)
-                    return 1 <= len(s) <= 20 and s.replace('.', '').replace(' ', '').isalnum()
+                    # Permitir hasta 15 caracteres para nombres compuestos
+                    return 1 <= len(s) <= 15 and (s.replace('.', '').replace(' ', '').isalnum() or s.replace('.', '').isalnum())
 
                 # Detectar formato del campo Valor
                 # Formato 1 (3 líneas): Nombre | Símbolo | Mercado
                 # Formato 2 (2 líneas): Símbolo | Mercado
+                # Formato 3 (1 línea): Símbolo o Nombre (NUEVO - para Excel simple)
                 
                 if len(lines) == 2:
                     # Formato 2 líneas: Símbolo en línea 0, Mercado en línea 1
-                    symbol = lines[0].replace(' ', '').upper()  # DIA, BEDBATH, etc
-                    asset_name = lines[0]  # Usar el símbolo como nombre por ahora
-                    market_hint = lines[1]  # CONTINUO, NASDAQ, etc
+                    symbol = lines[0].replace(' ', '').upper()
+                    asset_name = lines[0]
+                    market_hint = lines[1]
                     
                 elif len(lines) >= 3:
                     # Formato 3 líneas: intentar detectar dónde está cada cosa
@@ -150,9 +159,20 @@ async def import_transactions_from_excel(
                         symbol = None
                         
                 elif len(lines) == 1:
-                    # Solo una línea: asumir que es el símbolo
-                    symbol = lines[0].replace(' ', '').upper()
-                    asset_name = lines[0]
+                    # Solo una línea: puede ser nombre o símbolo
+                    text = lines[0].strip()
+                    
+                    # Si tiene espacio, probablemente es nombre (ej: "TESLA MOTO")
+                    # Lo usamos como nombre y como símbolo (sin espacios)
+                    if ' ' in text:
+                        asset_name = text
+                        symbol = text.replace(' ', '').upper()
+                        print(f"ℹ️ Formato simple detectado: '{text}' → símbolo: {symbol}")
+                    else:
+                        # Sin espacio, probablemente es símbolo (ej: "TLO.DE", "TSLA")
+                        symbol = text.upper()
+                        asset_name = text
+                    
                     market_hint = None
                 
                 # Fallback a búsqueda exhaustiva en todas las líneas si no se encontró
@@ -163,24 +183,34 @@ async def import_transactions_from_excel(
                             symbol = clean_line.upper()
                             break
                 
+                # Si todavía no hay símbolo, usar el texto completo sin espacios
                 if not symbol:
-                    errors.append(f"Fila {index + 2}: No se pudo extraer el símbolo (valor: '{valor_text[:50]}')")
-                    transactions_skipped += 1
-                    continue
+                    symbol = valor_text.replace(' ', '').replace('\n', '').upper()[:15]
+                    print(f"⚠️ Símbolo extraído por fallback: '{symbol}' de '{valor_text[:50]}'")
                 
                 if not asset_name:
                     asset_name = lines[0] if lines else symbol
+                
+                print(f"✅ Símbolo detectado: '{symbol}' (nombre: '{asset_name}', mercado: '{market_hint}')")
                 
                 # 2. Buscar mercado en la tabla Markets usando market_hint
                 market_currency = "USD"  # Default
                 market_name = None
                 
                 if market_hint:
-                    # Buscar en tabla markets (case insensitive)
+                    # Buscar primero coincidencia exacta, luego con LIKE
+                    # Primero intentar coincidencia exacta (case insensitive)
                     market_result = await db.execute(
-                        select(Market).where(Market.name.ilike(f"%{market_hint}%"))
+                        select(Market).where(Market.name.ilike(market_hint))
                     )
                     market_obj = market_result.scalar_one_or_none()
+                    
+                    # Si no encuentra exacta, buscar con LIKE pero tomando solo la primera
+                    if not market_obj:
+                        market_result = await db.execute(
+                            select(Market).where(Market.name.ilike(f"%{market_hint}%")).limit(1)
+                        )
+                        market_obj = market_result.scalar_one_or_none()
                     
                     if market_obj:
                         market_currency = market_obj.currency
@@ -262,7 +292,9 @@ async def import_transactions_from_excel(
                     if transaction_date.tzinfo is None:
                         transaction_date = transaction_date.replace(tzinfo=timezone.utc)
                 except Exception as e:
-                    errors.append(f"Fila {index + 2}: Fecha inválida '{fecha_str}' ({str(e)})")
+                    error_msg = f"Fila {index + 2}: Fecha inválida '{fecha_str}' ({str(e)})"
+                    errors.append(error_msg)
+                    print(f"❌ {error_msg}")
                     transactions_skipped += 1
                     continue
                 
@@ -308,7 +340,9 @@ async def import_transactions_from_excel(
                     corporate_transactions += 1
                 
             except Exception as e:
-                errors.append(f"Fila {index + 2}: Error crítico - {str(e)}")
+                error_msg = f"Fila {index + 2}: Error crítico - {str(e)}"
+                errors.append(error_msg)
+                print(f"❌ {error_msg}")
                 transactions_skipped += 1
                 continue
         
