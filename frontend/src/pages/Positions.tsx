@@ -27,57 +27,84 @@ export default function Positions() {
     }
 
     const columnDefs: ColDef[] = [
-        { field: 'symbol', headerName: 'Símbolo', width: 100, pinned: 'left' },
-        { field: 'name', headerName: 'Nombre', width: 220 },
+        { field: 'symbol', headerName: 'Símbolo', width: 90, pinned: 'left', cellClass: 'font-semibold text-primary' },
+        { field: 'name', headerName: 'Nombre', width: 180 },
         {
             field: 'quantity',
             headerName: 'Cantidad',
-            width: 110,
+            width: 100,
             valueFormatter: (params) => formatQuantity(params.value)
         },
         {
             field: 'avg_price',
-            headerName: 'Precio Compra',
-            width: 120,
+            headerName: 'P. Compra',
+            width: 110,
+            valueFormatter: (params) => formatCurrency(params.value)
+        },
+        {
+            field: 'previous_close',
+            headerName: 'P. Anterior',
+            width: 110,
+            cellClass: 'text-gray-400',
             valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'current_price',
-            headerName: 'Precio Actual',
-            width: 120,
+            headerName: 'P. Actual',
+            width: 110,
             cellClass: (params) => params.data.source === 'online' ? 'text-green-400 font-medium' : '',
+            valueFormatter: (params) => formatCurrency(params.value)
+        },
+        {
+            field: 'day_change_percent',
+            headerName: '% Día',
+            width: 90,
+            valueFormatter: (params) => formatPercent(params.value),
+            cellStyle: (params) => ({
+                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444',
+                fontWeight: '600'
+            })
+        },
+        {
+            field: 'day_result',
+            headerName: 'Res. Día',
+            width: 110,
+            cellStyle: (params) => ({
+                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444',
+                fontWeight: '600'
+            }),
             valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'cost_basis',
             headerName: 'Costo Base',
-            width: 130,
+            width: 120,
             valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'current_value',
             headerName: 'Valor Actual',
-            width: 130,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'profit_loss',
-            headerName: 'Resultado',
-            width: 130,
-            cellStyle: (params) => ({
-                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444'
-            }),
+            width: 120,
             valueFormatter: (params) => formatCurrency(params.value)
         },
         {
             field: 'profit_loss_percent',
-            headerName: 'Resultado %',
-            width: 120,
+            headerName: '% Total',
+            width: 100,
             valueFormatter: (params) => formatPercent(params.value),
             cellStyle: (params) => ({
                 color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444',
                 fontWeight: 'bold'
             })
+        },
+        {
+            field: 'profit_loss',
+            headerName: 'Resultado Total',
+            width: 130,
+            cellStyle: (params) => ({
+                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444'
+            }),
+            valueFormatter: (params) => formatCurrency(params.value)
         },
     ];
 

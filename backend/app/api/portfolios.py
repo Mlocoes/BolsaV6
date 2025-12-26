@@ -222,6 +222,7 @@ async def get_portfolio_positions(
     active_positions = []
     for pos in positions.values():
         if pos["quantity"] > 0:
+            # Obtener precio actual
             if online and pos["symbol"] in online_prices and online_prices[pos["symbol"]]:
                 current_price = online_prices[pos["symbol"]]["close"]
                 source = "online"
@@ -236,12 +237,26 @@ async def get_portfolio_positions(
                 current_price = float(latest_quote.close) if latest_quote else 0.0
                 source = "historic"
             
+            # Obtener precio del día anterior (penúltima cotización)
+            prev_quote_result = await db.execute(
+                select(Quote).where(
+                    Quote.asset_id == pos["asset_id"]
+                ).order_by(desc(Quote.date)).limit(2)
+            )
+            prev_quotes = prev_quote_result.scalars().all()
+            previous_close = float(prev_quotes[1].close) if len(prev_quotes) > 1 else current_price
+            
             quantity = float(pos["quantity"])
             avg_price = float(pos["average_price"])
             cost_basis = float(pos["total_invested"])
             current_value = quantity * current_price
             profit_loss = current_value - cost_basis
             profit_loss_percent = (profit_loss / cost_basis * 100) if cost_basis > 0 else 0.0
+            
+            # Cálculos del día
+            day_change = current_price - previous_close
+            day_change_percent = (day_change / previous_close * 100) if previous_close > 0 else 0.0
+            day_result = day_change * quantity
             
             active_positions.append({
                 "asset_id": pos["asset_id"],
@@ -252,6 +267,10 @@ async def get_portfolio_positions(
                 "quantity": quantity,
                 "avg_price": avg_price,
                 "current_price": current_price,
+                "previous_close": previous_close,
+                "day_change": day_change,
+                "day_change_percent": day_change_percent,
+                "day_result": day_result,
                 "cost_basis": cost_basis,
                 "current_value": current_value,
                 "profit_loss": profit_loss,
