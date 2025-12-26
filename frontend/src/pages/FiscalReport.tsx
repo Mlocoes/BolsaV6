@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef } from 'ag-grid-community';
+import 'ag-grid-enterprise';
 import api from '../services/api';
 import { getFiscalReport, FiscalReport as FiscalReportType } from '../services/fiscalService';
 import { formatCurrency, formatQuantity } from '../utils/formatters';
@@ -212,10 +213,14 @@ const FiscalReport: React.FC = () => {
                                         filter: true,
                                         suppressMovable: true,
                                     }}
+                                    enableRangeSelection={true}
+                                    enableRangeHandle={true}
+                                    enableFillHandle={true}
+                                    suppressCellFocus={false}
+                                    copyHeadersToClipboard={true}
                                     pagination={true}
                                     paginationPageSize={50}
                                     animateRows={true}
-                                    suppressCellFocus={true}
                                     onGridReady={(params) => {
                                         params.api.sizeColumnsToFit();
                                     }}

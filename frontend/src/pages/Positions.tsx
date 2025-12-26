@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef } from 'ag-grid-community';
+import 'ag-grid-enterprise';
 import Layout from '../components/Layout';
 import { usePortfolioStore } from '../stores/portfolioStore';
 import { formatCurrency, formatQuantity, formatPercent } from '../utils/formatters';
@@ -204,8 +205,12 @@ export default function Positions() {
                                         resizable: true,
                                         filter: true,
                                     }}
+                                    enableRangeSelection={true}
+                                    enableRangeHandle={true}
+                                    enableFillHandle={true}
+                                    suppressCellFocus={false}
+                                    copyHeadersToClipboard={true}
                                     animateRows={true}
-                                    suppressCellFocus={true}
                                     onGridReady={(params) => {
                                         params.api.sizeColumnsToFit();
                                     }}

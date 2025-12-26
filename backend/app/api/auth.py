@@ -72,14 +72,14 @@ async def login(
         raise e
     
     # Establecer cookie HttpOnly
-    # En desarrollo: SameSite=None permite cookies entre diferentes IPs
-    # secure=False es necesario para http:// (no https://)
+    # SameSite=lax funciona cuando frontend y backend están en el mismo dominio
+    # Para desarrollo en diferentes IPs, necesitamos SameSite=none con HTTPS
     response.set_cookie(
         key="session_id",
         value=session_id,
         httponly=True,
         secure=False,
-        samesite="none" if settings.ENVIRONMENT == "development" else "lax",
+        samesite="lax",
         max_age=settings.SESSION_EXPIRE_MINUTES * 60,
         # No especificar domain permite usar cualquier IP/hostname
     )

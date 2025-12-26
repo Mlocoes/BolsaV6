@@ -4,6 +4,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef } from 'ag-grid-community';
+import 'ag-grid-enterprise';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
@@ -210,6 +211,11 @@ export default function Administration() {
                             sortable: true,
                             resizable: true,
                         }}
+                        enableRangeSelection={true}
+                        enableRangeHandle={true}
+                        enableFillHandle={true}
+                        suppressCellFocus={false}
+                        copyHeadersToClipboard={true}
                         pagination={true}
                         paginationPageSize={20}
                         onCellValueChanged={handleCellValueChanged}
