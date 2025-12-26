@@ -72,14 +72,16 @@ async def login(
         raise e
     
     # Establecer cookie HttpOnly
+    # En desarrollo: SameSite=None permite cookies entre diferentes IPs
+    # secure=False es necesario para http:// (no https://)
     response.set_cookie(
         key="session_id",
         value=session_id,
         httponly=True,
-        secure=False,  # Forzar False en desarrollo
-        samesite="lax",
+        secure=False,
+        samesite="none" if settings.ENVIRONMENT == "development" else "lax",
         max_age=settings.SESSION_EXPIRE_MINUTES * 60,
-        domain=None  # Sin restricción de dominio
+        # No especificar domain permite usar cualquier IP/hostname
     )
     
     return LoginResponse(
@@ -109,12 +111,12 @@ async def logout(
     if session_id:
         await session_manager.delete_session(session_id)
     
-    # Eliminar cookie
+    # Eliminar cookie (debe coincidir con los parámetros del set_cookie)
     response.delete_cookie(
         key="session_id",
         httponly=True,
         secure=False,
-        samesite="lax"
+        samesite="none" if settings.ENVIRONMENT == "development" else "lax"
     )
     
     return {"message": "Logout exitoso"}

@@ -479,8 +479,9 @@ async def _get_asset_quote_coverage(asset_id: str, db: AsyncSession) -> dict:
     today = date_type.today()
     days_since_last_update = (today - last_date).days if last_date else None
     
-    # Considerar completo si tiene ≥400 cotizaciones (aprox 1.5 años de días hábiles)
-    is_complete = row.total_quotes >= 400
+    # Considerar completo si tiene ≥300 cotizaciones (aprox 1.2 años de días hábiles)
+    # Plan gratuito de Polygon.io: ~350 cotizaciones máximo (500 días)
+    is_complete = row.total_quotes >= 300
     
     # Necesita actualización si han pasado más de 7 días
     needs_update = days_since_last_update > 7 if days_since_last_update else False
@@ -626,15 +627,21 @@ async def import_bulk_historical(
         - force_refresh: Si es True, reimporta incluso si ya tiene datos completos
     
     El proceso verifica la cobertura de cada activo y solo importa los que necesitan datos.
+    Solo procesa activos con sync_enabled=True.
     Usa Polygon.io (hasta 500 días) como prioridad, con fallback a yfinance.
     """
-    # Obtener activos a procesar
+    # Obtener activos a procesar (solo los que tienen sync_enabled=True)
     if request.asset_ids:
         result = await db.execute(
-            select(Asset).where(Asset.id.in_(request.asset_ids))
+            select(Asset).where(
+                Asset.id.in_(request.asset_ids),
+                Asset.sync_enabled == True
+            )
         )
     else:
-        result = await db.execute(select(Asset).order_by(Asset.symbol))
+        result = await db.execute(
+            select(Asset).where(Asset.sync_enabled == True).order_by(Asset.symbol)
+        )
     
     assets = result.scalars().all()
     

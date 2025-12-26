@@ -102,6 +102,8 @@ async def update_asset(
         asset.currency = asset_data.currency
     if asset_data.market is not None:
         asset.market = asset_data.market
+    if asset_data.sync_enabled is not None:
+        asset.sync_enabled = asset_data.sync_enabled
     
     await db.commit()
     await db.refresh(asset)

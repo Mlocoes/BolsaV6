@@ -40,16 +40,18 @@ class SchedulerService:
             logger.info("🛑 Programador de tareas detenido")
 
     async def sync_all_quotes(self):
-        """Sincroniza las cotizaciones de todos los activos registrados"""
+        """Sincroniza las cotizaciones de todos los activos registrados (solo sync_enabled=True)"""
         logger.info("🔄 Iniciando sincronización automática de cotizaciones...")
         
         async with AsyncSessionLocal() as db:
             try:
-                # Obtener todos los activos
-                result = await db.execute(select(Asset))
+                # Obtener solo activos habilitados para sincronización
+                result = await db.execute(
+                    select(Asset).where(Asset.sync_enabled == True)
+                )
                 assets = result.scalars().all()
                 
-                logger.info(f"📊 Procesando {len(assets)} activos para actualizar cotizaciones")
+                logger.info(f"📊 Procesando {len(assets)} activos habilitados para actualizar cotizaciones")
                 
                 for asset in assets:
                     try:

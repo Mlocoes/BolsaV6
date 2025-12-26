@@ -1,7 +1,7 @@
 """
 Modelo de Activo (Valores: acciones, fondos, etc)
 """
-from sqlalchemy import Column, String, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, String, DateTime, Boolean, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -32,6 +32,7 @@ class Asset(Base):
     asset_type = Column(SQLEnum(AssetType, native_enum=False), nullable=False, default=AssetType.STOCK)
     currency = Column(String(10), default="USD", nullable=False)
     market = Column(String(50))  # Ej: NASDAQ, NYSE, etc
+    sync_enabled = Column(Boolean, default=True, nullable=False)  # Si debe sincronizar cotizaciones
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

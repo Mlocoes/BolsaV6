@@ -15,6 +15,7 @@ class AssetBase(BaseModel):
     asset_type: AssetType
     currency: str = Field(default="USD", max_length=10)
     market: Optional[str] = Field(None, max_length=50)
+    sync_enabled: bool = Field(default=True, description="Si debe sincronizar cotizaciones")
 
 
 class AssetCreate(AssetBase):
@@ -28,6 +29,7 @@ class AssetUpdate(BaseModel):
     asset_type: Optional[AssetType] = None
     currency: Optional[str] = Field(None, max_length=10)
     market: Optional[str] = Field(None, max_length=50)
+    sync_enabled: Optional[bool] = Field(None, description="Si debe sincronizar cotizaciones")
 
 
 class AssetResponse(AssetBase):
