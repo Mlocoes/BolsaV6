@@ -1,7 +1,10 @@
 /**
  * Página de Importación de Datos
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { ColDef, ICellRendererParams } from 'ag-grid-community';
+import 'ag-grid-enterprise';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
@@ -15,6 +18,82 @@ export default function Import() {
     const [showCoverageModal, setShowCoverageModal] = useState(false);
     const [coverageData, setCoverageData] = useState<any>(null);
     const [importingBulk, setImportingBulk] = useState(false);
+
+    // AG Grid
+    const gridRef = useRef<AgGridReact>(null);
+
+    const coverageColumnDefs = useMemo<ColDef[]>(() => [
+        {
+            field: 'symbol',
+            headerName: 'Símbolo',
+            width: 100,
+            cellClass: 'font-mono text-white font-bold',
+            filter: true
+        },
+        {
+            field: 'name',
+            headerName: 'Nombre',
+            flex: 1,
+            minWidth: 150,
+            filter: true,
+            cellClass: 'text-dark-muted'
+        },
+        {
+            field: 'coverage.total_quotes',
+            headerName: 'Cotizaciones',
+            width: 110,
+            type: 'numericColumn',
+            valueFormatter: (params) => params.value ? params.value.toLocaleString('es-ES') : '0',
+            cellClass: 'text-white'
+        },
+        {
+            field: 'coverage.first_date',
+            headerName: 'Primera',
+            width: 110,
+            cellClass: 'text-center text-dark-muted'
+        },
+        {
+            field: 'coverage.last_date',
+            headerName: 'Última',
+            width: 110,
+            cellClass: 'text-center text-dark-muted'
+        },
+        {
+            field: 'coverage.days_since_last_update',
+            headerName: 'Días',
+            width: 80,
+            type: 'numericColumn',
+            cellClass: (params) => {
+                const val = params.value;
+                if (val === null) return 'text-dark-muted';
+                if (val > 7) return 'text-orange-400 font-bold';
+                return 'text-green-400';
+            }
+        },
+        {
+            field: 'reason',
+            headerName: 'Estado',
+            width: 140,
+            cellRenderer: (params: ICellRendererParams) => {
+                const reason = params.value || 'no_data';
+                const statusConfig = {
+                    'no_data': { color: 'text-red-400', bg: 'bg-red-500/10', icon: '🔴', label: 'Sin datos' },
+                    'incomplete_data': { color: 'text-yellow-400', bg: 'bg-yellow-500/10', icon: '🟡', label: 'Incompleto' },
+                    'outdated': { color: 'text-orange-400', bg: 'bg-orange-500/10', icon: '🟠', label: 'Desactualizado' },
+                    'complete': { color: 'text-green-400', bg: 'bg-green-500/10', icon: '🟢', label: 'Completo' }
+                };
+                const status = statusConfig[reason as keyof typeof statusConfig] || statusConfig['no_data'];
+
+                return (
+                    <div className="flex items-center h-full">
+                        <span className={`${status.bg} ${status.color} px-2 py-0.5 rounded text-[10px] font-semibold border border-current/20 flex items-center gap-1.5`}>
+                            <span className="text-[8px]">{status.icon}</span> {status.label}
+                        </span>
+                    </div>
+                );
+            }
+        }
+    ], []);
 
     const handleImportHistorical = async () => {
         setLoading(true);
@@ -43,16 +122,16 @@ export default function Import() {
             const response = await api.post('/quotes/import/bulk-historical', {
                 force_refresh: forceRefresh
             });
-            
+
             toast.success(response.data.message, { autoClose: 5000 });
             toast.info('La importación se está ejecutando en segundo plano. Esto puede tardar varios minutos.');
-            
+
             // Cerrar modal y refrescar después de unos segundos
             setTimeout(() => {
                 setShowCoverageModal(false);
                 handleImportHistorical(); // Refrescar cobertura
             }, 3000);
-            
+
         } catch (error: any) {
             console.error('Error:', error);
             const errorMsg = error.response?.data?.detail || 'Error al iniciar importación masiva.';
@@ -480,109 +559,98 @@ export default function Import() {
 
             {/* Modal de Cobertura */}
             {showCoverageModal && coverageData && (
-                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                    <div className="bg-dark-surface border border-dark-border rounded-lg max-w-6xl w-full max-h-[90vh] flex flex-col">
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                    <div className="bg-dark-surface border border-dark-border rounded-lg max-w-5xl w-full max-h-[85vh] flex flex-col shadow-2xl">
                         {/* Header */}
-                        <div className="p-4 border-b border-dark-border flex justify-between items-center">
+                        <div className="p-4 border-b border-dark-border flex justify-between items-center bg-dark-bg/30">
                             <div>
-                                <h2 className="text-lg font-bold text-white">Estado de Cotizaciones</h2>
+                                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                                    🌍 Estado de Cobertura de Cotizaciones
+                                </h2>
                                 <p className="text-xs text-dark-muted mt-1">
-                                    {coverageData.stats.total_assets} activos • {coverageData.stats.no_data} sin datos • {coverageData.stats.incomplete_data} incompletos • {coverageData.stats.complete} completos
+                                    Resumen del estado de datos históricos para {coverageData.stats.total_assets} activos monitorizados
                                 </p>
                             </div>
                             <button
                                 onClick={() => setShowCoverageModal(false)}
-                                className="text-dark-muted hover:text-white transition-colors"
+                                className="p-1 hover:bg-white/10 rounded transition-colors text-dark-muted hover:text-white"
                             >
                                 ✕
                             </button>
                         </div>
 
-                        {/* Botones de Acción */}
-                        <div className="p-4 border-b border-dark-border flex gap-3">
-                            <button
-                                onClick={() => handleStartBulkImport(false)}
-                                disabled={importingBulk || coverageData.stats.no_data + coverageData.stats.incomplete_data + coverageData.stats.outdated === 0}
-                                className="px-4 py-2 bg-primary hover:bg-primary/80 text-white rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {importingBulk ? 'Importando...' : `Importar Faltantes (${coverageData.stats.no_data + coverageData.stats.incomplete_data + coverageData.stats.outdated})`}
-                            </button>
-                            <button
-                                onClick={() => handleStartBulkImport(true)}
-                                disabled={importingBulk}
-                                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium disabled:opacity-50"
-                            >
-                                {importingBulk ? 'Importando...' : 'Forzar Reimportar Todo'}
-                            </button>
-                            <div className="flex-1"></div>
-                            <button
-                                onClick={() => handleImportHistorical()}
-                                disabled={importingBulk}
-                                className="px-4 py-2 bg-dark-bg hover:bg-dark-border text-white rounded text-sm font-medium"
-                            >
-                                🔄 Refrescar
-                            </button>
+                        {/* Stats Bar */}
+                        <div className="grid grid-cols-4 gap-4 p-4 bg-dark-bg/50 border-b border-dark-border">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-red-500/10 rounded-lg text-red-500">🔴</div>
+                                <div>
+                                    <div className="text-xs text-dark-muted uppercase font-bold">Sin Datos</div>
+                                    <div className="text-lg font-bold text-white">{coverageData.stats.no_data}</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-yellow-500/10 rounded-lg text-yellow-500">🟡</div>
+                                <div>
+                                    <div className="text-xs text-dark-muted uppercase font-bold">Incompletos</div>
+                                    <div className="text-lg font-bold text-white">{coverageData.stats.incomplete_data}</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-green-500/10 rounded-lg text-green-500">🟢</div>
+                                <div>
+                                    <div className="text-xs text-dark-muted uppercase font-bold">Completos</div>
+                                    <div className="text-lg font-bold text-white">{coverageData.stats.complete}</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 justify-end">
+                                <button
+                                    onClick={() => handleStartBulkImport(false)}
+                                    disabled={importingBulk || coverageData.stats.no_data + coverageData.stats.incomplete_data + coverageData.stats.outdated === 0}
+                                    className="px-4 py-2 bg-primary hover:bg-primary/80 text-white rounded text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+                                >
+                                    {importingBulk ? 'Procesando...' : '📥 Importar Faltantes'}
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Tabla de Cobertura */}
-                        <div className="flex-1 overflow-auto p-4">
-                            <table className="w-full text-xs">
-                                <thead className="sticky top-0 bg-dark-surface">
-                                    <tr className="border-b border-dark-border">
-                                        <th className="text-left py-2 px-3 text-dark-muted font-semibold">Símbolo</th>
-                                        <th className="text-left py-2 px-3 text-dark-muted font-semibold">Nombre</th>
-                                        <th className="text-right py-2 px-3 text-dark-muted font-semibold">Cotizaciones</th>
-                                        <th className="text-center py-2 px-3 text-dark-muted font-semibold">Primera</th>
-                                        <th className="text-center py-2 px-3 text-dark-muted font-semibold">Última</th>
-                                        <th className="text-center py-2 px-3 text-dark-muted font-semibold">Días</th>
-                                        <th className="text-center py-2 px-3 text-dark-muted font-semibold">Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {coverageData.assets.map((asset: any) => {
-                                        const statusConfig = {
-                                            'no_data': { color: 'text-red-400', bg: 'bg-red-500/20', icon: '🔴', label: 'Sin datos' },
-                                            'incomplete_data': { color: 'text-yellow-400', bg: 'bg-yellow-500/20', icon: '🟡', label: 'Incompleto' },
-                                            'outdated': { color: 'text-orange-400', bg: 'bg-orange-500/20', icon: '🟠', label: 'Desactualizado' },
-                                            'complete': { color: 'text-green-400', bg: 'bg-green-500/20', icon: '🟢', label: 'Completo' }
-                                        };
-                                        
-                                        const status = statusConfig[asset.reason as keyof typeof statusConfig] || statusConfig['no_data'];
-                                        
-                                        return (
-                                            <tr key={asset.asset_id} className="border-b border-dark-border/50 hover:bg-dark-border/30">
-                                                <td className="py-2 px-3 font-mono text-white">{asset.symbol}</td>
-                                                <td className="py-2 px-3 text-dark-muted">{asset.name}</td>
-                                                <td className="py-2 px-3 text-right text-white font-semibold">
-                                                    {asset.coverage.total_quotes || 0}
-                                                </td>
-                                                <td className="py-2 px-3 text-center text-dark-muted">
-                                                    {asset.coverage.first_date || '-'}
-                                                </td>
-                                                <td className="py-2 px-3 text-center text-dark-muted">
-                                                    {asset.coverage.last_date || '-'}
-                                                </td>
-                                                <td className="py-2 px-3 text-center text-dark-muted">
-                                                    {asset.coverage.days_since_last_update !== null ? asset.coverage.days_since_last_update : '-'}
-                                                </td>
-                                                <td className="py-2 px-3 text-center">
-                                                    <span className={`${status.bg} ${status.color} px-2 py-1 rounded text-[10px] font-semibold`}>
-                                                        {status.icon} {status.label}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                        {/* Tabla AG Grid */}
+                        <div className="ag-theme-quartz-dark flex-1 min-h-0 bg-dark-bg">
+                            <AgGridReact
+                                ref={gridRef}
+                                rowData={coverageData.assets}
+                                columnDefs={coverageColumnDefs}
+                                defaultColDef={{
+                                    sortable: true,
+                                    resizable: true,
+                                    filter: true,
+                                }}
+                                headerHeight={32}
+                                rowHeight={32}
+                                animateRows={true}
+                            />
                         </div>
 
-                        {/* Footer con notas */}
-                        <div className="p-4 border-t border-dark-border bg-dark-bg/50">
-                            <div className="text-[10px] text-dark-muted space-y-1">
-                                <p>• <strong className="text-white">Completo:</strong> ≥400 cotizaciones (aprox. 1.5 años de datos)</p>
-                                <p>• <strong className="text-white">Desactualizado:</strong> Más de 7 días sin actualizar</p>
-                                <p>• <strong className="text-white">Importación:</strong> Usa Polygon.io (hasta 500 días) con rate limit de 5 req/min</p>
+                        {/* Footer Actions */}
+                        <div className="p-3 border-t border-dark-border bg-dark-surface flex justify-between items-center gap-4">
+                            <div className="text-[10px] text-dark-muted flex gap-4">
+                                <span>• <strong>Completo:</strong> ≥400 cotizaciones</span>
+                                <span>• <strong>Importación:</strong> Polygon.io (Rate Limit: 5/min)</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleStartBulkImport(true)}
+                                    disabled={importingBulk}
+                                    className="px-3 py-1.5 bg-dark-bg hover:bg-yellow-900/30 border border-dark-border hover:border-yellow-700 text-yellow-500 rounded text-[10px] font-bold uppercase transition-all"
+                                >
+                                    ⚠️ Forzar Reimportación Total
+                                </button>
+                                <button
+                                    onClick={() => handleImportHistorical()}
+                                    disabled={importingBulk}
+                                    className="px-3 py-1.5 bg-dark-bg hover:bg-dark-border border border-dark-border text-white rounded text-[10px] font-bold uppercase transition-all"
+                                >
+                                    🔄 Refrescar Datos
+                                </button>
                             </div>
                         </div>
                     </div>

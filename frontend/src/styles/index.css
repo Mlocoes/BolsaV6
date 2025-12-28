@@ -102,3 +102,9 @@ body,
     scrollbar-width: none;
   }
 }
+
+/* Date Input Styling for Dark Mode */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}

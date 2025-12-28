@@ -3,7 +3,7 @@
  * Usan locale 'es-ES' (coma decimal) y evitan símbolos de moneda/porcentaje
  */
 
-export const formatCurrency = (val: number | undefined | null, currency?: string): string => {
+export const formatCurrency = (val: number | undefined | null, _currency?: string): string => {
     if (val === undefined || val === null) return '';
     return new Intl.NumberFormat('es-ES', {
         minimumFractionDigits: 2,

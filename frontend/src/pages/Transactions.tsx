@@ -10,6 +10,7 @@ import Layout from '../components/Layout';
 import api from '../services/api';
 import { formatCurrency, formatQuantity } from '../utils/formatters';
 import Modal from '../components/Modal';
+import TableActions from '../components/TableActions';
 
 interface Transaction {
     id: string;
@@ -130,22 +131,13 @@ export default function Transactions() {
         { field: 'notes', headerName: 'Notas', flex: 1 },
         {
             headerName: 'Acciones',
-            width: 200,
+            width: 140,
             cellRenderer: (params: any) => (
-                <div className="flex space-x-2 h-full items-center">
-                    <button
-                        onClick={() => handleEdit(params.data)}
-                        className="bg-primary hover:bg-primary/80 text-white px-3 py-1 rounded text-sm"
-                    >
-                        Editar
-                    </button>
-                    <button
-                        onClick={() => handleDelete(params.data.id)}
-                        className="bg-danger hover:bg-danger/80 text-white px-3 py-1 rounded text-sm"
-                    >
-                        Eliminar
-                    </button>
-                </div>
+                <TableActions
+                    data={params.data}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                />
             ),
         },
     ];

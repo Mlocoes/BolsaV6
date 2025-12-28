@@ -7,6 +7,7 @@ import { ColDef } from 'ag-grid-community';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import TableActions from '../components/TableActions';
 
 interface Asset {
     id: string;
@@ -47,31 +48,22 @@ export default function Assets() {
         { field: 'market', headerName: 'Mercado', width: 120 },
         {
             headerName: 'Acciones',
-            width: 250,
+            width: 140,
             cellRenderer: (params: any) => (
-                <div className="flex space-x-2 h-full items-center">
-                    <button
-                        onClick={() => handleEdit(params.data)}
-                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm transition-colors"
-                        title="Editar"
-                    >
-                        ✏️
-                    </button>
-                    <button
-                        onClick={() => handleFetchQuotes(params.data.id, params.data.symbol)}
-                        className="bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded text-sm transition-colors"
-                        title="Importar Cotizaciones"
-                    >
-                        📥
-                    </button>
-                    <button
-                        onClick={() => handleDelete(params.data.id)}
-                        className="bg-danger hover:bg-danger/80 text-white px-3 py-1 rounded text-sm transition-colors"
-                        title="Eliminar"
-                    >
-                        🗑️
-                    </button>
-                </div>
+                <TableActions
+                    data={params.data}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    customActions={[
+                        {
+                            label: 'Importar Cotizaciones',
+                            icon: '📥',
+                            onClick: (data) => handleFetchQuotes(data.id, data.symbol),
+                            title: 'Importar Cotizaciones',
+                            className: 'text-primary hover:text-white hover:bg-primary/20'
+                        }
+                    ]}
+                />
             ),
         },
     ];
@@ -146,7 +138,7 @@ export default function Assets() {
      */
     const handleFetchQuotes = async (assetId: string, symbol: string) => {
         try {
-            const response = await api.post(`/quotes/asset/${assetId}/fetch-history`);
+            await api.post(`/quotes/asset/${assetId}/fetch-history`);
             toast.success(`Importación de historial iniciada para ${symbol}`);
         } catch (error) {
             console.error('❌ Error fetching quotes:', error);

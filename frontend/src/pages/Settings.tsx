@@ -43,7 +43,9 @@ export default function Settings() {
     if (loading) {
         return (
             <Layout>
-                <div className="text-center py-20">Cargando...</div>
+                <div className="h-full flex items-center justify-center bg-dark-bg text-dark-muted">
+                    Cargando configuración...
+                </div>
             </Layout>
         );
     }
@@ -51,11 +53,11 @@ export default function Settings() {
     if (!user) {
         return (
             <Layout>
-                <div className="text-center py-20">
-                    <p className="text-red-500">Error al cargar datos del usuario</p>
-                    <button 
+                <div className="h-full flex flex-col items-center justify-center bg-dark-bg text-dark-muted">
+                    <p className="text-red-400 mb-4">Error al cargar datos del usuario</p>
+                    <button
                         onClick={() => window.location.href = '/login'}
-                        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded transition-colors"
                     >
                         Ir al login
                     </button>
@@ -66,111 +68,119 @@ export default function Settings() {
 
     return (
         <Layout>
-            <div className="max-w-4xl mx-auto">
-                <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-white">Configuración</h1>
-                    <p className="text-dark-muted mt-1">
-                        Ajusta tus preferencias personales
-                    </p>
-                </div>
+            <div className="h-full overflow-hidden p-3 bg-dark-bg">
+                <div className="space-y-3 max-w-4xl mx-auto flex flex-col h-full">
+                    {/* Header Row: Title & Action inline */}
+                    <div className="flex flex-row justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border flex-none">
+                        <div>
+                            <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                                ⚙️ Configuración
+                            </h1>
+                            <p className="text-xs text-dark-muted mt-1 hidden sm:block">
+                                Ajusta tus preferencias personales y de visualización
+                            </p>
+                        </div>
+                        <button
+                            onClick={handleSave}
+                            disabled={selectedCurrency === user.base_currency || saving}
+                            className="bg-primary hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-xs transition-colors font-medium border border-primary shadow-sm"
+                        >
+                            {saving ? 'Guardando...' : 'Guardar Cambios'}
+                        </button>
+                    </div>
 
-                <div className="bg-dark-surface border border-dark-border rounded-lg p-6">
-                    {/* Sección de información del usuario */}
-                    <div className="mb-8">
-                        <h2 className="text-lg font-semibold text-white mb-4">Información Personal</h2>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-sm font-medium text-dark-muted mb-1">
-                                    Usuario
-                                </label>
-                                <div className="text-white bg-dark-bg border border-dark-border rounded px-3 py-2">
-                                    {user.username}
+                    {/* Content Container with Scroll */}
+                    <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-3">
+
+                        {/* Sección de Información Personal */}
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-4">
+                            <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-4 pb-2 border-b border-dark-border">
+                                Información Personal
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] uppercase font-bold text-dark-muted mb-1">
+                                        Usuario
+                                    </label>
+                                    <div className="text-sm text-white bg-dark-bg border border-dark-border rounded px-3 py-2 font-mono">
+                                        {user.username}
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-dark-muted mb-1">
-                                    Email
-                                </label>
-                                <div className="text-white bg-dark-bg border border-dark-border rounded px-3 py-2">
-                                    {user.email}
+                                <div>
+                                    <label className="block text-[10px] uppercase font-bold text-dark-muted mb-1">
+                                        Email
+                                    </label>
+                                    <div className="text-sm text-white bg-dark-bg border border-dark-border rounded px-3 py-2 font-mono">
+                                        {user.email}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Sección de moneda base */}
-                    <div className="border-t border-dark-border pt-8">
-                        <h2 className="text-lg font-semibold text-white mb-4">Preferencias de Moneda</h2>
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium text-dark-muted mb-2">
-                                Moneda Base
-                            </label>
-                            <p className="text-xs text-dark-muted mb-4">
-                                Todos los valores del dashboard se convertirán a esta moneda automáticamente
-                            </p>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {SUPPORTED_CURRENCIES.map((currency) => (
-                                    <button
-                                        key={currency.code}
-                                        onClick={() => setSelectedCurrency(currency.code)}
-                                        className={`
-                                            flex items-center justify-between p-4 rounded-lg border-2 transition-colors
-                                            ${selectedCurrency === currency.code
-                                                ? 'border-blue-500 bg-blue-500/10'
-                                                : 'border-dark-border bg-dark-bg hover:border-dark-muted'
-                                            }
-                                        `}
-                                    >
-                                        <div className="flex items-center space-x-3">
-                                            <span className="text-2xl">{currency.symbol}</span>
-                                            <div className="text-left">
-                                                <div className="text-white font-medium">{currency.code}</div>
-                                                <div className="text-xs text-dark-muted">{currency.name}</div>
+                        {/* Sección de Preferencias de Moneda */}
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-4">
+                            <h2 className="text-sm font-bold text-white uppercase tracking-wider mb-4 pb-2 border-b border-dark-border">
+                                Visualización de Moneda
+                            </h2>
+
+                            <div className="mb-4">
+                                <p className="text-xs text-dark-muted mb-3 leading-relaxed">
+                                    Selecciona tu moneda base principal. Todos los valores y totales en el dashboard se convertirán automáticamente a esta moneda para ofrecerte una visión unificada de tu patrimonio.
+                                </p>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {SUPPORTED_CURRENCIES.map((currency) => (
+                                        <button
+                                            key={currency.code}
+                                            onClick={() => setSelectedCurrency(currency.code)}
+                                            className={`
+                                                relative flex items-center p-3 rounded-lg border transition-all duration-200 text-left group
+                                                ${selectedCurrency === currency.code
+                                                    ? 'border-primary bg-primary/10 shadow-[0_0_10px_rgba(59,130,246,0.15)]'
+                                                    : 'border-dark-border bg-dark-bg hover:border-dark-muted hover:bg-dark-bg/80'
+                                                }
+                                            `}
+                                        >
+                                            <div className={`
+                                                flex items-center justify-center w-8 h-8 rounded-full mr-3 text-lg font-bold
+                                                ${selectedCurrency === currency.code ? 'bg-primary text-white' : 'bg-dark-surface text-dark-muted group-hover:text-white'}
+                                            `}>
+                                                {currency.symbol}
                                             </div>
-                                        </div>
-                                        {selectedCurrency === currency.code && (
-                                            <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                            </svg>
-                                        )}
-                                    </button>
-                                ))}
+                                            <div>
+                                                <div className={`text-sm font-bold ${selectedCurrency === currency.code ? 'text-primary-light' : 'text-white'}`}>
+                                                    {currency.code}
+                                                </div>
+                                                <div className="text-[10px] text-dark-muted uppercase tracking-wide">
+                                                    {currency.name}
+                                                </div>
+                                            </div>
+                                            {selectedCurrency === currency.code && (
+                                                <div className="absolute top-2 right-2">
+                                                    <span className="flex h-2 w-2">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex justify-end space-x-3">
-                            <button
-                                onClick={() => setSelectedCurrency(user.base_currency)}
-                                disabled={selectedCurrency === user.base_currency || saving}
-                                className="px-4 py-2 text-dark-muted hover:text-white transition-colors disabled:opacity-50"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleSave}
-                                disabled={selectedCurrency === user.base_currency || saving}
-                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {saving ? 'Guardando...' : 'Guardar Cambios'}
-                            </button>
+                        {/* Nota informativa */}
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
+                            <div className="text-blue-400 mt-0.5">ℹ️</div>
+                            <div className="text-xs text-blue-200">
+                                <p className="font-semibold mb-0.5">Sobre las conversiones</p>
+                                <p className="opacity-80 leading-relaxed">
+                                    Las conversiones se realizan utilizando tasas de cambio en tiempo real proporcionadas por Yahoo Finance.
+                                    Los costos e importes originales de tus transacciones se mantienen intactos en la base de datos; esta configuración solo afecta a cómo se visualizan los totales agregados.
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                {/* Información adicional */}
-                <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                    <div className="flex items-start space-x-3">
-                        <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                        <div className="text-sm text-blue-200">
-                            <p className="font-medium mb-1">Nota sobre conversión de monedas</p>
-                            <p className="text-blue-300">
-                                Los valores se convierten usando tasas de cambio de Yahoo Finance. 
-                                Los costos originales de tus inversiones no se modifican, solo la visualización.
-                            </p>
-                        </div>
                     </div>
                 </div>
             </div>

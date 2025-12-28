@@ -22,7 +22,7 @@ function NavLink({ to, icon, label }: NavLinkProps) {
     return (
         <Link
             to={to}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg whitespace-nowrap
+            className={`flex items-center space-x-2 px-2 py-2 rounded-lg whitespace-nowrap
                 transition-colors text-sm font-medium
                 ${isActive
                     ? 'bg-primary text-white'
@@ -30,7 +30,7 @@ function NavLink({ to, icon, label }: NavLinkProps) {
                 }`}
         >
             <span>{icon}</span>
-            <span className="hidden sm:inline">{label}</span>
+            <span className="hidden md:inline">{label}</span>
         </Link>
     );
 }
@@ -63,7 +63,7 @@ export default function Layout({ children }: LayoutProps) {
                             <NavLink to="/quotes" icon="📉" label="Cotizaciones" />
                             <NavLink to="/fiscal" icon="⚖️" label="Fiscal" />
                             <NavLink to="/import" icon="📥" label="Importar" />
-                            {user?.is_admin && <NavLink to="/administration" icon="🏛️" label="Administración" />}
+                            {user?.is_admin && <NavLink to="/administration" icon="🏛️" label="Admin" />}
                             {user?.is_admin && <NavLink to="/users" icon="👥" label="Usuarios" />}
                         </nav>
                     </div>

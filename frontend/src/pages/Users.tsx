@@ -8,6 +8,7 @@ import 'ag-grid-enterprise';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import TableActions from '../components/TableActions';
 
 interface User {
     id: string;
@@ -54,22 +55,13 @@ export default function Users() {
         },
         {
             headerName: 'Acciones',
-            width: 200,
+            width: 140,
             cellRenderer: (params: any) => (
-                <div className="flex space-x-2 h-full items-center">
-                    <button
-                        onClick={() => handleEdit(params.data)}
-                        className="bg-primary/20 hover:bg-primary/40 text-primary-light px-3 py-1 rounded text-[11px] font-medium transition-colors"
-                    >
-                        Editar
-                    </button>
-                    <button
-                        onClick={() => handleDelete(params.data.id)}
-                        className="bg-red-500/10 hover:bg-red-500/30 text-red-400 px-3 py-1 rounded text-[11px] font-medium transition-colors"
-                    >
-                        Eliminar
-                    </button>
-                </div>
+                <TableActions
+                    data={params.data}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                />
             ),
         },
     ];
