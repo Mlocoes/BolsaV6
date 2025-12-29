@@ -283,6 +283,7 @@ configure_environment() {
                 ADMIN_USER=""
                 ADMIN_EMAIL=""
                 ADMIN_PASSWORD=""
+                print_info "Se eliminarán los volúmenes de Docker para aplicar las nuevas credenciales al iniciar."
             fi
         fi
     fi
@@ -370,7 +371,7 @@ configure_environment() {
     print_step "Generando archivo .env..."
     
     # Generar SECRET_KEY si no existe
-    if [ -z "$SECRET_KEY" ]; then
+    if [ -z "$SECRET_KEY" ] || [ "$SECRET_KEY" == "YOUR_SECRET_KEY_HERE" ]; then
         SECRET_KEY=$(generate_secret_key)
     fi
     
@@ -513,8 +514,17 @@ print('ok' if asyncio.run(check_db()) else 'fail')
     done
     
     echo ""
-    print_error "No se pudo conectar a la base de datos después de $MAX_ATTEMPTS intentos"
-    print_info "Mostrando logs de PostgreSQL:"
+    print_error "No se pudo conectar a la base de datos después de $MAX_ATTEMPTS intentos."
+    echo ""
+    print_warning "⚠️  POSIBLES CAUSAS:"
+    echo -e "  1. ${YELLOW}Mala configuración${NC}: Las credenciales en .env no coinciden con las de la base de datos."
+    echo -e "  2. ${YELLOW}Volúmenes antiguos${NC}: Si cambiaste la contraseña pero no borraste los datos, el contenedor usa la vieja."
+    echo ""
+    print_info "SOLUCIÓN SUGERIDA:"
+    print_info "  - Vuelve a ejecutar el script y responde 'S' cuando pregunte si desea CAMBIAR las credenciales."
+    print_info "  - Esto borrará los datos antiguos (volúmenes) y creará una base de datos limpia con tus nuevas claves."
+    echo ""
+    print_info "Logs de PostgreSQL para diagnóstico:"
     $DOCKER_COMPOSE_CMD logs db --tail=20
     exit 1
 }
