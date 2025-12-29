@@ -10,10 +10,9 @@
         "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
     },
     "dependencies": {
-        "ag-grid-community": "^31.0.0",
-        "ag-grid-enterprise": "^31.3.4",
-        "ag-grid-react": "^31.0.0",
+        "@handsontable/react": "^16.2.0",
         "axios": "^1.6.2",
+        "handsontable": "^16.2.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "react-router-dom": "^6.20.0",

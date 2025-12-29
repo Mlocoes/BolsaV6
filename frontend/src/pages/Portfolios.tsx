@@ -2,9 +2,8 @@
  * Página de Gestión de Carteras
  */
 import { useEffect, useState, useRef } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ColDef } from 'ag-grid-community';
-import 'ag-grid-enterprise';
+import Handsontable from 'handsontable';
+import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
@@ -17,7 +16,8 @@ interface Portfolio {
 }
 
 export default function Portfolios() {
-    const gridRef = useRef<AgGridReact>(null);
+    const hotTableRef = useRef<HTMLDivElement>(null);
+    const hotInstance = useRef<Handsontable | null>(null);
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ name: '', description: '' });
@@ -32,34 +32,98 @@ export default function Portfolios() {
             : '-'
     };
 
-    const columnDefs: ColDef[] = [
-        { field: 'name', headerName: 'Nombre', flex: 1 },
-        { field: 'description', headerName: 'Descripción', flex: 2 },
-        {
-            field: 'created_at',
-            headerName: 'Creada',
-            width: 150,
-            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
-        },
-        {
-            headerName: 'Acciones',
-            width: 150,
-            cellRenderer: (params: any) => (
-                <div className="flex space-x-2 h-full items-center">
-                    <button
-                        onClick={() => handleDelete(params.data.id)}
-                        className="bg-danger hover:bg-danger/80 text-white px-3 py-1 rounded text-sm"
-                    >
-                        Eliminar
-                    </button>
-                </div>
-            ),
-        },
-    ];
+
 
     useEffect(() => {
         loadPortfolios();
     }, []);
+
+    // Inicializar Handsontable
+    useEffect(() => {
+        if (!hotTableRef.current) return;
+
+        if (hotInstance.current) {
+            hotInstance.current.destroy();
+        }
+
+        hotInstance.current = new Handsontable(hotTableRef.current, {
+            data: portfolios,
+            licenseKey: 'non-commercial-and-evaluation',
+            width: '100%',
+            height: '100%',
+            colHeaders: ['Nombre', 'Descripción', 'Creada', 'Acciones'],
+            columns: [
+                { data: 'name', readOnly: true, width: 250, className: 'htLeft' },
+                { data: 'description', readOnly: true, width: 350, className: 'htLeft' },
+                {
+                    data: 'created_at',
+                    readOnly: true,
+                    width: 150,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (value) {
+                            td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        } else {
+                            td.textContent = '';
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'id',
+                    readOnly: true,
+                    width: 150,
+                    className: 'htCenter htMiddle',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        td.innerHTML = '';
+                        const deleteBtn = `<button type="button" class="text-red-500 hover:text-red-700 text-sm font-medium cursor-pointer" data-action="delete" data-id="${value}">🗑️ Eliminar</button>`;
+                        td.innerHTML = deleteBtn;
+                        td.style.textAlign = 'center';
+                        return td;
+                    }
+                }
+            ],
+            rowHeaders: true,
+            stretchH: 'all',
+            autoColumnSize: false,
+            filters: true,
+            dropdownMenu: [
+                'filter_by_condition',
+                'filter_by_value',
+                'filter_action_bar'
+            ],
+            columnSorting: true,
+            manualColumnResize: true,
+            wordWrap: false,
+            rowHeights: 28
+        });
+
+        // Handle clicks on action buttons
+        if (hotTableRef.current) {
+            hotTableRef.current.addEventListener('click', (e: any) => {
+                const target = e.target as HTMLElement;
+                const btn = target.closest('button');
+                if (!btn) return;
+
+                const action = btn.dataset.action;
+                const id = btn.dataset.id;
+
+                if (!id || !action) return;
+
+                if (action === 'delete') {
+                    handleDelete(id);
+                }
+            });
+        }
+
+        return () => {
+            if (hotInstance.current) {
+                hotInstance.current.destroy();
+                hotInstance.current = null;
+            }
+        };
+    }, [portfolios]);
 
     /**
      * Carga las carteras desde la API
@@ -91,6 +155,9 @@ export default function Portfolios() {
         }
     };
 
+    /**
+     * Elimina una cartera tras confirmación
+     */
     /**
      * Elimina una cartera tras confirmación
      */
@@ -188,29 +255,7 @@ export default function Portfolios() {
                     </div>
 
                     {/* Table Container */}
-                    <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
-                        <AgGridReact
-                            ref={gridRef}
-                            rowData={portfolios}
-                            columnDefs={columnDefs}
-                            defaultColDef={{
-                                sortable: true,
-                                resizable: true,
-                                filter: true,
-                            }}
-                            enableRangeSelection={true}
-                            enableRangeHandle={true}
-                            enableFillHandle={true}
-                            suppressCellFocus={false}
-                            copyHeadersToClipboard={true}
-                            animateRows={true}
-                            onGridReady={(params) => {
-                                params.api.sizeColumnsToFit();
-                            }}
-                            domLayout='normal'
-                            containerStyle={{ height: '100%', width: '100%' }}
-                        />
-                    </div>
+                    <div ref={hotTableRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
                 </div>
             </div>
         </Layout>

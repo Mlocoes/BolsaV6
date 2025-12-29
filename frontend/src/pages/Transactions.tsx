@@ -2,15 +2,12 @@
  * Página de Gestión de Transacciones
  */
 import { useEffect, useState, useRef } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ColDef } from 'ag-grid-community';
-import 'ag-grid-enterprise';
+import Handsontable from 'handsontable';
+import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
-import { formatCurrency, formatQuantity } from '../utils/formatters';
 import Modal from '../components/Modal';
-import TableActions from '../components/TableActions';
 
 interface Transaction {
     id: string;
@@ -25,7 +22,8 @@ interface Transaction {
 }
 
 export default function Transactions() {
-    const gridRef = useRef<AgGridReact>(null);
+    const hotTableRef = useRef<HTMLDivElement>(null);
+    const hotInstance = useRef<Handsontable | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [portfolios, setPortfolios] = useState<any[]>([]);
     const [assets, setAssets] = useState<any[]>([]);
@@ -57,90 +55,218 @@ export default function Transactions() {
         sells: filteredTransactions.filter(t => t.transaction_type === 'SELL').length
     };
 
-    const columnDefs: ColDef[] = [
-        {
-            field: 'transaction_date',
-            headerName: 'Fecha',
-            width: 120,
-            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
-        },
-        {
-            field: 'transaction_type',
-            headerName: 'Tipo',
-            width: 120,
-            valueFormatter: (params) => {
-                const typeMap: Record<string, string> = {
-                    'BUY': 'Compra',
-                    'SELL': 'Venta',
-                    'DIVIDEND': 'Dividendo',
-                    'SPLIT': 'Split',
-                    'CORPORATE': 'Corporativa'
-                };
-                return typeMap[params.value] || params.value;
-            },
-            cellStyle: (params) => {
-                const colorMap: Record<string, string> = {
-                    'BUY': '#10b981',
-                    'SELL': '#ef4444',
-                    'DIVIDEND': '#3b82f6',
-                    'SPLIT': '#8b5cf6',
-                    'CORPORATE': '#64748b'
-                };
-                return { color: colorMap[params.value] || '#ffffff' };
+    // Preparar datos para Handsontable
+    const tableData = filteredTransactions.map(t => {
+        const asset = assets.find(a => a.id === t.asset_id);
+        const typeMap: Record<string, string> = {
+            'BUY': 'Compra',
+            'SELL': 'Venta',
+            'DIVIDEND': 'Dividendo',
+            'SPLIT': 'Split',
+            'CORPORATE': 'Corporativa'
+        };
+        const quantity = Number(t.quantity) || 0;
+        const price = Number(t.price) || 0;
+        const fees = Number(t.fees) || 0;
+        const total = (quantity * price) + fees;
+
+        return {
+            id: t.id,
+            portfolio_id: t.portfolio_id,
+            asset_id: t.asset_id,
+            date: t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '',
+            type: typeMap[t.transaction_type] || t.transaction_type,
+            type_raw: t.transaction_type,
+            asset: asset ? asset.symbol : t.asset_id,
+            quantity: quantity,
+            price: price,
+            fees: fees,
+            total: total,
+            notes: t.notes || ''
+        };
+    });
+
+    const initializeHandsontable = () => {
+        if (!hotTableRef.current) return;
+
+        hotInstance.current = new Handsontable(hotTableRef.current, {
+            data: tableData,
+            licenseKey: 'non-commercial-and-evaluation',
+            width: '100%',
+            height: '100%',
+            colHeaders: [
+                'Fecha',
+                'Tipo',
+                'Activo',
+                'Cantidad',
+                'Precio',
+                'Comisiones',
+                'Total',
+                'Notas',
+                'Acciones'
+            ],
+            columns: [
+                { data: 'date', readOnly: true, width: 120, className: 'htLeft' },
+                {
+                    data: 'type',
+                    readOnly: true,
+                    width: 120,
+                    className: 'htLeft',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        td.textContent = value;
+                        const source = instance.getSourceDataAtRow(instance.toPhysicalRow(row));
+                        const colorMap: Record<string, string> = {
+                            'BUY': '#10b981',
+                            'SELL': '#ef4444',
+                            'DIVIDEND': '#3b82f6',
+                            'SPLIT': '#8b5cf6',
+                            'CORPORATE': '#64748b'
+                        };
+                        td.style.color = colorMap[source?.type_raw] || '#ffffff';
+                        return td;
+                    }
+                },
+                { data: 'asset', readOnly: true, width: 120, className: 'htLeft' },
+                { 
+                    data: 'quantity', 
+                    readOnly: true, 
+                    width: 120, 
+                    className: 'htRight',
+                    type: 'numeric',
+                    numericFormat: {
+                        pattern: '0',
+                        culture: 'es-ES'
+                    }
+                },
+                { 
+                    data: 'price', 
+                    readOnly: true, 
+                    width: 120, 
+                    className: 'htRight',
+                    type: 'numeric',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                { 
+                    data: 'fees', 
+                    readOnly: true, 
+                    width: 120, 
+                    className: 'htRight',
+                    type: 'numeric',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                { 
+                    data: 'total', 
+                    readOnly: true, 
+                    width: 130, 
+                    className: 'htRight', 
+                    type: 'numeric',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.fontWeight = 'bold';
+                        td.style.textAlign = 'right';
+                        return td;
+                    } 
+                },
+                { data: 'notes', readOnly: true, width: 200, className: 'htLeft' },
+                {
+                    data: 'id',
+                    readOnly: true,
+                    width: 140,
+                    className: 'htCenter htMiddle',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        td.innerHTML = '';
+                        td.style.whiteSpace = 'nowrap';
+                        const source = instance.getSourceDataAtRow(instance.toPhysicalRow(row));
+                        const container = document.createElement('div');
+                        container.style.display = 'inline-flex';
+                        container.style.gap = '8px';
+                        container.style.alignItems = 'center';
+                        const editBtn = `<button type="button" class="text-yellow-500 hover:text-yellow-700 text-sm font-medium cursor-pointer" data-action="edit" data-transaction-id="${value}">✏️ Editar</button>`;
+                        const deleteBtn = `<button type="button" class="text-red-500 hover:text-red-700 text-sm font-medium cursor-pointer" data-action="delete" data-transaction-id="${value}">🗑️ Eliminar</button>`;
+                        container.innerHTML = `${editBtn}${deleteBtn}`;
+                        td.appendChild(container);
+                        return td;
+                    }
+                }
+            ],
+            rowHeaders: false,
+            stretchH: 'all',
+            autoColumnSize: false,
+            filters: true,
+            dropdownMenu: [
+                'filter_by_condition',
+                'filter_by_value',
+                'filter_action_bar'
+            ],
+            columnSorting: true,
+            manualColumnResize: true,
+            wordWrap: false,
+            rowHeights: 28
+        });
+
+        // Handle clicks on action buttons
+        if (hotTableRef.current) {
+            hotTableRef.current.addEventListener('click', (e: any) => {
+                const target = e.target as HTMLElement;
+                if (target.tagName === 'BUTTON') {
+                    const action = target.dataset.action;
+                    const transactionId = target.dataset.transactionId;
+                    if (action && transactionId) {
+                        const transaction = filteredTransactions.find(t => t.id === transactionId);
+                        if (transaction) {
+                            if (action === 'edit') {
+                                handleEdit(transaction);
+                            } else if (action === 'delete') {
+                                handleDelete(transaction.id);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    };
+
+    const updateHandsontableData = () => {
+        if (!hotInstance.current) return;
+        hotInstance.current.loadData(tableData);
+    };
+
+    useEffect(() => {
+        if (hotTableRef.current && !hotInstance.current && assets.length > 0) {
+            initializeHandsontable();
+        }
+        if (hotInstance.current && assets.length > 0) {
+            updateHandsontableData();
+        }
+    }, [tableData, assets]);
+
+    useEffect(() => {
+        return () => {
+            if (hotInstance.current) {
+                hotInstance.current.destroy();
             }
-        },
-        {
-            field: 'asset_id',
-            headerName: 'Activo',
-            width: 120,
-            valueFormatter: (params) => {
-                const asset = assets.find(a => a.id === params.value);
-                return asset ? asset.symbol : params.value;
-            }
-        },
-        {
-            field: 'quantity',
-            headerName: 'Cantidad',
-            width: 120,
-            valueFormatter: (params) => formatQuantity(params.value)
-        },
-        {
-            field: 'price',
-            headerName: 'Precio',
-            width: 120,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'fees',
-            headerName: 'Comisiones',
-            width: 120,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            headerName: 'Total',
-            width: 130,
-            valueGetter: (params) => {
-                const quantity = parseFloat(params.data.quantity) || 0;
-                const price = parseFloat(params.data.price) || 0;
-                const fees = parseFloat(params.data.fees) || 0;
-                return (quantity * price) + fees;
-            },
-            valueFormatter: (params) => formatCurrency(params.value),
-            cellStyle: { fontWeight: 'bold' }
-        },
-        { field: 'notes', headerName: 'Notas', flex: 1 },
-        {
-            headerName: 'Acciones',
-            width: 140,
-            cellRenderer: (params: any) => (
-                <TableActions
-                    data={params.data}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                />
-            ),
-        },
-    ];
+        };
+    }, []);
 
     useEffect(() => {
         loadPortfolios();
@@ -148,14 +274,13 @@ export default function Transactions() {
     }, []);
 
     useEffect(() => {
-        if (selectedPortfolio) {
+        const hasPortfolios = portfolios.length > 0;
+        if (hasPortfolios) {
             loadTransactions();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedPortfolio]);
 
-    /**
-     * Carga las carteras disponibles
-     */
     const loadPortfolios = async () => {
         try {
             const response = await api.get('/portfolios');
@@ -170,9 +295,6 @@ export default function Transactions() {
         }
     };
 
-    /**
-     * Carga el catálogo de activos
-     */
     const loadAssets = async () => {
         try {
             const response = await api.get('/assets');
@@ -183,22 +305,32 @@ export default function Transactions() {
         }
     };
 
-    /**
-     * Carga las transacciones de la cartera seleccionada
-     */
     const loadTransactions = async () => {
         try {
-            const response = await api.get(`/transactions/portfolio/${selectedPortfolio}`);
-            setTransactions(response.data);
+            if (selectedPortfolio) {
+                const response = await api.get(`/transactions/portfolio/${selectedPortfolio}`);
+                setTransactions(response.data);
+            } else {
+                const allTransactions: Transaction[] = [];
+                for (const portfolio of portfolios) {
+                    try {
+                        const response = await api.get(`/transactions/portfolio/${portfolio.id}`);
+                        allTransactions.push(...response.data);
+                    } catch (error) {
+                        console.error(`Error loading transactions for portfolio ${portfolio.id}:`, error);
+                    }
+                }
+                allTransactions.sort((a, b) =>
+                    new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+                );
+                setTransactions(allTransactions);
+            }
         } catch (error) {
             console.error('Error loading transactions:', error);
             toast.error('Error al cargar las transacciones. Por favor, inténtelo de nuevo.');
         }
     };
 
-    /**
-     * Procesa el guardado (creación/edición) de una transacción
-     */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -231,9 +363,6 @@ export default function Transactions() {
         }
     };
 
-    /**
-     * Prepara el formulario para editar una transacción existente
-     */
     const handleEdit = (transaction: Transaction) => {
         setSelectedTransaction(transaction);
         setEditMode(true);
@@ -250,9 +379,6 @@ export default function Transactions() {
         setShowForm(true);
     };
 
-    /**
-     * Elimina una transacción tras confirmación
-     */
     const handleDelete = async (id: string) => {
         if (!confirm('¿Estás seguro de eliminar esta transacción?')) return;
 
@@ -266,9 +392,6 @@ export default function Transactions() {
         }
     };
 
-    /**
-     * Resetea el estado del formulario a sus valores por defecto
-     */
     const resetForm = () => {
         setFormData({
             portfolio_id: selectedPortfolio || (portfolios.length > 0 ? portfolios[0].id : ''),
@@ -282,9 +405,6 @@ export default function Transactions() {
         });
     };
 
-    /**
-     * Abre el modal para crear una nueva transacción
-     */
     const handleNewTransaction = () => {
         resetForm();
         setEditMode(false);
@@ -346,30 +466,8 @@ export default function Transactions() {
                     </div>
 
                     {/* Table Container */}
-                    <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
-                        <AgGridReact
-                            ref={gridRef}
-                            rowData={filteredTransactions}
-                            columnDefs={columnDefs}
-                            defaultColDef={{
-                                sortable: true,
-                                resizable: true,
-                                filter: true,
-                            }}
-                            enableRangeSelection={true}
-                            enableRangeHandle={true}
-                            enableFillHandle={true}
-                            suppressCellFocus={false}
-                            copyHeadersToClipboard={true}
-                            pagination={true}
-                            paginationPageSize={20}
-                            animateRows={true}
-                            onGridReady={(params) => {
-                                params.api.sizeColumnsToFit();
-                            }}
-                            domLayout='normal'
-                            containerStyle={{ height: '100%', width: '100%' }}
-                        />
+                    <div className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden">
+                        <div ref={hotTableRef} className="w-full h-full"></div>
                     </div>
                 </div>
 

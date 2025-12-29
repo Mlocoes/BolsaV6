@@ -2,12 +2,13 @@
  * Página de Importación de Datos
  */
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ColDef, ICellRendererParams } from 'ag-grid-community';
-import 'ag-grid-enterprise';
+import { HotTable } from '@handsontable/react';
+
+import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { numberRenderer } from '../utils/handsontableUtils';
 
 export default function Import() {
     const [loading, setLoading] = useState(false);
@@ -19,80 +20,41 @@ export default function Import() {
     const [coverageData, setCoverageData] = useState<any>(null);
     const [importingBulk, setImportingBulk] = useState(false);
 
-    // AG Grid
-    const gridRef = useRef<AgGridReact>(null);
+    // Handsontable
+    const hotRef = useRef<any>(null);
 
-    const coverageColumnDefs = useMemo<ColDef[]>(() => [
-        {
-            field: 'symbol',
-            headerName: 'Símbolo',
-            width: 100,
-            cellClass: 'font-mono text-white font-bold',
-            filter: true
-        },
-        {
-            field: 'name',
-            headerName: 'Nombre',
-            flex: 1,
-            minWidth: 150,
-            filter: true,
-            cellClass: 'text-dark-muted'
-        },
-        {
-            field: 'coverage.total_quotes',
-            headerName: 'Cotizaciones',
-            width: 110,
-            type: 'numericColumn',
-            valueFormatter: (params) => params.value ? params.value.toLocaleString('es-ES') : '0',
-            cellClass: 'text-white'
-        },
-        {
-            field: 'coverage.first_date',
-            headerName: 'Primera',
-            width: 110,
-            cellClass: 'text-center text-dark-muted'
-        },
-        {
-            field: 'coverage.last_date',
-            headerName: 'Última',
-            width: 110,
-            cellClass: 'text-center text-dark-muted'
-        },
-        {
-            field: 'coverage.days_since_last_update',
-            headerName: 'Días',
-            width: 80,
-            type: 'numericColumn',
-            cellClass: (params) => {
-                const val = params.value;
-                if (val === null) return 'text-dark-muted';
-                if (val > 7) return 'text-orange-400 font-bold';
-                return 'text-green-400';
-            }
-        },
-        {
-            field: 'reason',
-            headerName: 'Estado',
-            width: 140,
-            cellRenderer: (params: ICellRendererParams) => {
-                const reason = params.value || 'no_data';
-                const statusConfig = {
-                    'no_data': { color: 'text-red-400', bg: 'bg-red-500/10', icon: '🔴', label: 'Sin datos' },
-                    'incomplete_data': { color: 'text-yellow-400', bg: 'bg-yellow-500/10', icon: '🟡', label: 'Incompleto' },
-                    'outdated': { color: 'text-orange-400', bg: 'bg-orange-500/10', icon: '🟠', label: 'Desactualizado' },
-                    'complete': { color: 'text-green-400', bg: 'bg-green-500/10', icon: '🟢', label: 'Completo' }
-                };
-                const status = statusConfig[reason as keyof typeof statusConfig] || statusConfig['no_data'];
+    const daysRenderer = (instance: any, td: HTMLElement, row: number, col: number, prop: string | number, value: any, cellProperties: any) => {
+        numberRenderer(instance, td, row, col, prop, value, cellProperties);
+        if (value === null) td.style.color = '#71717a';
+        else if (value > 7) { td.style.color = '#fb923c'; td.style.fontWeight = 'bold'; }
+        else td.style.color = '#4ade80';
+        return td;
+    };
 
-                return (
-                    <div className="flex items-center h-full">
-                        <span className={`${status.bg} ${status.color} px-2 py-0.5 rounded text-[10px] font-semibold border border-current/20 flex items-center gap-1.5`}>
-                            <span className="text-[8px]">{status.icon}</span> {status.label}
-                        </span>
-                    </div>
-                );
-            }
-        }
+    const statusRenderer = (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any, _cellProperties: any) => {
+        const reason = value || 'no_data';
+        const statusConfig: any = {
+            'no_data': { color: 'text-red-400', bg: 'bg-red-500/10', icon: '🔴', label: 'Sin datos' },
+            'incomplete_data': { color: 'text-yellow-400', bg: 'bg-yellow-500/10', icon: '🟡', label: 'Incompleto' },
+            'outdated': { color: 'text-orange-400', bg: 'bg-orange-500/10', icon: '🟠', label: 'Desactualizado' },
+            'complete': { color: 'text-green-400', bg: 'bg-green-500/10', icon: '🟢', label: 'Completo' }
+        };
+        const status = statusConfig[reason] || statusConfig['no_data'];
+
+        // Use simpler HTML for Handsontable performance
+        td.innerHTML = `<span class="${status.color} font-bold text-xs">${status.icon} ${status.label}</span>`;
+        td.className = 'htLeft';
+        return td;
+    };
+
+    const coverageColumns = useMemo(() => [
+        { data: 'symbol', title: 'Símbolo', width: 100, className: 'htLeft font-mono font-bold text-white' },
+        { data: 'name', title: 'Nombre', width: 250, className: 'htLeft text-dark-muted' },
+        { data: 'coverage.total_quotes', title: 'Cotizaciones', width: 110, renderer: numberRenderer },
+        { data: 'coverage.first_date', title: 'Primera', width: 110, className: 'htCenter text-dark-muted' },
+        { data: 'coverage.last_date', title: 'Última', width: 110, className: 'htCenter text-dark-muted' },
+        { data: 'coverage.days_since_last_update', title: 'Días', width: 80, renderer: daysRenderer },
+        { data: 'reason', title: 'Estado', width: 140, renderer: statusRenderer }
     ], []);
 
     const handleImportHistorical = async () => {
@@ -613,20 +575,25 @@ export default function Import() {
                             </div>
                         </div>
 
-                        {/* Tabla AG Grid */}
-                        <div className="ag-theme-quartz-dark flex-1 min-h-0 bg-dark-bg">
-                            <AgGridReact
-                                ref={gridRef}
-                                rowData={coverageData.assets}
-                                columnDefs={coverageColumnDefs}
-                                defaultColDef={{
-                                    sortable: true,
-                                    resizable: true,
-                                    filter: true,
-                                }}
-                                headerHeight={32}
-                                rowHeight={32}
-                                animateRows={true}
+                        {/* Tabla Handsontable */}
+                        <div className="flex-1 min-h-0 bg-dark-bg overflow-hidden">
+                            <HotTable
+                                ref={hotRef}
+                                data={coverageData.assets}
+                                columns={coverageColumns}
+                                colHeaders={coverageColumns.map(c => c.title)}
+                                rowHeaders={true}
+                                height="100%"
+                                width="100%"
+                                stretchH="all"
+                                autoWrapRow={true}
+                                autoWrapCol={true}
+                                licenseKey="non-commercial-and-evaluation"
+                                columnSorting={true}
+                                filters={true}
+                                dropdownMenu={['filter_by_condition', 'filter_by_value', 'filter_action_bar']}
+                                readOnly={true}
+                                className="handsontable-dark"
                             />
                         </div>
 

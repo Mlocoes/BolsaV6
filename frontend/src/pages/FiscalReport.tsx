@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ColDef } from 'ag-grid-community';
-import 'ag-grid-enterprise';
+import Handsontable from 'handsontable';
+import 'handsontable/dist/handsontable.full.min.css';
 import api from '../services/api';
 import { getFiscalReport, FiscalReport as FiscalReportType } from '../services/fiscalService';
-import { formatCurrency, formatQuantity } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 import Layout from '../components/Layout';
 
 interface Portfolio {
@@ -18,7 +17,8 @@ export const getPortfolios = async (): Promise<Portfolio[]> => {
 };
 
 const FiscalReport: React.FC = () => {
-    const gridRef = useRef<AgGridReact>(null);
+    const hotTableRef = useRef<HTMLDivElement>(null);
+    const hotInstance = useRef<Handsontable | null>(null);
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -26,69 +26,164 @@ const FiscalReport: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
 
-    const columnDefs: ColDef[] = [
-        {
-            field: 'asset_symbol',
-            headerName: 'Activo',
-            width: 100,
-            pinned: 'left',
-            cellStyle: { fontWeight: 'bold' }
-        },
-        {
-            field: 'sale_date',
-            headerName: 'F. Venta',
-            width: 100,
-            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
-        },
-        {
-            field: 'quantity_sold',
-            headerName: 'Ctd',
-            width: 90,
-            valueFormatter: (params) => formatQuantity(params.value)
-        },
-        {
-            field: 'sale_price',
-            headerName: 'P. Venta',
-            width: 100,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'acquisition_date',
-            headerName: 'F. Adq.',
-            width: 100,
-            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
-        },
-        {
-            field: 'acquisition_price',
-            headerName: 'P. Adq.',
-            width: 100,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'gross_result',
-            headerName: 'Resultado',
-            flex: 1,
-            minWidth: 100,
-            cellStyle: (params) => {
-                if (params.value != null && params.value >= 0) {
-                    return { color: '#10b981', fontWeight: 'bold' };
-                }
-                return { color: '#ef4444', fontWeight: 'bold' };
-            },
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'is_wash_sale',
-            headerName: 'Wash Sale',
-            width: 100,
-            valueFormatter: (params) => params.value ? 'SÍ' : 'No',
-            cellStyle: (params) => params.value ? { color: '#f59e0b' } : undefined
-        }
-    ];
-
     useEffect(() => {
         loadPortfolios();
     }, []);
+
+    // Inicializar Handsontable
+    useEffect(() => {
+        if (!hotTableRef.current || !report) return;
+
+        // Extraer todas las transacciones de todos los años
+        const allTransactions = report.years.flatMap(year => year.items);
+
+        if (!allTransactions.length) return;
+
+        if (hotInstance.current) {
+            hotInstance.current.destroy();
+        }
+
+        hotInstance.current = new Handsontable(hotTableRef.current, {
+            data: allTransactions,
+            licenseKey: 'non-commercial-and-evaluation',
+            width: '100%',
+            height: '100%',
+            colHeaders: ['Activo', 'F. Venta', 'Ctd', 'P. Venta', 'F. Adq.', 'P. Adq.', 'Resultado', 'Wash Sale'],
+            columns: [
+                {
+                    data: 'asset_symbol',
+                    readOnly: true,
+                    width: 100,
+                    className: 'htLeft',
+                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                        td.textContent = value || '';
+                        td.style.fontWeight = 'bold';
+                        return td;
+                    }
+                },
+                {
+                    data: 'sale_date',
+                    readOnly: true,
+                    width: 100,
+                    className: 'htRight',
+                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                        if (value) {
+                            td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        } else {
+                            td.textContent = '';
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'quantity_sold',
+                    readOnly: true,
+                    width: 90,
+                    className: 'htRight',
+                    type: 'numeric',
+                    numericFormat: {
+                        pattern: '0',
+                        culture: 'es-ES'
+                    }
+                },
+                {
+                    data: 'sale_price',
+                    readOnly: true,
+                    width: 100,
+                    className: 'htRight',
+                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value || '';
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'acquisition_date',
+                    readOnly: true,
+                    width: 100,
+                    className: 'htRight',
+                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                        if (value) {
+                            td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        } else {
+                            td.textContent = '';
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'acquisition_price',
+                    readOnly: true,
+                    width: 100,
+                    className: 'htRight',
+                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value || '';
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'gross_result',
+                    readOnly: true,
+                    width: 120,
+                    className: 'htRight',
+                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
+                            td.style.fontWeight = 'bold';
+                        } else {
+                            td.textContent = value || '';
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'is_wash_sale',
+                    readOnly: true,
+                    width: 100,
+                    className: 'htCenter',
+                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                        td.textContent = value ? 'SÍ' : 'No';
+                        if (value) td.style.color = '#f59e0b';
+                        td.style.textAlign = 'center';
+                        return td;
+                    }
+                }
+            ],
+            rowHeaders: true,
+            stretchH: 'all',
+            autoColumnSize: false,
+            filters: true,
+            dropdownMenu: [
+                'filter_by_condition',
+                'filter_by_value',
+                'filter_action_bar'
+            ],
+            columnSorting: true,
+            manualColumnResize: true,
+            wordWrap: false,
+            rowHeights: 28
+        });
+
+        return () => {
+            if (hotInstance.current) {
+                hotInstance.current.destroy();
+                hotInstance.current = null;
+            }
+        };
+    }, [report]);
 
     /**
      * Carga la lista de carteras disponibles
@@ -202,30 +297,7 @@ const FiscalReport: React.FC = () => {
                             </div>
 
                             {/* Detailed Table Container - FLEX-1 with INTERNAL SCROLL */}
-                            <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
-                                <AgGridReact
-                                    ref={gridRef}
-                                    rowData={currentYearSummary.items}
-                                    columnDefs={columnDefs}
-                                    defaultColDef={{
-                                        sortable: true,
-                                        resizable: true,
-                                        filter: true,
-                                        suppressMovable: true,
-                                    }}
-                                    enableRangeSelection={true}
-                                    enableRangeHandle={true}
-                                    enableFillHandle={true}
-                                    suppressCellFocus={false}
-                                    copyHeadersToClipboard={true}
-                                    pagination={true}
-                                    paginationPageSize={50}
-                                    animateRows={true}
-                                    onGridReady={(params) => {
-                                        params.api.sizeColumnsToFit();
-                                    }}
-                                />
-                            </div>
+                            <div ref={hotTableRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
                         </>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center bg-dark-surface border border-dark-border rounded-lg min-h-0">

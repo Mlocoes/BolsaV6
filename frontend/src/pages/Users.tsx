@@ -2,13 +2,12 @@
  * Página de Gestión de Usuarios (solo admin)
  */
 import { useEffect, useState, useRef } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ColDef } from 'ag-grid-community';
-import 'ag-grid-enterprise';
+import Handsontable from 'handsontable';
+import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
-import TableActions from '../components/TableActions';
+import Modal from '../components/Modal';
 
 interface User {
     id: string;
@@ -20,7 +19,8 @@ interface User {
 }
 
 export default function Users() {
-    const gridRef = useRef<AgGridReact>(null);
+    const hotTableRef = useRef<HTMLDivElement>(null);
+    const hotInstance = useRef<Handsontable | null>(null);
     const [users, setUsers] = useState<User[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [editMode, setEditMode] = useState(false);
@@ -38,37 +38,118 @@ export default function Users() {
         regulars: users.filter(u => !u.is_admin).length
     };
 
-    const columnDefs: ColDef[] = [
-        { field: 'username', headerName: 'Usuario', width: 150 },
-        { field: 'email', headerName: 'Email', flex: 1 },
-        {
-            field: 'is_admin',
-            headerName: 'Admin',
-            width: 100,
-            valueFormatter: (params) => params.value ? 'Sí' : 'No'
-        },
-        {
-            field: 'created_at',
-            headerName: 'Creado',
-            width: 150,
-            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : ''
-        },
-        {
-            headerName: 'Acciones',
-            width: 140,
-            cellRenderer: (params: any) => (
-                <TableActions
-                    data={params.data}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                />
-            ),
-        },
-    ];
-
     useEffect(() => {
         loadUsers();
     }, []);
+
+    // Inicializar Handsontable
+    useEffect(() => {
+        if (!hotTableRef.current) return;
+
+        if (hotInstance.current) {
+            hotInstance.current.destroy();
+        }
+
+        hotInstance.current = new Handsontable(hotTableRef.current, {
+            data: users,
+            licenseKey: 'non-commercial-and-evaluation',
+            width: '100%',
+            height: '100%',
+            colHeaders: ['Usuario', 'Email', 'Admin', 'Creado', 'Acciones'],
+            columns: [
+                { data: 'username', readOnly: true, width: 150, className: 'htLeft' },
+                { data: 'email', readOnly: true, width: 250, className: 'htLeft' },
+                {
+                    data: 'is_admin',
+                    readOnly: true,
+                    width: 100,
+                    className: 'htCenter',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        td.textContent = value ? 'Sí' : 'No';
+                        td.style.textAlign = 'center';
+                        return td;
+                    }
+                },
+                {
+                    data: 'created_at',
+                    readOnly: true,
+                    width: 150,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (value) {
+                            td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
+                        } else {
+                            td.textContent = '';
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'id',
+                    readOnly: true,
+                    width: 200,
+                    className: 'htCenter htMiddle',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        td.innerHTML = '';
+                        const container = document.createElement('div');
+                        container.style.display = 'inline-flex';
+                        container.style.gap = '8px';
+                        container.style.alignItems = 'center';
+                        const editBtn = `<button type="button" class="text-yellow-500 hover:text-yellow-700 text-sm font-medium cursor-pointer" data-action="edit" data-id="${value}">✏️ Editar</button>`;
+                        const deleteBtn = `<button type="button" class="text-red-500 hover:text-red-700 text-sm font-medium cursor-pointer" data-action="delete" data-id="${value}">🗑️ Eliminar</button>`;
+                        container.innerHTML = `${editBtn}${deleteBtn}`;
+                        td.appendChild(container);
+                        td.style.textAlign = 'center';
+                        return td;
+                    }
+                }
+            ],
+            rowHeaders: true,
+            stretchH: 'all',
+            autoColumnSize: false,
+            filters: true,
+            dropdownMenu: [
+                'filter_by_condition',
+                'filter_by_value',
+                'filter_action_bar'
+            ],
+            columnSorting: true,
+            manualColumnResize: true,
+            wordWrap: false,
+            rowHeights: 28
+        });
+
+        // Handle clicks on action buttons
+        if (hotTableRef.current) {
+            hotTableRef.current.addEventListener('click', (e: any) => {
+                const target = e.target as HTMLElement;
+                const btn = target.closest('button');
+                if (!btn) return;
+
+                const action = btn.dataset.action;
+                const id = btn.dataset.id;
+
+                if (!id || !action) return;
+
+                const user = users.find(u => u.id === id);
+                if (!user) return;
+
+                if (action === 'edit') {
+                    handleEdit(user);
+                } else if (action === 'delete') {
+                    handleDelete(id);
+                }
+            });
+        }
+
+        return () => {
+            if (hotInstance.current) {
+                hotInstance.current.destroy();
+                hotInstance.current = null;
+            }
+        };
+    }, [users]);
 
     const loadUsers = async () => {
         try {
@@ -257,29 +338,7 @@ export default function Users() {
                     </div>
 
                     {/* Table Container */}
-                    <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
-                        <AgGridReact
-                            ref={gridRef}
-                            rowData={users}
-                            columnDefs={columnDefs}
-                            defaultColDef={{
-                                sortable: true,
-                                resizable: true,
-                                filter: true,
-                            }}
-                            enableRangeSelection={true}
-                            enableRangeHandle={true}
-                            enableFillHandle={true}
-                            suppressCellFocus={false}
-                            copyHeadersToClipboard={true}
-                            animateRows={true}
-                            onGridReady={(params) => {
-                                params.api.sizeColumnsToFit();
-                            }}
-                            domLayout='normal'
-                            containerStyle={{ height: '100%', width: '100%' }}
-                        />
-                    </div>
+                    <div ref={hotTableRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
                 </div>
             </div>
         </Layout>

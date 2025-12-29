@@ -2,13 +2,11 @@
  * Página de Cotizaciones con filtros
  */
 import { useEffect, useState, useRef } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ColDef } from 'ag-grid-community';
-import 'ag-grid-enterprise';
+import Handsontable from 'handsontable';
+import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
-import { formatCurrency, formatQuantity } from '../utils/formatters';
 
 interface Quote {
     id: string;
@@ -21,7 +19,8 @@ interface Quote {
 }
 
 export default function Quotes() {
-    const gridRef = useRef<AgGridReact>(null);
+    const hotTableRef = useRef<HTMLDivElement>(null);
+    const hotInstance = useRef<Handsontable | null>(null);
     const [quotes, setQuotes] = useState<Quote[]>([]);
     const [assets, setAssets] = useState<any[]>([]);
     const [selectedAsset, setSelectedAsset] = useState('');
@@ -30,61 +29,6 @@ export default function Quotes() {
     const [loading, setLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const requestCount = useRef(0);
-
-    const columnDefs: ColDef[] = [
-        {
-            field: 'symbol',
-            headerName: 'Símbolo',
-            width: 100,
-            hide: selectedAsset !== 'all',
-            cellClass: 'text-primary font-medium'
-        },
-        {
-            field: 'name',
-            headerName: 'Nombre',
-            width: 200,
-            hide: selectedAsset !== 'all',
-            cellClass: 'text-gray-400'
-        },
-        {
-            field: 'date',
-            headerName: 'Fecha',
-            flex: 1,
-            minWidth: 100,
-            valueFormatter: (params) => params.value ? new Date(params.value).toLocaleDateString('es-ES') : '-'
-        },
-        {
-            field: 'open',
-            headerName: 'Aper.',
-            width: 100,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'high',
-            headerName: 'Máx.',
-            width: 100,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'low',
-            headerName: 'Mín.',
-            width: 100,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'close',
-            headerName: 'Cierre',
-            width: 110,
-            valueFormatter: (params) => formatCurrency(params.value),
-            cellClass: 'font-bold text-white'
-        },
-        {
-            field: 'volume',
-            headerName: 'Vol.',
-            width: 130,
-            valueFormatter: (params) => formatQuantity(params.value)
-        },
-    ];
 
     useEffect(() => {
         loadAssets();
@@ -100,6 +44,140 @@ export default function Quotes() {
 
         return () => clearTimeout(timer);
     }, [selectedAsset, startDate, endDate]);
+
+    // Inicializar Handsontable
+    useEffect(() => {
+        if (!hotTableRef.current) return;
+
+        if (hotInstance.current) {
+            hotInstance.current.destroy();
+        }
+
+        const columns: any[] = [];
+        const headers: string[] = [];
+
+        if (selectedAsset === 'all') {
+            columns.push({ data: 'symbol', readOnly: true, width: 100, className: 'htLeft' });
+            columns.push({ data: 'name', readOnly: true, width: 200, className: 'htLeft' });
+            headers.push('Símbolo', 'Nombre');
+        }
+
+        columns.push(
+            {
+                data: 'date',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                    td.textContent = value ? new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-';
+                    td.style.textAlign = 'right';
+                    return td;
+                }
+            },
+            {
+                data: 'open',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                    if (typeof value === 'number') {
+                        td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    } else {
+                        td.textContent = value || '';
+                    }
+                    td.style.textAlign = 'right';
+                    return td;
+                }
+            },
+            {
+                data: 'high',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                    if (typeof value === 'number') {
+                        td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    } else {
+                        td.textContent = value || '';
+                    }
+                    td.style.textAlign = 'right';
+                    return td;
+                }
+            },
+            {
+                data: 'low',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                    if (typeof value === 'number') {
+                        td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    } else {
+                        td.textContent = value || '';
+                    }
+                    td.style.textAlign = 'right';
+                    return td;
+                }
+            },
+            {
+                data: 'close',
+                readOnly: true,
+                width: 110,
+                className: 'htRight',
+                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                    if (typeof value === 'number') {
+                        td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    } else {
+                        td.textContent = value || '';
+                    }
+                    td.style.fontWeight = 'bold';
+                    td.style.textAlign = 'right';
+                    return td;
+                }
+            },
+            {
+                data: 'volume',
+                readOnly: true,
+                width: 130,
+                className: 'htRight',
+                type: 'numeric',
+                numericFormat: {
+                    pattern: '0',
+                    culture: 'es-ES'
+                }
+            }
+        );
+        headers.push('Fecha', 'Aper.', 'Máx.', 'Mín.', 'Cierre', 'Vol.');
+
+        hotInstance.current = new Handsontable(hotTableRef.current, {
+            data: quotes,
+            licenseKey: 'non-commercial-and-evaluation',
+            width: '100%',
+            height: '100%',
+            colHeaders: headers,
+            columns: columns,
+            rowHeaders: true,
+            stretchH: 'all',
+            autoColumnSize: false,
+            filters: true,
+            dropdownMenu: [
+                'filter_by_condition',
+                'filter_by_value',
+                'filter_action_bar'
+            ],
+            columnSorting: true,
+            manualColumnResize: true,
+            wordWrap: false,
+            rowHeights: 28
+        });
+
+        return () => {
+            if (hotInstance.current) {
+                hotInstance.current.destroy();
+                hotInstance.current = null;
+            }
+        };
+    }, [quotes, selectedAsset]);
 
     /**
      * Carga el catálogo de activos
@@ -243,32 +321,7 @@ export default function Quotes() {
                         </div>
                     )}
 
-                    <div className="ag-theme-quartz-dark flex-1">
-                        <AgGridReact
-                            ref={gridRef}
-                            rowData={quotes}
-                            columnDefs={columnDefs}
-                            defaultColDef={{
-                                sortable: true,
-                                resizable: true,
-                                filter: true,
-                                suppressMovable: true,
-                            }}
-                            enableRangeSelection={true}
-                            enableRangeHandle={true}
-                            enableFillHandle={true}
-                            suppressCellFocus={false}
-                            copyHeadersToClipboard={true}
-                            pagination={true}
-                            paginationPageSize={50}
-                            animateRows={true}
-                            onGridReady={(params) => {
-                                params.api.sizeColumnsToFit();
-                            }}
-                            rowHeight={28}
-                            headerHeight={32}
-                        />
-                    </div>
+                    <div ref={hotTableRef} className="flex-1 min-h-0 overflow-hidden handsontable-dark"></div>
                 </div>
             </div>
         </Layout>

@@ -14,6 +14,7 @@ export interface User {
     email: string;
     is_active: boolean;
     is_admin: boolean;
+    base_currency: string;
     created_at: string;
 }
 

@@ -1,14 +1,13 @@
 /**
  * Página de Administración - Gestión de Mercados
  */
-import { useEffect, useState, useRef } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ColDef } from 'ag-grid-community';
-import 'ag-grid-enterprise';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import Handsontable from 'handsontable';
+import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
-import TableActions from '../components/TableActions';
+import { getActionRenderer } from '../utils/handsontableUtils';
 
 interface Market {
     id: string;
@@ -18,7 +17,8 @@ interface Market {
 }
 
 export default function Administration() {
-    const gridRef = useRef<AgGridReact>(null);
+    const hotTableRef = useRef<HTMLDivElement>(null);
+    const hotInstance = useRef<Handsontable | null>(null);
     const [markets, setMarkets] = useState<Market[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [editingMarket, setEditingMarket] = useState<Market | null>(null);
@@ -28,50 +28,116 @@ export default function Administration() {
         country: ''
     });
 
-    const columnDefs: ColDef[] = [
+    // Definición de columnas para Handsontable
+    const columns = useMemo(() => [
+        { data: 'name', title: 'Nombre del Mercado', width: 200, className: 'htLeft' },
         {
-            field: 'name',
-            headerName: 'Nombre del Mercado',
-            flex: 1,
-            filter: true,
-            editable: true,
-            cellClass: 'editable-cell'
-        },
-        {
-            field: 'currency',
-            headerName: 'Moneda',
+            data: 'currency',
+            title: 'Moneda',
             width: 120,
-            editable: true,
-            cellClass: 'editable-cell',
-            cellEditor: 'agSelectCellEditor',
-            cellEditorParams: {
-                values: ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CHF', 'AUD', 'CNY', 'BRL']
+            type: 'dropdown',
+            source: ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CHF', 'AUD', 'CNY', 'BRL']
+        },
+        { data: 'country', title: 'País', width: 150, className: 'htLeft' },
+        {
+            data: 'id',
+            title: 'Acciones',
+            width: 120,
+            renderer: getActionRenderer([
+                { name: 'edit', tooltip: 'Editar' },
+                { name: 'delete', tooltip: 'Eliminar' }
+            ]),
+            readOnly: true
+        }
+    ], []);
+
+    /**
+     * Inicializa la instancia de Handsontable
+     */
+    const initializeHandsontable = () => {
+        if (!hotTableRef.current) return;
+
+        if (hotInstance.current) {
+            hotInstance.current.destroy();
+        }
+
+        hotInstance.current = new Handsontable(hotTableRef.current, {
+            data: markets,
+            columns: columns,
+            colHeaders: columns.map(c => c.title),
+            rowHeaders: true,
+            height: '100%',
+            width: '100%',
+            stretchH: 'all',
+            autoWrapRow: true,
+            autoWrapCol: true,
+            licenseKey: 'non-commercial-and-evaluation',
+            columnSorting: true,
+            filters: true,
+            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
+            className: 'handsontable-dark',
+            afterChange: (changes, source) => {
+                if (!changes || source === 'loadData') return;
+
+                changes.forEach(([row, _prop, oldValue, newValue]) => {
+                    if (oldValue !== newValue) {
+                        const rowData = hotInstance.current?.getSourceDataAtRow(row) as Market;
+                        if (rowData) handleCellValueChanged(rowData);
+                    }
+                });
             }
-        },
-        {
-            field: 'country',
-            headerName: 'País',
-            width: 150,
-            editable: true,
-            cellClass: 'editable-cell'
-        },
-        {
-            headerName: 'Acciones',
-            width: 120,
-            cellRenderer: (params: any) => (
-                <TableActions
-                    data={params.data}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                />
-            ),
-        },
-    ];
+        });
+
+        // Registrar listener de clics para acciones
+        hotTableRef.current.addEventListener('click', (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const btn = target.closest('button');
+            if (!btn) return;
+
+            const action = btn.dataset.action;
+
+            // Alternativa: usar las coordenadas de Handsontable para obtener el dato
+            const coords = hotInstance.current?.getCoords(target as HTMLTableCellElement);
+            if (coords && coords.row >= 0) {
+                const rowData = hotInstance.current?.getSourceDataAtRow(coords.row) as Market;
+                if (rowData && action) {
+                    if (action === 'edit') handleEdit(rowData);
+                    else if (action === 'delete') handleDelete(rowData.id);
+                }
+            }
+        });
+    };
+
+    /**
+     * Actualiza los datos de la tabla cuando cambian los mercados
+     */
+    useEffect(() => {
+        if (hotTableRef.current && !hotInstance.current && markets.length >= 0) {
+            initializeHandsontable();
+        } else if (hotInstance.current) {
+            hotInstance.current.loadData(markets);
+        }
+    }, [markets]);
+
+    /**
+     * Limpieza al desmontar
+     */
+    useEffect(() => {
+        return () => {
+            if (hotInstance.current) {
+                hotInstance.current.destroy();
+                hotInstance.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         loadMarkets();
     }, []);
 
+    /**
+     * Carga los mercados desde la API
+     */
     const loadMarkets = async () => {
         try {
             const response = await api.get('/markets');
@@ -82,8 +148,10 @@ export default function Administration() {
         }
     };
 
-    const handleCellValueChanged = async (event: any) => {
-        const updatedMarket = event.data;
+    /**
+     * Maneja el guardado automático tras editar una celda
+     */
+    const handleCellValueChanged = async (updatedMarket: Market) => {
         try {
             await api.patch(`/markets/${updatedMarket.id}`, {
                 name: updatedMarket.name,
@@ -99,6 +167,9 @@ export default function Administration() {
         }
     };
 
+    /**
+     * Abre el formulario para editar un mercado
+     */
     const handleEdit = (market: Market) => {
         setEditingMarket(market);
         setFormData({
@@ -109,6 +180,9 @@ export default function Administration() {
         setShowForm(true);
     };
 
+    /**
+     * Elimina un mercado
+     */
     const handleDelete = async (id: string) => {
         if (!confirm('¿Está seguro de que desea eliminar este mercado?')) {
             return;
@@ -124,6 +198,9 @@ export default function Administration() {
         }
     };
 
+    /**
+     * Maneja el envío del formulario (Crear/Editar)
+     */
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -145,6 +222,9 @@ export default function Administration() {
         }
     };
 
+    /**
+     * Cancela la edición y cierra el formulario
+     */
     const handleCancel = () => {
         setShowForm(false);
         setEditingMarket(null);
@@ -193,31 +273,9 @@ export default function Administration() {
                         </div>
                     </div>
 
-                    {/* Tabla AG Grid */}
-                    <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
-                        <AgGridReact
-                            ref={gridRef}
-                            rowData={markets}
-                            columnDefs={columnDefs}
-                            defaultColDef={{
-                                sortable: true,
-                                resizable: true,
-                                filter: true,
-                            }}
-                            enableRangeSelection={true}
-                            enableRangeHandle={true}
-                            enableFillHandle={true}
-                            suppressCellFocus={false}
-                            copyHeadersToClipboard={true}
-                            pagination={true}
-                            paginationPageSize={20}
-                            onCellValueChanged={handleCellValueChanged}
-                            onGridReady={(params) => {
-                                params.api.sizeColumnsToFit();
-                            }}
-                            domLayout='normal'
-                            containerStyle={{ height: '100%', width: '100%' }}
-                        />
+                    {/* Tabla Handsontable */}
+                    <div className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden">
+                        <div ref={hotTableRef} className="w-full h-full"></div>
                     </div>
 
                     {/* Nota informativa */}

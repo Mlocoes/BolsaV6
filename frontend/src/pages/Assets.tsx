@@ -1,13 +1,12 @@
 /**
- * Página de Catálogo de Activos con AG Grid
+ * Página de Catálogo de Activos
  */
 import { useEffect, useState, useRef } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ColDef } from 'ag-grid-community';
+import Handsontable from 'handsontable';
+import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
-import TableActions from '../components/TableActions';
 
 interface Asset {
     id: string;
@@ -19,7 +18,8 @@ interface Asset {
 }
 
 export default function Assets() {
-    const gridRef = useRef<AgGridReact>(null);
+    const hotTableRef = useRef<HTMLDivElement>(null);
+    const hotInstance = useRef<Handsontable | null>(null);
     const [assets, setAssets] = useState<Asset[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
@@ -40,43 +40,97 @@ export default function Assets() {
         currencies: new Set(assets.map(a => a.currency)).size
     };
 
-    const columnDefs: ColDef[] = [
-        { field: 'symbol', headerName: 'Símbolo', width: 120, filter: true },
-        { field: 'name', headerName: 'Nombre', flex: 1, filter: true },
-        { field: 'asset_type', headerName: 'Tipo', width: 120, filter: true },
-        { field: 'currency', headerName: 'Moneda', width: 100 },
-        { field: 'market', headerName: 'Mercado', width: 120 },
-        {
-            headerName: 'Acciones',
-            width: 140,
-            cellRenderer: (params: any) => (
-                <TableActions
-                    data={params.data}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    customActions={[
-                        {
-                            label: 'Importar Cotizaciones',
-                            icon: '📥',
-                            onClick: (data) => handleFetchQuotes(data.id, data.symbol),
-                            title: 'Importar Cotizaciones',
-                            className: 'text-primary hover:text-white hover:bg-primary/20'
-                        }
-                    ]}
-                />
-            ),
-        },
-    ];
-
     useEffect(() => {
         loadAssets();
     }, []);
 
-    // Refrescar grid cuando cambien los assets
+    // Inicializar Handsontable
     useEffect(() => {
-        if (gridRef.current?.api && assets.length > 0) {
-            gridRef.current.api.setGridOption('rowData', assets);
+        if (!hotTableRef.current) return;
+
+        if (hotInstance.current) {
+            hotInstance.current.destroy();
         }
+
+        hotInstance.current = new Handsontable(hotTableRef.current, {
+            data: assets,
+            licenseKey: 'non-commercial-and-evaluation',
+            width: '100%',
+            height: '100%',
+            colHeaders: ['Símbolo', 'Nombre', 'Tipo', 'Moneda', 'Mercado', 'Acciones'],
+            columns: [
+                { data: 'symbol', readOnly: true, width: 120, className: 'htLeft' },
+                { data: 'name', readOnly: true, width: 250, className: 'htLeft' },
+                { data: 'asset_type', readOnly: true, width: 100, className: 'htLeft' },
+                { data: 'currency', readOnly: true, width: 100, className: 'htCenter' },
+                { data: 'market', readOnly: true, width: 150, className: 'htLeft' },
+                {
+                    data: 'id',
+                    readOnly: true,
+                    width: 280,
+                    className: 'htCenter htMiddle',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        td.innerHTML = '';
+                        const container = document.createElement('div');
+                        container.style.display = 'inline-flex';
+                        container.style.gap = '8px';
+                        container.style.alignItems = 'center';
+                        const editBtn = `<button type="button" class="text-yellow-500 hover:text-yellow-700 text-sm font-medium cursor-pointer" data-action="edit" data-id="${value}">✏️ Editar</button>`;
+                        const fetchBtn = `<button type="button" class="text-blue-500 hover:text-blue-700 text-sm font-medium cursor-pointer" data-action="fetch" data-id="${value}">📥 Importar</button>`;
+                        const deleteBtn = `<button type="button" class="text-red-500 hover:text-red-700 text-sm font-medium cursor-pointer" data-action="delete" data-id="${value}">🗑️ Eliminar</button>`;
+                        container.innerHTML = `${editBtn}${fetchBtn}${deleteBtn}`;
+                        td.appendChild(container);
+                        td.style.textAlign = 'center';
+                        return td;
+                    }
+                }
+            ],
+            rowHeaders: true,
+            stretchH: 'all',
+            autoColumnSize: false,
+            filters: true,
+            dropdownMenu: [
+                'filter_by_condition',
+                'filter_by_value',
+                'filter_action_bar'
+            ],
+            columnSorting: true,
+            manualColumnResize: true,
+            wordWrap: false,
+            rowHeights: 28
+        });
+
+        // Handle clicks on action buttons
+        if (hotTableRef.current) {
+            hotTableRef.current.addEventListener('click', (e: any) => {
+                const target = e.target as HTMLElement;
+                const btn = target.closest('button');
+                if (!btn) return;
+
+                const action = btn.dataset.action;
+                const id = btn.dataset.id;
+
+                if (!id || !action) return;
+
+                const asset = assets.find(a => a.id === id);
+                if (!asset) return;
+
+                if (action === 'edit') {
+                    handleEdit(asset);
+                } else if (action === 'fetch') {
+                    handleFetchQuotes(id, asset.symbol);
+                } else if (action === 'delete') {
+                    handleDelete(id);
+                }
+            });
+        }
+
+        return () => {
+            if (hotInstance.current) {
+                hotInstance.current.destroy();
+                hotInstance.current = null;
+            }
+        };
     }, [assets]);
 
     /**
@@ -169,7 +223,7 @@ export default function Assets() {
                     {/* Header Row: Title & Action inline */}
                     <div className="flex flex-row justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border flex-none">
                         <h1 className="text-lg font-bold text-white flex items-center gap-2">
-                            💼 Catálogo de Activos
+                            📊 Catálogo de Activos
                         </h1>
                         <button
                             onClick={() => {
@@ -289,27 +343,7 @@ export default function Assets() {
                     </div>
 
                     {/* Table Container */}
-                    <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
-                        <AgGridReact
-                            ref={gridRef}
-                            rowData={assets}
-                            columnDefs={columnDefs}
-                            defaultColDef={{
-                                sortable: true,
-                                filter: true,
-                                resizable: true,
-                            }}
-                            pagination={true}
-                            paginationPageSize={20}
-                            animateRows={true}
-                            suppressCellFocus={true}
-                            rowSelection="single"
-                            onGridReady={(params) => {
-                                params.api.sizeColumnsToFit();
-                            }}
-                            containerStyle={{ height: '100%', width: '100%' }}
-                        />
-                    </div>
+                    <div ref={hotTableRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
                 </div>
             </div>
         </Layout>

@@ -5,7 +5,7 @@
 
 export const formatCurrency = (val: number | undefined | null, _currency?: string): string => {
     if (val === undefined || val === null) return '';
-    return new Intl.NumberFormat('es-ES', {
+    return new Intl.NumberFormat(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
         useGrouping: true
@@ -29,16 +29,16 @@ export const getCurrencySymbol = (currency: string): string => {
 
 export const formatQuantity = (val: number | undefined | null): string => {
     if (val === undefined || val === null) return '';
-    return new Intl.NumberFormat('es-ES', {
+    return new Intl.NumberFormat(undefined, {
         minimumFractionDigits: 0,
-        maximumFractionDigits: 6,
-        useGrouping: true
+        maximumFractionDigits: 0,
+        useGrouping: false
     }).format(val);
 };
 
 export const formatPercent = (val: number | undefined | null): string => {
     if (val === undefined || val === null) return '';
-    return new Intl.NumberFormat('es-ES', {
+    return new Intl.NumberFormat(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
         useGrouping: true

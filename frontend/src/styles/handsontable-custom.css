@@ -1,0 +1,161 @@
+/* Handsontable Custom Dark Theme */
+.handsontable {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: #e2e8f0;
+    background: var(--color-bg);
+}
+
+.handsontable table.htCore {
+    border-collapse: collapse;
+    background-color: var(--color-bg);
+}
+
+/* Header Styles */
+.handsontable th {
+    background-color: #0f172a;
+    color: #94a3b8;
+    /* text-slate-400 */
+    font-weight: 600;
+    text-transform: uppercase;
+    border-color: var(--color-border) !important;
+    border-bottom: 1px solid var(--color-border) !important;
+    height: 32px !important;
+    vertical-align: middle;
+    padding: 0 4px;
+}
+
+/* Cell Styles */
+.handsontable td {
+    background-color: var(--color-bg);
+    border-color: var(--color-border) !important;
+    border-bottom: 1px solid var(--color-border) !important;
+    border-right: 1px solid var(--color-border) !important;
+    color: #e2e8f0;
+    height: 28px !important;
+    line-height: 28px !important;
+    vertical-align: middle !important;
+    padding: 0 8px;
+    /* Compact padding */
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-wrap: normal !important;
+    word-break: keep-all !important;
+}
+
+/* Alternating Rows (Optional - matching existing if needed, but simple dark is fine) */
+/* .handsontable tr:nth-child(even) td {
+  background-color: #1e293b; 
+} */
+
+/* Hover Effect */
+.handsontable tbody tr:hover td {
+    background-color: #1e293b !important;
+}
+
+/* Selection */
+.handsontable td.area,
+.handsontable td.area-1,
+.handsontable td.area-2,
+.handsontable td.area-3,
+.handsontable td.area-4,
+.handsontable td.area-5,
+.handsontable td.area-6,
+.handsontable td.area-7 {
+    background-color: rgba(59, 130, 246, 0.2) !important;
+    /* primary with opacity */
+}
+
+.handsontable td.current {
+    background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Borders */
+.ht_clone_top th,
+.ht_clone_left th,
+.ht_clone_top_left_corner th {
+    background-color: #0f172a;
+}
+
+/* Inputs / Editors */
+.handsontableInput {
+    background-color: #1e293b !important;
+    color: white !important;
+    border: 1px solid var(--color-primary) !important;
+    box-shadow: none !important;
+}
+
+/* Custom Renderers Classes */
+.htRight {
+    text-align: right;
+}
+
+.htCenter {
+    text-align: center;
+}
+
+.htLeft {
+    text-align: left;
+}
+
+.htMiddle {
+    vertical-align: middle;
+}
+
+/* Action Buttons Container in Custom Renderer */
+.actions-cell-container {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.action-btn {
+    padding: 2px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    transition: background-color 0.2s;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.action-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.action-btn.edit {
+    color: #eab308;
+}
+
+/* yellow-500 */
+.action-btn.delete {
+    color: #ef4444;
+}
+
+/* red-500 */
+.action-btn.view {
+    color: #60a5fa;
+}
+
+/* blue-400 */
+.action-btn.custom {
+    color: #94a3b8;
+}
+
+/* slate-400 */
+
+/* Hide weird handsontable borders headers */
+.handsontable th.ht__highlight {
+    background-color: #1e293b;
+}
+
+/* Filter menus if used */
+.htFiltersMenu {
+    background-color: #1e293b;
+    border: 1px solid var(--color-border);
+    color: white;
+}

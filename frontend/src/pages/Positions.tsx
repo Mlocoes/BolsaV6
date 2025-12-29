@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import { ColDef } from 'ag-grid-community';
-import 'ag-grid-enterprise';
+import Handsontable from 'handsontable';
+import 'handsontable/dist/handsontable.full.min.css';
 import Layout from '../components/Layout';
 import { usePortfolioStore } from '../stores/portfolioStore';
-import { formatCurrency, formatQuantity, formatPercent } from '../utils/formatters';
+import { formatCurrency, formatPercent } from '../utils/formatters';
 
 /**
  * Página de Posiciones Actuales
  */
 export default function Positions() {
-    const gridRef = useRef<AgGridReact>(null);
+    const hotTableRef = useRef<HTMLDivElement>(null);
+    const hotInstance = useRef<Handsontable | null>(null);
     const [lastSync, setLastSync] = useState<Date | null>(null);
     const { portfolios, selectedPortfolio, positions, loadPortfolios, selectPortfolio, loadPositions } = usePortfolioStore();
 
@@ -27,91 +27,215 @@ export default function Positions() {
         stats.totalPLPercent = (stats.totalPL / stats.totalCost) * 100;
     }
 
-    const columnDefs: ColDef[] = [
-        { field: 'symbol', headerName: 'Símbolo', width: 90, pinned: 'left', cellClass: 'font-semibold text-primary' },
-        { field: 'name', headerName: 'Nombre', width: 180 },
-        {
-            field: 'quantity',
-            headerName: 'Cantidad',
-            width: 100,
-            valueFormatter: (params) => formatQuantity(params.value)
-        },
-        {
-            field: 'avg_price',
-            headerName: 'P. Compra',
-            width: 110,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'previous_close',
-            headerName: 'P. Anterior',
-            width: 110,
-            cellClass: 'text-gray-400',
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'current_price',
-            headerName: 'P. Actual',
-            width: 110,
-            cellClass: (params) => params.data.source === 'online' ? 'text-green-400 font-medium' : '',
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'day_change_percent',
-            headerName: '% Día',
-            width: 90,
-            valueFormatter: (params) => formatPercent(params.value),
-            cellStyle: (params) => ({
-                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444',
-                fontWeight: '600'
-            })
-        },
-        {
-            field: 'day_result',
-            headerName: 'Res. Día',
-            width: 110,
-            cellStyle: (params) => ({
-                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444',
-                fontWeight: '600'
-            }),
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'cost_basis',
-            headerName: 'Costo Base',
-            width: 120,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'current_value',
-            headerName: 'Valor Actual',
-            width: 120,
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-        {
-            field: 'profit_loss_percent',
-            headerName: '% Total',
-            width: 100,
-            valueFormatter: (params) => formatPercent(params.value),
-            cellStyle: (params) => ({
-                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444',
-                fontWeight: 'bold'
-            })
-        },
-        {
-            field: 'profit_loss',
-            headerName: 'Resultado Total',
-            width: 130,
-            cellStyle: (params) => ({
-                color: (params.value != null && params.value >= 0) ? '#10b981' : '#ef4444'
-            }),
-            valueFormatter: (params) => formatCurrency(params.value)
-        },
-    ];
-
     useEffect(() => {
         loadPortfolios();
     }, [loadPortfolios]);
+
+    // Inicializar Handsontable
+    useEffect(() => {
+        if (!hotTableRef.current || !selectedPortfolio || positions.length === 0) return;
+
+        if (hotInstance.current) {
+            hotInstance.current.destroy();
+        }
+
+        hotInstance.current = new Handsontable(hotTableRef.current, {
+            data: positions,
+            licenseKey: 'non-commercial-and-evaluation',
+            width: '100%',
+            height: '100%',
+            colHeaders: [
+                'Símbolo',
+                'Nombre',
+                'Cantidad',
+                'P. Compra',
+                'P. Anterior',
+                'P. Actual',
+                '% Día',
+                'Res. Día',
+                'Costo Base',
+                'Valor Actual',
+                '% Total',
+                'Resultado Total'
+            ],
+            columns: [
+                { data: 'symbol', readOnly: true, width: 90, className: 'htLeft' },
+                { data: 'name', readOnly: true, width: 180, className: 'htLeft' },
+                {
+                    data: 'quantity',
+                    readOnly: true,
+                    width: 100,
+                    className: 'htRight',
+                    type: 'numeric',
+                    numericFormat: {
+                        pattern: '0',
+                        culture: 'es-ES'
+                    }
+                },
+                {
+                    data: 'avg_price',
+                    readOnly: true,
+                    width: 110,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'previous_close',
+                    readOnly: true,
+                    width: 110,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'current_price',
+                    readOnly: true,
+                    width: 110,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'day_change_percent',
+                    readOnly: true,
+                    width: 90,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'day_result',
+                    readOnly: true,
+                    width: 110,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
+                            td.style.fontWeight = 'bold';
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'cost_basis',
+                    readOnly: true,
+                    width: 120,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'current_value',
+                    readOnly: true,
+                    width: 120,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'profit_loss_percent',
+                    readOnly: true,
+                    width: 100,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                },
+                {
+                    data: 'profit_loss',
+                    readOnly: true,
+                    width: 130,
+                    className: 'htRight',
+                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                        if (typeof value === 'number') {
+                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
+                            td.style.fontWeight = 'bold';
+                        } else {
+                            td.textContent = value;
+                        }
+                        td.style.textAlign = 'right';
+                        return td;
+                    }
+                }
+            ],
+            rowHeaders: true,
+            stretchH: 'all',
+            autoColumnSize: false,
+            filters: true,
+            dropdownMenu: [
+                'filter_by_condition',
+                'filter_by_value',
+                'filter_action_bar'
+            ],
+            columnSorting: true,
+            manualColumnResize: true,
+            wordWrap: false,
+            rowHeights: 28
+        });
+
+        return () => {
+            if (hotInstance.current) {
+                hotInstance.current.destroy();
+                hotInstance.current = null;
+            }
+        };
+    }, [positions, selectedPortfolio]);
 
     // Refresco automático de precios online
     useEffect(() => {
@@ -195,29 +319,7 @@ export default function Positions() {
                             </div>
 
                             {/* Table Container */}
-                            <div className="ag-theme-quartz-dark rounded-lg border border-dark-border flex-1 min-h-[300px]">
-                                <AgGridReact
-                                    ref={gridRef}
-                                    rowData={positions}
-                                    columnDefs={columnDefs}
-                                    defaultColDef={{
-                                        sortable: true,
-                                        resizable: true,
-                                        filter: true,
-                                    }}
-                                    enableRangeSelection={true}
-                                    enableRangeHandle={true}
-                                    enableFillHandle={true}
-                                    suppressCellFocus={false}
-                                    copyHeadersToClipboard={true}
-                                    animateRows={true}
-                                    onGridReady={(params) => {
-                                        params.api.sizeColumnsToFit();
-                                    }}
-                                    domLayout='normal'
-                                    containerStyle={{ height: '100%', width: '100%' }}
-                                />
-                            </div>
+                            <div ref={hotTableRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
                         </>
                     ) : (
                         <div className="text-center py-20 text-dark-muted flex-1 flex items-center justify-center bg-dark-surface border border-dark-border rounded-lg">

@@ -1,8 +1,9 @@
 /**
  * Contexto para gestionar la información del usuario autenticado
+ * Refactorizado para usar authStore internamente y evitar redundancia de estado.
  */
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { api } from '../services/api';
+import React, { createContext, useContext, ReactNode } from 'react';
+import { useAuthStore } from '../stores/authStore';
 
 interface User {
     id: string;
@@ -22,40 +23,32 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState(true);
+    const { user, isLoading, checkAuth, updateProfile } = useAuthStore();
 
     const refreshUser = async () => {
-        try {
-            setLoading(true);
-            // No verificar localStorage - la autenticación usa cookies
-            // El backend validará automáticamente con la cookie session_id
-            const response = await api.get('/auth/me');
-            setUser(response.data);
-        } catch (error) {
-            console.error('Error fetching user data:', error);
-            setUser(null);
-        } finally {
-            setLoading(false);
-        }
+        await checkAuth();
     };
 
     const updateBaseCurrency = async (currency: string) => {
-        try {
-            const response = await api.patch('/users/me/preferences', { base_currency: currency });
-            setUser(response.data);
-        } catch (error) {
-            console.error('Error updating base currency:', error);
-            throw error;
-        }
+        await updateProfile({ base_currency: currency });
     };
 
-    useEffect(() => {
-        refreshUser();
-    }, []);
+    // Mapear el usuario del store al formato esperado por el contexto (si es necesario)
+    const contextUser = user ? {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        base_currency: user.base_currency,
+        is_admin: user.is_admin
+    } : null;
 
     return (
-        <UserContext.Provider value={{ user, loading, refreshUser, updateBaseCurrency }}>
+        <UserContext.Provider value={{
+            user: contextUser,
+            loading: isLoading,
+            refreshUser,
+            updateBaseCurrency
+        }}>
             {children}
         </UserContext.Provider>
     );

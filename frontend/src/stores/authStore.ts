@@ -3,6 +3,7 @@
  */
 import { create } from 'zustand';
 import { authService, User } from '../services/authService';
+import api from '../services/api';
 
 interface AuthState {
     user: User | null;
@@ -13,6 +14,7 @@ interface AuthState {
     login: (username: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     checkAuth: () => Promise<void>;
+    updateProfile: (data: any) => Promise<void>;
     clearError: () => void;
 }
 
@@ -52,6 +54,23 @@ export const useAuthStore = create<AuthState>((set) => ({
             set({ user, isLoading: false });
         } catch (error) {
             set({ user: null, isLoading: false });
+        }
+    },
+
+    updateProfile: async (data: any) => {
+        set({ isLoading: true, error: null });
+        try {
+            const currentUser = useAuthStore.getState().user;
+            if (!currentUser) throw new Error('No user logged in');
+
+            const response = await api.patch(`/users/${currentUser.id}`, data);
+            set({ user: response.data, isLoading: false });
+        } catch (error: any) {
+            set({
+                error: error.response?.data?.detail || 'Error al actualizar perfil',
+                isLoading: false
+            });
+            throw error;
         }
     },
 
