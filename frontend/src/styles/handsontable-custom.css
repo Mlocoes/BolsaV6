@@ -295,38 +295,53 @@
 
 /* Nested dropdown lists for conditions (None, Is empty, etc.) */
 .htUISelect_List,
-.htSelect_List {
+.htSelect_List,
+.htUISelect_List .htCore,
+.htSelect_List .htCore,
+.htUISelect_List .ht_master .htCore,
+.htSelect_List .ht_master .htCore {
     background-color: #1e293b !important;
     border: 1px solid var(--color-border) !important;
     color: #e2e8f0 !important;
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
     z-index: 10000 !important;
-    /* Ensure it's above the filter menu */
 }
 
 .htUISelect_List table,
-.htSelect_List table {
-    background-color: #1e293b !important;
-}
-
-.htUISelect_List td,
-.htSelect_List td {
+.htSelect_List table,
+.htUISelect_List .htCore,
+.htSelect_List .htCore {
     background-color: #1e293b !important;
     color: #e2e8f0 !important;
-    border: none !important;
+}
+
+.htUISelect_List tr,
+.htSelect_List tr,
+.htUISelect_List td,
+.htSelect_List td,
+.htUISelect_List th,
+.htSelect_List th {
+    background-color: #1e293b !important;
+    color: #e2e8f0 !important;
+    border-color: #334155 !important;
+    /* var(--color-border) fallback */
     padding: 6px 12px !important;
     cursor: pointer !important;
 }
 
 .htUISelect_List td.htHighlight,
-.htSelect_List td.htHighlight {
+.htSelect_List td.htHighlight,
+.htUISelect_List tr.htHighlight td,
+.htSelect_List tr.htHighlight td {
     background-color: var(--color-primary) !important;
     color: white !important;
 }
 
-.htUISelect_List td:hover,
-.htSelect_List td:hover {
+/* Hover on any row in the list */
+.htUISelect_List tr:hover td,
+.htSelect_List tr:hover td {
     background-color: #334155 !important;
+    color: white !important;
 }
 
 /* Ensure the main container of the dropdown is also dark */
