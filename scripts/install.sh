@@ -274,6 +274,7 @@ configure_environment() {
     DEFAULT_ADMIN_USER="admin"
     DEFAULT_ADMIN_EMAIL="admin@example.com"
     DEFAULT_ADMIN_PASSWORD="Admin123!@#"
+    DEFAULT_PUBLIC_URL="http://localhost"
     
     # Siempre preguntar por defecto
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
@@ -332,6 +333,17 @@ configure_environment() {
                 echo -e "${GREEN}Usando contraseña sugerida${NC}"
             fi
         fi
+        
+        echo ""
+        echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║               Configuración de URL del Sistema                ║${NC}"
+        echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "${YELLOW}Ejemplo: http://192.168.1.100 o https://bolsa.midominio.com${NC}"
+        read -p "URL pública del sistema [${DEFAULT_PUBLIC_URL}]: " PUBLIC_URL
+        PUBLIC_URL=${PUBLIC_URL:-$DEFAULT_PUBLIC_URL}
+        # Eliminar barra final si existe
+        PUBLIC_URL=$(echo $PUBLIC_URL | sed 's/\/$//')
     
     echo ""
     print_step "Generando archivo .env..."
@@ -343,7 +355,7 @@ configure_environment() {
     
     # Obtener todas las IPs locales para CORS
     ALL_IPS=$(hostname -I | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | tr '\n' ',' | sed 's/,$//')
-    CORS_URLS="http://localhost:3000,http://127.0.0.1:3000"
+    CORS_URLS="${PUBLIC_URL}:3000,${PUBLIC_URL},http://localhost:3000,http://127.0.0.1:3000"
     for ip in $(echo $ALL_IPS | tr ',' ' '); do
         CORS_URLS="${CORS_URLS},http://${ip}:3000"
     done
@@ -401,9 +413,13 @@ EOF
     
     # Crear archivo .env para el frontend
     print_step "Generando archivo frontend/.env..."
+    # Asumimos que el backend está accesible en la misma URL pero puerto 8000 o vía proxy
+    API_PORT=8000
+    # Si la URL pública ya tiene puerto, no lo añadimos al final por defecto para el backend
+    # pero para el frontend necesitamos la base URL
     cat > "${PROJECT_DIR}/frontend/.env" << EOF
 # Configuración del Frontend
-# VITE_API_URL=http://localhost:8000/api
+VITE_API_URL=${PUBLIC_URL}:${API_PORT}/api
 EOF
     print_success "Archivo frontend/.env creado exitosamente"
     echo ""
