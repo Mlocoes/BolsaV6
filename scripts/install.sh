@@ -332,7 +332,6 @@ configure_environment() {
                 echo -e "${GREEN}Usando contraseña sugerida${NC}"
             fi
         fi
-    fi
     
     echo ""
     print_step "Generando archivo .env..."
