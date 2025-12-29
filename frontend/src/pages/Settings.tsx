@@ -121,199 +121,168 @@ export default function Settings() {
 
     return (
         <Layout>
-            <div className="h-full overflow-y-auto p-4 md:p-6 bg-dark-bg custom-scrollbar">
-                <div className="max-w-4xl mx-auto space-y-6">
+            <div className="h-full overflow-y-auto p-4 bg-dark-bg custom-scrollbar">
+                <div className="max-w-5xl mx-auto space-y-4">
 
-                    {/* Header Premium */}
-                    <div className="relative overflow-hidden bg-gradient-to-r from-primary/20 to-transparent border border-dark-border rounded-2xl p-6 mb-8">
-                        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    {/* Header Compacto */}
+                    <div className="relative overflow-hidden bg-gradient-to-r from-primary/15 to-transparent border border-dark-border rounded-xl p-4">
+                        <div className="relative z-10 flex items-center justify-between">
                             <div>
-                                <h1 className="text-2xl font-bold text-white mb-1">Configuración</h1>
-                                <p className="text-dark-muted text-sm">Gestiona tus preferencias y la seguridad de tu cuenta</p>
+                                <h1 className="text-xl font-bold text-white leading-none mb-1">Configuración</h1>
+                                <p className="text-dark-muted text-[10px] uppercase tracking-wider">Ajustes de cuenta y preferencias</p>
                             </div>
-                            <div className="flex items-center gap-3 bg-dark-surface/50 backdrop-blur-sm px-4 py-2 rounded-xl border border-dark-border">
-                                <div className="w-10 h-10 bg-primary/20 flex items-center justify-center rounded-lg text-lg">👤</div>
-                                <div>
-                                    <div className="text-sm font-bold text-white leading-none mb-1">{user.username}</div>
-                                    <div className="text-[10px] text-dark-muted uppercase tracking-wider">Usuario {user.is_admin ? 'Administrador' : 'Estándar'}</div>
+                            <div className="flex items-center gap-3 bg-dark-surface/40 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-dark-border">
+                                <span className="text-xl">👤</span>
+                                <div className="text-right">
+                                    <div className="text-xs font-bold text-white leading-none mb-0.5">{user.username}</div>
+                                    <div className="text-[9px] text-dark-muted font-medium uppercase">{user.is_admin ? 'Admin' : 'Estándar'}</div>
                                 </div>
                             </div>
                         </div>
-                        {/* Decoración fondo */}
-                        <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-                        {/* Columna Izquierda: Moneda y Ajustes Visuales */}
-                        <div className="lg:col-span-2 space-y-6">
-
-                            {/* Moneda Base */}
-                            <section className="bg-dark-surface border border-dark-border rounded-2xl overflow-hidden shadow-sm">
-                                <div className="p-5 border-b border-dark-border flex justify-between items-center bg-dark-surface/30">
-                                    <div className="flex items-center gap-3">
-                                        <span className="p-2 bg-blue-500/10 text-blue-400 rounded-lg">💶</span>
-                                        <h2 className="font-bold text-white">Moneda Base</h2>
+                        {/* Columna Izquierda (3/5): Ajustes de Perfil y Moneda */}
+                        <div className="lg:col-span-3 space-y-4">
+                            <section className="bg-dark-surface border border-dark-border rounded-xl shadow-sm overflow-hidden">
+                                <div className="p-4 border-b border-dark-border bg-dark-surface/30 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-blue-400">🌍</span>
+                                        <h2 className="text-sm font-bold text-white">Preferencia de Moneda</h2>
                                     </div>
                                     <button
                                         onClick={handleSaveCurrency}
                                         disabled={selectedCurrency === user.base_currency || saving.currency}
-                                        className="text-xs bg-primary hover:bg-primary-dark disabled:opacity-30 text-white px-4 py-1.5 rounded-lg font-medium transition-all"
+                                        className="text-[10px] bg-primary hover:bg-primary-dark disabled:opacity-30 text-white px-3 py-1 rounded-md font-bold transition-all uppercase tracking-wider"
                                     >
-                                        {saving.currency ? 'Ahorrando...' : 'Guardar'}
+                                        {saving.currency ? 'Guardando...' : 'Aplicar'}
                                     </button>
                                 </div>
-                                <div className="p-5">
-                                    <p className="text-xs text-dark-muted mb-4">
-                                        Esta es la moneda en la que se mostrarán todos los totales acumulados en la plataforma.
-                                    </p>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <div className="p-4">
+                                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
                                         {SUPPORTED_CURRENCIES.map((c) => (
                                             <button
                                                 key={c.code}
                                                 onClick={() => setSelectedCurrency(c.code)}
                                                 className={`
-                                                    relative flex flex-col items-center justify-center p-4 rounded-xl border transition-all duration-200
+                                                    flex flex-col items-center justify-center py-2 rounded-lg border transition-all
                                                     ${selectedCurrency === c.code
-                                                        ? 'border-primary bg-primary/5 shadow-inner'
-                                                        : 'border-dark-border bg-dark-bg hover:border-dark-muted'
+                                                        ? 'border-primary bg-primary/10'
+                                                        : 'border-dark-border bg-dark-bg/50 hover:border-dark-muted'
                                                     }
                                                 `}
+                                                title={c.name}
                                             >
-                                                <span className="text-2xl mb-1">{c.flag}</span>
-                                                <span className={`text-sm font-bold ${selectedCurrency === c.code ? 'text-primary-light' : 'text-white'}`}>
+                                                <span className="text-lg mb-0.5">{c.flag}</span>
+                                                <span className={`text-[10px] font-bold ${selectedCurrency === c.code ? 'text-primary-light' : 'text-dark-muted'}`}>
                                                     {c.code}
                                                 </span>
-                                                <span className="text-[10px] text-dark-muted">{c.name}</span>
-                                                {selectedCurrency === c.code && (
-                                                    <div className="absolute top-2 right-2 flex h-2 w-2">
-                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                                                    </div>
-                                                )}
                                             </button>
                                         ))}
                                     </div>
+                                    <p className="text-[10px] text-dark-muted italic">
+                                        * Los totales de la plataforma se convertirán automáticamente a esta moneda.
+                                    </p>
                                 </div>
-                            </section>
 
-                            {/* Información de Perfil */}
-                            <section className="bg-dark-surface border border-dark-border rounded-2xl overflow-hidden shadow-sm">
-                                <div className="p-5 border-b border-dark-border flex items-center gap-3 bg-dark-surface/30">
-                                    <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">📧</span>
-                                    <h2 className="font-bold text-white">Correo Electrónico</h2>
-                                </div>
-                                <div className="p-5">
-                                    <form onSubmit={handleSaveProfile} className="space-y-4">
-                                        <div>
-                                            <label className="block text-[10px] uppercase font-bold text-dark-muted mb-1.5 tracking-wider">
-                                                Dirección de Email
-                                            </label>
-                                            <div className="relative group">
-                                                <input
-                                                    type="email"
-                                                    value={email}
-                                                    onChange={(e) => setEmail(e.target.value)}
-                                                    className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all pr-24"
-                                                    placeholder="tu@email.com"
-                                                    required
-                                                />
-                                                {email !== user.email && (
-                                                    <div className="absolute right-2 top-1.5">
-                                                        <button
-                                                            type="submit"
-                                                            disabled={saving.profile}
-                                                            className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors"
-                                                        >
-                                                            {saving.profile ? '...' : 'ACTUALIZAR'}
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <p className="mt-2 text-[10px] text-dark-muted">
-                                                Usarás este correo para recibir notificaciones y recuperar tu cuenta.
-                                            </p>
-                                        </div>
-                                    </form>
-                                </div>
-                            </section>
-                        </div>
-
-                        {/* Columna Derecha: Seguridad y Otros */}
-                        <div className="space-y-6">
-
-                            {/* Seguridad */}
-                            <section className="bg-dark-surface border border-dark-border rounded-2xl overflow-hidden shadow-sm">
-                                <div className="p-5 border-b border-dark-border flex items-center gap-3 bg-dark-surface/30">
-                                    <span className="p-2 bg-amber-500/10 text-amber-400 rounded-lg">🔐</span>
-                                    <h2 className="font-bold text-white">Seguridad</h2>
-                                </div>
-                                <div className="p-5">
-                                    <form onSubmit={handleSaveSecurity} className="space-y-4">
-                                        <div>
-                                            <label className="block text-[10px] uppercase font-bold text-dark-muted mb-1.5 tracking-wider">
-                                                Nueva Contraseña
+                                <div className="p-4 border-t border-dark-border bg-dark-surface/10">
+                                    <form onSubmit={handleSaveProfile} className="flex flex-col sm:flex-row items-end gap-3">
+                                        <div className="flex-1 w-full">
+                                            <label className="block text-[9px] uppercase font-bold text-dark-muted mb-1 tracking-wider">
+                                                Correo Electrónico
                                             </label>
                                             <input
-                                                type="password"
-                                                value={passwords.new}
-                                                onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
-                                                className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
-                                                placeholder="Mínimo 6 caracteres"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] uppercase font-bold text-dark-muted mb-1.5 tracking-wider">
-                                                Confirmar Nueva Contraseña
-                                            </label>
-                                            <input
-                                                type="password"
-                                                value={passwords.confirm}
-                                                onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
-                                                className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
-                                                placeholder="Repite la contraseña"
+                                                type="email"
+                                                value={email}
+                                                onChange={(e) => setEmail(e.target.value)}
+                                                className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                                                required
                                             />
                                         </div>
                                         <button
                                             type="submit"
-                                            disabled={!passwords.new || saving.security}
-                                            className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-30 text-white font-bold py-2.5 rounded-xl text-xs transition-all mt-2"
+                                            disabled={email === user.email || saving.profile}
+                                            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-30 text-white text-[9px] font-bold py-2 px-4 rounded-lg transition-colors uppercase whitespace-nowrap"
                                         >
-                                            {saving.security ? 'Actualizando...' : 'CAMBIAR CONTRASEÑA'}
+                                            {saving.profile ? '...' : 'Actualizar Email'}
                                         </button>
                                     </form>
                                 </div>
                             </section>
 
-                            {/* Info de Sesión */}
-                            <section className="bg-dark-surface border border-dark-border rounded-2xl p-5 shadow-sm">
-                                <h3 className="text-xs font-bold text-white mb-3">Resumen de Cuenta</h3>
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center py-2 border-b border-dark-border/50">
-                                        <span className="text-[10px] text-dark-muted uppercase font-semibold">Miembro desde</span>
-                                        <span className="text-xs text-white">
-                                            {new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })}
+                            {/* Aviso */}
+                            <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 flex gap-3 items-start">
+                                <span className="text-sm">💡</span>
+                                <p className="text-[10px] text-blue-200/60 leading-normal">
+                                    Mantén tus datos al día para asegurar el acceso a tu cuenta. El cambio de moneda es visual y no afecta a tus registros históricos.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Columna Derecha (2/5): Seguridad y Resumen */}
+                        <div className="lg:col-span-2 space-y-4">
+                            {/* Seguridad */}
+                            <section className="bg-dark-surface border border-dark-border rounded-xl shadow-sm overflow-hidden">
+                                <div className="p-4 border-b border-dark-border bg-dark-surface/30 flex items-center gap-2">
+                                    <span className="text-amber-400">🔐</span>
+                                    <h2 className="text-sm font-bold text-white">Seguridad</h2>
+                                </div>
+                                <div className="p-4 space-y-3">
+                                    <form onSubmit={handleSaveSecurity} className="space-y-3">
+                                        <div>
+                                            <label className="block text-[9px] uppercase font-bold text-dark-muted mb-1 tracking-wider">Nueva Contraseña</label>
+                                            <input
+                                                type="password"
+                                                value={passwords.new}
+                                                onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                                                className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                                                placeholder="••••••••"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[9px] uppercase font-bold text-dark-muted mb-1 tracking-wider">Confirmar</label>
+                                            <input
+                                                type="password"
+                                                value={passwords.confirm}
+                                                onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                                                className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                                                placeholder="••••••••"
+                                            />
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            disabled={!passwords.new || saving.security}
+                                            className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-30 text-white font-bold py-2 rounded-lg text-[10px] uppercase transition-all"
+                                        >
+                                            {saving.security ? 'Actualizando...' : 'Cambiar Contraseña'}
+                                        </button>
+                                    </form>
+                                </div>
+                            </section>
+
+                            {/* Cuenta */}
+                            <section className="bg-dark-surface border border-dark-border rounded-xl p-4 shadow-sm">
+                                <h3 className="text-[10px] font-bold text-dark-muted uppercase tracking-widest mb-3 border-b border-dark-border pb-2 flex items-center gap-2">
+                                    <span>📊</span> Resumen de Cuenta
+                                </h3>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[9px] text-dark-muted uppercase font-semibold">Registro</span>
+                                        <span className="text-xs text-white font-medium">
+                                            {new Date(user.created_at).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
                                         </span>
                                     </div>
-                                    <div className="flex justify-between items-center py-2 border-b border-dark-border/50">
-                                        <span className="text-[10px] text-dark-muted uppercase font-semibold">Nivel</span>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${user.is_admin ? 'bg-primary/20 text-primary-light' : 'bg-dark-muted/20 text-dark-muted'}`}>
-                                            {user.is_admin ? 'Admin' : 'Standard'}
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[9px] text-dark-muted uppercase font-semibold">Estado</span>
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase ring-1 ring-inset ${user.is_admin ? 'bg-primary/10 text-primary-light ring-primary/20' : 'bg-dark-muted/10 text-dark-muted ring-dark-border'}`}>
+                                            {user.is_admin ? 'Admin' : 'Personal'}
                                         </span>
                                     </div>
                                 </div>
                             </section>
-
                         </div>
 
-                    </div>
-
-                    {/* Disclaimer Premium */}
-                    <div className="bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-2xl p-4 flex gap-4 items-center">
-                        <div className="text-2xl">💡</div>
-                        <div className="text-xs text-blue-200/80 leading-relaxed">
-                            Asegúrate de mantener tu información actualizada. Los cambios en la moneda base afectan únicamente a la visualización de datos y no alteran los valores históricos de tus transacciones.
-                        </div>
                     </div>
 
                 </div>
