@@ -5,7 +5,7 @@
 
 export const formatCurrency = (val: number | undefined | null, _currency?: string): string => {
     if (val === undefined || val === null) return '';
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat('es-ES', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
         useGrouping: true
@@ -29,7 +29,7 @@ export const getCurrencySymbol = (currency: string): string => {
 
 export const formatQuantity = (val: number | undefined | null): string => {
     if (val === undefined || val === null) return '';
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat('es-ES', {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
         useGrouping: false
@@ -38,9 +38,35 @@ export const formatQuantity = (val: number | undefined | null): string => {
 
 export const formatPercent = (val: number | undefined | null): string => {
     if (val === undefined || val === null) return '';
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat('es-ES', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
         useGrouping: true
     }).format(val);
+};
+
+/**
+ * Formato de precio con 4 decimales
+ */
+export const formatPrice = (val: number | undefined | null): string => {
+    if (val === undefined || val === null) return '';
+    return new Intl.NumberFormat('es-ES', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4,
+        useGrouping: true
+    }).format(val);
+};
+
+/**
+ * Formato de fecha estándar DD/MM/YYYY
+ */
+export const formatDate = (val: string | Date | undefined | null): string => {
+    if (!val) return '';
+    const date = typeof val === 'string' ? new Date(val) : val;
+    if (isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    }).format(date);
 };

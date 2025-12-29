@@ -4,6 +4,7 @@ import 'handsontable/dist/handsontable.full.min.css';
 import api from '../services/api';
 import { getFiscalReport, FiscalReport as FiscalReportType } from '../services/fiscalService';
 import { formatCurrency } from '../utils/formatters';
+import { currencyRenderer, dateRenderer, priceRenderer, numberRenderer } from '../utils/handsontableUtils';
 import Layout from '../components/Layout';
 
 interface Portfolio {
@@ -66,86 +67,47 @@ const FiscalReport: React.FC = () => {
                     readOnly: true,
                     width: 100,
                     className: 'htRight',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
-                        if (value) {
-                            td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
-                        } else {
-                            td.textContent = '';
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: dateRenderer
                 },
                 {
                     data: 'quantity_sold',
                     readOnly: true,
                     width: 90,
                     className: 'htRight',
-                    type: 'numeric',
-                    numericFormat: {
-                        pattern: '0',
-                        culture: 'es-ES'
-                    }
+                    renderer: numberRenderer
                 },
                 {
                     data: 'sale_price',
                     readOnly: true,
                     width: 100,
                     className: 'htRight',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value || '';
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'acquisition_date',
                     readOnly: true,
                     width: 100,
                     className: 'htRight',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
-                        if (value) {
-                            td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
-                        } else {
-                            td.textContent = '';
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: dateRenderer
                 },
                 {
                     data: 'acquisition_price',
                     readOnly: true,
                     width: 100,
                     className: 'htRight',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value || '';
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'gross_result',
                     readOnly: true,
                     width: 120,
                     className: 'htRight',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                    renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                        currencyRenderer(instance, td, row, col, prop, value, cellProperties);
                         if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                             td.style.color = value >= 0 ? '#10b981' : '#ef4444';
                             td.style.fontWeight = 'bold';
-                        } else {
-                            td.textContent = value || '';
                         }
-                        td.style.textAlign = 'right';
                         return td;
                     }
                 },

@@ -1,5 +1,5 @@
-import { formatCurrency, formatPercent, formatQuantity } from './formatters';
-export { formatCurrency, formatPercent, formatQuantity };
+import { formatCurrency, formatPercent, formatQuantity, formatDate, formatPrice } from './formatters';
+export { formatCurrency, formatPercent, formatQuantity, formatDate, formatPrice };
 
 /**
  * Custom Renderers for Handsontable
@@ -37,6 +37,22 @@ export const numberRenderer = (_instance: any, td: HTMLElement, _row: number, _c
     return td;
 };
 
+export const priceRenderer = (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any, _cellProperties: any) => {
+    const formatted = formatPrice(value);
+    td.textContent = formatted;
+    td.className = 'htRight';
+    td.style.textAlign = 'right';
+    return td;
+};
+
+export const dateRenderer = (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any, _cellProperties: any) => {
+    const formatted = formatDate(value);
+    td.textContent = formatted;
+    td.className = 'htRight';
+    td.style.textAlign = 'right';
+    return td;
+};
+
 /**
  * Configuration Interface for Actions
  */
@@ -54,8 +70,8 @@ export interface ActionConfig {
  * @param actions List of actions to render
  */
 export const getActionRenderer = (actions: ActionConfig[]) => {
-    return (instance: any, td: HTMLElement, row: number, col: number, prop: string | number, value: any, cellProperties: any) => {
-        const rowData = instance.getSourceDataAtRow(row);
+    return (_instance: any, td: HTMLElement, row: number, _col: number, _prop: string | number, _value: any, _cellProperties: any) => {
+        _instance.getSourceDataAtRow(row);
 
         // Clear content
         while (td.firstChild) {
