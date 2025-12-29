@@ -13,7 +13,7 @@
 # Fecha: $(date +%Y-%m-%d)
 ################################################################################
 
-set -e  # Salir si hay algún error
+# set -e  # Desactivado para manejo manual de errores
 
 # Colores para mensajes
 RED='\033[0;31m'
@@ -439,7 +439,13 @@ configure_environment() {
         read -p "URL pública del sistema [${DEFAULT_PUBLIC_URL}]: " PUBLIC_URL
         PUBLIC_URL=${PUBLIC_URL:-$DEFAULT_PUBLIC_URL}
         # Eliminar barra final si existe
-        PUBLIC_URL=$(echo $PUBLIC_URL | sed 's/\/$//')
+        PUBLIC_URL=$(echo $PUBLIC_URL | sed 's/\/*$//')
+        
+        # Asegurar esquema http:// o https://
+        if [[ ! "$PUBLIC_URL" =~ ^https?:// ]]; then
+            PUBLIC_URL="http://${PUBLIC_URL}"
+            print_info "Añadido esquema http:// a la URL pública: ${PUBLIC_URL}"
+        fi
     
     echo ""
     print_step "Generando archivo .env..."
@@ -609,10 +615,16 @@ clean_volumes() {
         echo ""
         cd "$PROJECT_DIR"
         
-        # Detener servicios
-        $DOCKER_COMPOSE_CMD down -v 2>/dev/null || true
+        # Detener servicios y eliminar TODO
+        $DOCKER_COMPOSE_CMD down -v --remove-orphans 2>/dev/null || true
         
-        print_success "Base de datos antigua eliminada correctamente"
+        # Eliminar volúmenes por nombre explícito por si acaso
+        docker volume rm bolsav6_postgres_data bolsav6_redis_data 2>/dev/null || true
+        
+        # Un pequeño respiro para que Docker libere recursos
+        sleep 2
+        
+        print_success "Base de datos antigua y volúmenes eliminados correctamente"
         print_info "Se creará una nueva base de datos con las credenciales actualizadas"
         echo ""
     fi
@@ -805,6 +817,7 @@ main() {
         if [[ ! "$pre_backup" =~ ^[Nn]$ ]]; then
             backup_db
         fi
+        # Nos aseguramos de limpiar volúmenes SIEMPRE si hay reconfiguración
         clean_volumes
     fi
     
