@@ -396,6 +396,15 @@ EOF
     print_success "Archivo .env creado exitosamente"
     echo ""
     
+    # Crear archivo .env para el frontend
+    print_step "Generando archivo frontend/.env..."
+    cat > "${PROJECT_DIR}/frontend/.env" << EOF
+# Configuración del Frontend
+# VITE_API_URL=http://localhost:8000/api
+EOF
+    print_success "Archivo frontend/.env creado exitosamente"
+    echo ""
+    
     # Mostrar resumen
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${CYAN}║                 Resumen de Configuración                       ║${NC}"
