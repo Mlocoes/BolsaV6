@@ -275,26 +275,11 @@ configure_environment() {
     DEFAULT_ADMIN_EMAIL="admin@example.com"
     DEFAULT_ADMIN_PASSWORD="Admin123!@#"
     
-    # Modo interactivo - Siempre preguntar por defecto
-    # Solo usar modo automático si TODAS las variables están definidas Y AUTO_INSTALL=true
-    if [ "$AUTO_INSTALL" = "true" ] && [ -n "$DB_NAME" ] && [ -n "$DB_USER" ] && \
-       [ -n "$DB_PASSWORD" ] && [ -n "$ADMIN_USER" ] && [ -n "$ADMIN_EMAIL" ] && \
-       [ -n "$ADMIN_PASSWORD" ]; then
-        echo -e "${YELLOW}╔════════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${YELLOW}║               🤖 MODO AUTOMÁTICO ACTIVADO                      ║${NC}"
-        echo -e "${YELLOW}╚════════════════════════════════════════════════════════════════╝${NC}"
-        print_info "Usando configuración predefinida (no se harán preguntas)"
-        echo ""
-    else
-        # Modo interactivo normal
-        echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${CYAN}║               👤 MODO INTERACTIVO                              ║${NC}"
-        echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-        echo ""
-        echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${CYAN}║           Configuración de Base de Datos PostgreSQL           ║${NC}"
-        echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
-        echo ""
+    # Siempre preguntar por defecto
+    echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║           Configuración de Base de Datos PostgreSQL           ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
         
         # Nombre de la base de datos
         if [ -z "$DB_NAME" ]; then
@@ -430,10 +415,7 @@ EOF
     print_warning "IMPORTANTE: Guarde estas credenciales en un lugar seguro."
     echo ""
     
-    # Solo pedir confirmación en modo interactivo
-    if [ "$AUTO_INSTALL" != "true" ]; then
-        read -p "Presione Enter para continuar..."
-    fi
+    read -p "Presione Enter para continuar..."
 }
 
 ################################################################################
@@ -596,18 +578,18 @@ run_migrations() {
 }
 
 create_admin() {
-    print_step "Creando usuario administrador..."
+    print_step "Configurando datos iniciales (Admin + Mercados + Monedas)..."
     echo ""
     
     cd "$PROJECT_DIR"
     
-    # Ejecutar script de creación de administrador con reintentos
+    # Ejecutar script de configuración de datos maestros con reintentos
     MAX_RETRIES=3
     RETRY_COUNT=0
     
     while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        if $DOCKER_COMPOSE_CMD exec -T backend python create_admin.py; then
-            print_success "Usuario administrador configurado"
+        if $DOCKER_COMPOSE_CMD exec -T backend python setup_data.py; then
+            print_success "Datos maestros configurados correctamente"
             echo ""
             return 0
         else
@@ -619,7 +601,7 @@ create_admin() {
         fi
     done
     
-    print_error "No se pudo crear el usuario administrador después de $MAX_RETRIES intentos"
+    print_error "No se pudieron configurar los datos maestros después de $MAX_RETRIES intentos"
     echo ""
     print_info "Mostrando logs del backend para diagnóstico:"
     $DOCKER_COMPOSE_CMD logs backend --tail=30
