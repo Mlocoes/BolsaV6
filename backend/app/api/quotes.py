@@ -19,6 +19,7 @@ from app.models.quote import Quote
 from app.schemas.quote import QuoteResponse, QuoteResponseWithAsset
 from app.services.finnhub_service import finnhub_service
 from app.services.alpha_vantage_service import alpha_vantage_service
+from app.core.utils import clean_decimal
 from sqlalchemy import func
 import logging
 
@@ -272,13 +273,6 @@ async def import_quotes_from_excel(
                 # Normalizar a medianoche UTC
                 quote_date = datetime.combine(quote_date.date(), datetime.min.time(), tzinfo=timezone.utc)
                 
-                # 2. Procesar Números (manejar formato español con coma)
-                def clean_decimal(val):
-                    if pd.isna(val) or val == '': return Decimal('0')
-                    if isinstance(val, (int, float, Decimal)): return Decimal(str(val))
-                    # Quitar símbolos y cambiar coma por punto
-                    s = str(val).replace('.', '').replace(',', '.').replace('%', '').strip()
-                    return Decimal(s) if s else Decimal('0')
 
                 close_val = clean_decimal(row.get('close', 0))
                 open_val = clean_decimal(row.get('open', close_val))

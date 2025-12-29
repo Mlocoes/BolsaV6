@@ -64,7 +64,6 @@ export default function Layout({ children }: LayoutProps) {
                             <NavLink to="/fiscal" icon="⚖️" label="Fiscal" />
                             <NavLink to="/import" icon="📥" label="Importar" />
                             {user?.is_admin && <NavLink to="/administration" icon="🏛️" label="Admin" />}
-                            {user?.is_admin && <NavLink to="/users" icon="👥" label="Usuarios" />}
                         </nav>
                     </div>
 

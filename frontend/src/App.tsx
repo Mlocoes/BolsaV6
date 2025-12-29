@@ -14,7 +14,6 @@ import Portfolios from './pages/Portfolios';
 import Transactions from './pages/Transactions';
 import Quotes from './pages/Quotes';
 import Import from './pages/Import';
-import Users from './pages/Users';
 import FiscalReport from './pages/FiscalReport';
 import Administration from './pages/Administration';
 import Settings from './pages/Settings';
@@ -61,85 +60,77 @@ function App() {
                         element={
                             <ProtectedRoute>
                                 <Assets />
-                        </ProtectedRoute>
-                    }
-                />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route
-                    path="/portfolios"
-                    element={
-                        <ProtectedRoute>
-                            <Portfolios />
-                        </ProtectedRoute>
-                    }
-                />
+                    <Route
+                        path="/portfolios"
+                        element={
+                            <ProtectedRoute>
+                                <Portfolios />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route
-                    path="/transactions"
-                    element={
-                        <ProtectedRoute>
-                            <Transactions />
-                        </ProtectedRoute>
-                    }
-                />
+                    <Route
+                        path="/transactions"
+                        element={
+                            <ProtectedRoute>
+                                <Transactions />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route
-                    path="/quotes"
-                    element={
-                        <ProtectedRoute>
-                            <Quotes />
-                        </ProtectedRoute>
-                    }
-                />
+                    <Route
+                        path="/quotes"
+                        element={
+                            <ProtectedRoute>
+                                <Quotes />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route
-                    path="/import"
-                    element={
-                        <ProtectedRoute>
-                            <Import />
-                        </ProtectedRoute>
-                    }
-                />
+                    <Route
+                        path="/import"
+                        element={
+                            <ProtectedRoute>
+                                <Import />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route
-                    path="/users"
-                    element={
-                        <ProtectedRoute>
-                            <Users />
-                        </ProtectedRoute>
-                    }
-                />
 
-                <Route
-                    path="/fiscal"
-                    element={
-                        <ProtectedRoute>
-                            <FiscalReport />
-                        </ProtectedRoute>
-                    }
-                />
+                    <Route
+                        path="/fiscal"
+                        element={
+                            <ProtectedRoute>
+                                <FiscalReport />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route
-                    path="/administration"
-                    element={
-                        <ProtectedRoute>
-                            <Administration />
-                        </ProtectedRoute>
-                    }
-                />
+                    <Route
+                        path="/administration"
+                        element={
+                            <ProtectedRoute>
+                                <Administration />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route
-                    path="/settings"
-                    element={
-                        <ProtectedRoute>
-                            <Settings />
-                        </ProtectedRoute>
-                    }
-                />
+                    <Route
+                        path="/settings"
+                        element={
+                            <ProtectedRoute>
+                                <Settings />
+                            </ProtectedRoute>
+                        }
+                    />
 
-                <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-        </UserProvider>
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </UserProvider>
         </BrowserRouter>
     );
 }

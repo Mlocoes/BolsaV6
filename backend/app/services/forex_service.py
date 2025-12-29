@@ -1,11 +1,12 @@
 """
 Servicio para conversión de monedas usando tasas de cambio de Yahoo Finance
 """
-from typing import Dict, Optional
+from datetime import date, timedelta
+from collections import defaultdict
+from typing import Dict, Optional, List, Tuple
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from datetime import date, timedelta
-import logging
 
 from app.models.asset import Asset, AssetType
 from app.models.quote import Quote
@@ -178,6 +179,91 @@ class ForexService:
         
         return value * rate
         
+    async def preload_rates(
+        self, 
+        pairs: List[Tuple[str, str]], 
+        start_date: date, 
+        end_date: date, 
+        db: AsyncSession
+    ):
+        """
+        Precarga tasas de cambio en caché para múltiples pares y un rango de fechas.
+        """
+        if not pairs:
+            return
+            
+        symbols = [f"{f}{t}=X" for f, t in pairs]
+        # También considerar los inversos por si acaso
+        symbols += [f"{t}{f}=X" for f, t in pairs]
+        
+        # Buscar todos estos activos
+        asset_result = await db.execute(
+            select(Asset).where(
+                and_(
+                    Asset.symbol.in_(symbols),
+                    Asset.asset_type == AssetType.CURRENCY
+                )
+            )
+        )
+        assets = {a.symbol: a for a in asset_result.scalars().all()}
+        
+        if not assets:
+            return
+            
+        # Buscar todas las cotizaciones para estos activos en el rango
+        lookback_start = start_date - timedelta(days=7)
+        
+        quotes_result = await db.execute(
+            select(Quote).where(
+                and_(
+                    Quote.asset_id.in_([a.id for a in assets.values()]),
+                    Quote.date >= lookback_start,
+                    Quote.date <= end_date
+                )
+            ).order_by(Quote.date)
+        )
+        quotes = quotes_result.scalars().all()
+        
+        # Organizar por (asset_id, date)
+        quotes_by_asset: Dict[str, Dict[date, float]] = defaultdict(dict)
+        for q in quotes:
+            quotes_by_asset[str(q.asset_id)][q.date.date()] = float(q.close)
+            
+        # Llenar la caché para el rango solicitado
+        for from_curr, to_curr in pairs:
+            symbol = f"{from_curr}{to_curr}=X"
+            inv_symbol = f"{to_curr}{from_curr}=X"
+            
+            asset = assets.get(symbol)
+            is_inverse = False
+            if not asset:
+                asset = assets.get(inv_symbol)
+                is_inverse = True
+                
+            if not asset:
+                continue
+                
+            asset_quotes = quotes_by_asset.get(str(asset.id), {})
+            if not asset_quotes:
+                continue
+                
+            curr_d = start_date
+            available_dates = sorted(asset_quotes.keys())
+            
+            while curr_d <= end_date:
+                rate = asset_quotes.get(curr_d)
+                if rate is None:
+                    # Buscar la más cercana anterior (dentro de los 7 días)
+                    prev_dates = [d for d in available_dates if d < curr_d and d >= curr_d - timedelta(days=7)]
+                    if prev_dates:
+                        rate = asset_quotes[prev_dates[-1]]
+                
+                if rate:
+                    actual_rate = 1.0 / rate if is_inverse else rate
+                    self._rate_cache[(from_curr, to_curr, curr_d)] = actual_rate
+                
+                curr_d += timedelta(days=1)
+
     def clear_cache(self):
         """Limpia la caché de tasas de cambio"""
         self._rate_cache.clear()

@@ -21,6 +21,7 @@ from app.models.quote import Quote
 from app.models.market import Market
 from app.services.alpha_vantage_service import AlphaVantageService, RateLimitException
 from app.services.yfinance_service import YFinanceService
+from app.core.utils import clean_decimal
 
 router = APIRouter()
 alpha_vantage_service = AlphaVantageService()
@@ -298,14 +299,6 @@ async def import_transactions_from_excel(
                     transactions_skipped += 1
                     continue
                 
-                # 6. Extraer valores numéricos
-                def clean_decimal(val):
-                    if pd.isna(val) or val == '': return Decimal('0')
-                    if isinstance(val, (int, float, Decimal)): return Decimal(str(val))
-                    # Manejar formato español: 1.234,56 -> 1234.56
-                    s = str(val).replace('.', '').replace(',', '.').strip()
-                    try: return Decimal(s)
-                    except: return Decimal('0')
 
                 quantity = abs(clean_decimal(row.get('Títulos', 0)))
                 price = abs(clean_decimal(row.get('Precio', 0)))

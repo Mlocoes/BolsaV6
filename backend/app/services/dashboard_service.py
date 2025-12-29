@@ -88,6 +88,12 @@ class DashboardService:
                 q_date = q.date.date()
                 quotes_map[str(q.asset_id)][q_date] = float(q.close)
 
+            # 5. Pre-cargar tasas de cambio (N+1 Optimization)
+            currencies = {a.currency for a in assets.values() if a.currency != base_currency}
+            if currencies:
+                pairs = [(curr, base_currency) for curr in currencies]
+                await forex_service.preload_rates(pairs, start_date, end_date, db)
+
             # 6. Calculate Performance History
             performance_history: List[PerformancePoint] = []
             monthly_map: Dict[str, float] = {}

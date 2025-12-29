@@ -210,6 +210,7 @@ async def get_portfolio_positions(
                     positions[asset_id]["average_price"] = Decimal("0")
     
     # Filtrar solo posiciones con cantidad > 0
+    active_asset_ids = [pos["asset_id"] for pos in positions.values() if pos["quantity"] > 0]
     active_symbols = [pos["symbol"] for pos in positions.values() if pos["quantity"] > 0]
     
     # Obtener precios online si se solicita
@@ -218,33 +219,45 @@ async def get_portfolio_positions(
         from app.services.yfinance_service import yfinance_service
         online_prices = await yfinance_service.get_multiple_current_quotes(active_symbols)
     
+    # Batch fetch the last 2 quotes for each active asset (N+1 Optimization)
+    quotes_map = {}
+    if active_asset_ids:
+        # Subquery to rank quotes by date per asset using row_number window function
+        stmt = select(
+            Quote,
+            func.row_number().over(
+                partition_by=Quote.asset_id,
+                order_by=Quote.date.desc()
+            ).label("rn")
+        ).where(Quote.asset_id.in_(active_asset_ids)).subquery()
+        
+        # Select only the top 2 for each asset
+        batch_result = await db.execute(select(stmt).where(stmt.c.rn <= 2))
+        
+        for row in batch_result:
+            aid = str(row.asset_id)
+            if aid not in quotes_map:
+                quotes_map[aid] = []
+            quotes_map[aid].append(row)
+
     # Procesar posiciones finales
     active_positions = []
     for pos in positions.values():
         if pos["quantity"] > 0:
-            # Obtener precio actual
+            asset_id_str = str(pos["asset_id"])
+            asset_quotes = quotes_map.get(asset_id_str, [])
+            
+            # Obtener precio actual (Online > Historic)
             if online and pos["symbol"] in online_prices and online_prices[pos["symbol"]]:
                 current_price = online_prices[pos["symbol"]]["close"]
                 source = "online"
             else:
-                # Fallback a la última cotización del histórico
-                quote_result = await db.execute(
-                    select(Quote).where(
-                        Quote.asset_id == pos["asset_id"]
-                    ).order_by(desc(Quote.date)).limit(1)
-                )
-                latest_quote = quote_result.scalar_one_or_none()
+                latest_quote = asset_quotes[0] if asset_quotes else None
                 current_price = float(latest_quote.close) if latest_quote else 0.0
                 source = "historic"
             
-            # Obtener precio del día anterior (penúltima cotización)
-            prev_quote_result = await db.execute(
-                select(Quote).where(
-                    Quote.asset_id == pos["asset_id"]
-                ).order_by(desc(Quote.date)).limit(2)
-            )
-            prev_quotes = prev_quote_result.scalars().all()
-            previous_close = float(prev_quotes[1].close) if len(prev_quotes) > 1 else current_price
+            # Obtener precio del día anterior (penúltima cotización o fallback a la actual)
+            previous_close = float(asset_quotes[1].close) if len(asset_quotes) > 1 else current_price
             
             quantity = float(pos["quantity"])
             avg_price = float(pos["average_price"])
