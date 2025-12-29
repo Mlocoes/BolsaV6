@@ -606,6 +606,12 @@ print('ok' if asyncio.run(check_db()) else 'fail')
     echo ""
     print_info "Logs de PostgreSQL para diagnóstico:"
     $DOCKER_COMPOSE_CMD logs db --tail=20
+    
+    # Si falla, intentar ver si podemos entrar con el usuario configurado
+    if $DOCKER_COMPOSE_CMD exec -T db sh -c "psql -U $POSTGRES_USER -d $POSTGRES_DB -c 'SELECT 1'" &>/dev/null; then
+        print_success "¡Atención! La base de datos responde al usuario $POSTGRES_USER pero el backend falla."
+        print_info "Esto indica una inconsistencia en las variables cargadas por el backend."
+    fi
     exit 1
 }
 
@@ -615,16 +621,17 @@ clean_volumes() {
         echo ""
         cd "$PROJECT_DIR"
         
-        # Detener servicios y eliminar TODO
+        # Detener servicios y eliminar TODO (incluyendo volúmenes de compose)
         $DOCKER_COMPOSE_CMD down -v --remove-orphans 2>/dev/null || true
         
-        # Eliminar volúmenes por nombre explícito por si acaso
-        docker volume rm bolsav6_postgres_data bolsav6_redis_data 2>/dev/null || true
+        # Fuerza bruta: Eliminar CUALQUIER volumen que empiece por bolsav6_
+        print_info "Eliminando volúmenes persistentes de Docker..."
+        docker volume ls -q | grep "^bolsav6_" | xargs -r docker volume rm -f || true
         
-        # Un pequeño respiro para que Docker libere recursos
-        sleep 2
+        # Un pequeño respiro para que Docker libere los archivos del sistema
+        sleep 3
         
-        print_success "Base de datos antigua y volúmenes eliminados correctamente"
+        print_success "Limpieza profunda de volúmenes completada"
         print_info "Se creará una nueva base de datos con las credenciales actualizadas"
         echo ""
     fi
