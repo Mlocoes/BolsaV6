@@ -76,60 +76,25 @@ El frontend de BolsaV6 es una aplicación moderna de página única (SPA) constr
 ## Estructura de Directorios
 
 ```
-frontend/
-├── public/                   # Archivos estáticos
-│   └── index.html           # HTML base
-│
-├── src/
-│   ├── main.tsx             # 🚀 Punto de entrada
-│   ├── App.tsx              # Componente raíz con router
-│   ├── vite-env.d.ts        # Tipos de Vite
-│   │
-│   ├── pages/               # 📄 Páginas/Pantallas
-│   │   ├── Login.tsx        # Login y autenticación
-│   │   ├── Dashboard.tsx    # Dashboard principal
-│   │   ├── Portfolios.tsx   # Gestión de carteras
-│   │   ├── Assets.tsx       # Catálogo de activos
-│   │   ├── Quotes.tsx       # Consulta de cotizaciones
-│   │   ├── Transactions.tsx # Transacciones de cartera
-│   │   ├── Positions.tsx    # Posiciones actuales
-│   │   ├── Import.tsx       # Importación de datos
-│   │   ├── FiscalReport.tsx # Informe fiscal
-│   │   ├── Users.tsx        # Gestión de usuarios (admin)
-│   │   ├── Settings.tsx     # Configuración de usuario
-│   │   └── Administration.tsx # Panel de administración
-│   │
-│   ├── components/          # 🧩 Componentes reutilizables
-│   │   ├── Layout.tsx       # Layout principal (navbar + sidebar)
-│   │   ├── Modal.tsx        # Modal genérico
-│   │   └── ProtectedRoute.tsx # HOC para rutas protegidas
-│   │
-│   ├── services/            # 🔌 Servicios de API
-│   │   ├── api.ts           # Cliente Axios configurado
-│   │   ├── authService.ts   # Autenticación
-│   │   ├── dashboardService.ts # Estadísticas
-│   │   └── fiscalService.ts    # Informes fiscales
-│   │
-│   ├── stores/              # 🗄️ Estado global (Zustand)
-│   │   ├── authStore.ts     # Estado de autenticación
-│   │   └── portfolioStore.ts # Estado de cartera seleccionada
-│   │
-│   ├── context/             # 🌐 Contextos React
-│   │   └── UserContext.tsx  # Context de usuario
-│   │
-│   ├── utils/               # 🛠️ Utilidades
-│   │   └── formatters.ts    # Formateo de moneda, fechas, etc.
-│   │
-│   └── index.css            # Estilos globales (Tailwind)
-│
-├── .env                      # Variables de entorno
-├── .env.example              # Ejemplo de .env
-├── vite.config.ts            # Configuración de Vite
-├── tailwind.config.js        # Configuración de Tailwind
-├── postcss.config.js         # PostCSS para Tailwind
-├── tsconfig.json             # Configuración de TypeScript
-├── package.json              # Dependencias
-└── Dockerfile                # Imagen Docker
+BolsaV6/
+├── frontend/                 # Proyecto React (este directorio)
+├── backend/                  # API FastAPI
+├── docs/                     # Documentación global
+├── scripts/                  # Scripts de utilidad
+└── logs/                     # Logs del sistema
+
+frontend/src/
+├── main.tsx             # 🚀 Punto de entrada (Configuración de Handsontable y Estilos)
+├── App.tsx              # Componente raíz con router
+├── pages/               # 📄 Páginas/Pantallas
+│   ├── FiscalReport.tsx # Informe fiscal (con renderers localizados)
+│   ├── Settings.tsx     # Configuración (Layout compacto 3:2)
+│   └── ...
+├── components/          # 🧩 Componentes reutilizables
+├── utils/               # 🛠️ Utilidades
+│   └── formatters.ts    # Formateo es-ES (Comas decimales, Fechas DD/MM/YYYY)
+└── styles/
+    └── handsontable-custom.css # Tema oscuro agresivo para Handsontable
 ```
 
 ---
@@ -492,6 +457,13 @@ await api.post('/quotes/import/bulk-historical', {
   * Wash sale (Sí/No)
 - Exportar a PDF
 
+**Mejoras Recientes (v6.1):**
+- **Formateo Localizado**: Uso estricto de `es-ES`.
+- **Decimales**: Coma (`,`) como separador.
+- **Precisión**: 4 decimales para precios unitarios, 2 para totales.
+- **Fechas**: Formato `DD/MM/YYYY`.
+- **Filtros**: El menú de filtrado de Handsontable ahora soporta tema oscuro completo.
+
 **Cálculo:**
 - Método FIFO (First In, First Out)
 - Wash Sale Rule (30 días)
@@ -546,6 +518,11 @@ const { total_gain, total_loss, net_result, items } = response.data;
 - Cambiar contraseña
 - Preferencias de visualización
 - Cerrar sesión
+
+**Diseño v6.1**:
+- **Layout 3:2**: Aprovechamiento máximo del espacio vertical.
+- **Selector Compacto**: Selector de moneda optimizado para mayor legibilidad.
+- **Integración de Perfil**: Email y moneda unificados.
 
 **Ruta**: `/settings` (protegida)
 

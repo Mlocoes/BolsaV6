@@ -154,7 +154,7 @@ Todos los servicios deben estar "Up" o "Healthy".
 
 Si tienes problemas:
 
-1. Verifica que Docker y Docker Compose estén instalados
-2. Limpia las variables de entorno con `unset`
-3. Revisa los logs: `docker compose logs backend`
-4. Consulta [docs/INSTALACION.md](../docs/INSTALACION.md)
+1. Verifica que Docker y Docker Compose estén instalados.
+2. Limpia las variables de entorno con `unset`.
+3. Revisa los logs en el directorio `logs/` del proyecto.
+4. Consulta [docs/TROUBLESHOOTING.md](./TROUBLESHOOTING.md).

@@ -146,23 +146,42 @@ Contraseña: admin123
 
 ---
 
+## 📂 Estructura del Proyecto
+
+```text
+BolsaV6/
+├── backend/            # FastAPI, SQLAlchemy, PostgreSQL
+├── frontend/           # React, TypeScript, Tailwind
+├── docs/               # Documentación completa, reportes y guías
+├── scripts/            # Utilidades de instalación y mantenimiento
+├── logs/               # Registros de instalación y ejecución
+├── docker-compose.yml  # Configuración de servicios
+└── README.md           # Guía rápida
+```
+
+---
+
 ## 📖 Documentación Completa
 
-- **[Base de Datos](./docs/DATABASE_DOCUMENTATION.md)**: Esquema completo, tablas, relaciones
-- **[Backend](./docs/BACKEND_DOCUMENTATION.md)**: APIs, servicios, autenticación
-- **[Frontend](./docs/FRONTEND_DOCUMENTATION.md)**: Componentes, pantallas, servicios
+Toda la documentación detallada se encuentra en la carpeta [`docs/`](./docs/):
+
+- **[Base de Datos](./docs/DATABASE_DOCUMENTATION.md)**: Esquema completo, tablas, relaciones.
+- **[Backend](./docs/BACKEND_DOCUMENTATION.md)**: APIs, servicios, autenticación.
+- **[Frontend](./docs/FRONTEND_DOCUMENTATION.md)**: Componentes, pantallas, servicios.
+- **[Informe Fiscal](./docs/INFORME_FISCAL.md)**: Detalles sobre el cálculo FIFO y Wash Sale.
+- **[Guía de Instalación](./docs/GUIA_INSTALACION.md)**: Instrucciones detalladas de despliegue.
 
 ---
 
 ## 🔑 APIs Externas
 
 ### Polygon.io (Históricos)
-1. Registrarse en https://polygon.io/
+1. Registrarse en [Polygon.io](https://polygon.io/)
 2. Copiar API key
 3. Agregar a `.env`: `POLYGON_API_KEY=tu-key`
 
 ### Finnhub (Tiempo Real)
-1. Registrarse en https://finnhub.io/
+1. Registrarse en [Finnhub.io](https://finnhub.io/)
 2. Copiar API key
 3. Agregar a `.env`: `FINNHUB_API_KEY=tu-key`
 
@@ -190,7 +209,7 @@ docker compose exec backend pytest
 
 ## 🐛 Troubleshooting
 
-Ver [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) para solución de problemas comunes.
+Ver [TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) para solución de problemas comunes.
 
 ---
 
@@ -200,5 +219,5 @@ MIT License
 
 ---
 
-**Última actualización**: Diciembre 2024  
-**Versión**: 6.0
+**Última actualización**: Diciembre 2024 (v6.1 - Mejoras de UI y Organización)
+**Versión**: 6.1

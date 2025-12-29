@@ -170,3 +170,13 @@ Nivel de detalle esperado
 
 Muy alto.
 El código debe ser apto para producción, no pseudocódigo.
+
+---
+
+## Implementación en UI (v6.1)
+
+La visualización del Informe Fiscal en el frontend sigue los estándares españoles:
+- **Separador Decimal**: Coma (`,`) mediante locale `es-ES`.
+- **Formato de Fecha**: `DD/MM/YYYY`.
+- **Precisión**: 4 decimales para precios de compra/venta y 2 para el resultado total.
+- **Tema**: Soporte completo para modo oscuro en los filtros de la tabla.
