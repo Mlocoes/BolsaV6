@@ -65,6 +65,18 @@ print_info() {
     echo -e "${CYAN}ℹ $1${NC}"
 }
 
+export_env() {
+    if [ -f "$ENV_FILE" ]; then
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ ! "$line" =~ ^# ]] && [[ "$line" =~ = ]]; then
+                var_name=$(echo "$line" | cut -d'=' -f1)
+                var_value=$(echo "$line" | cut -d'=' -f2-)
+                export "$var_name"="$var_value"
+            fi
+        done < "$ENV_FILE"
+    fi
+}
+
 ################################################################################
 # Verificación de Dependencias
 ################################################################################
@@ -128,6 +140,76 @@ check_python() {
         print_warning "Python 3 no encontrado"
         return 1
     fi
+}
+
+backup_db() {
+    print_step "Preparando copia de seguridad de la base de datos..."
+    
+    BACKUP_DIR="${PROJECT_DIR}/backups"
+    mkdir -p "$BACKUP_DIR"
+    
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    BACKUP_FILE="${BACKUP_DIR}/backup_${TIMESTAMP}.sql"
+    
+    # Cargar variables del .env si no están en el entorno
+    if [ -f "$ENV_FILE" ]; then
+        POSTGRES_USER=${POSTGRES_USER:-$(grep "^POSTGRES_USER=" "$ENV_FILE" | cut -d'=' -f2)}
+        POSTGRES_DB=${POSTGRES_DB:-$(grep "^POSTGRES_DB=" "$ENV_FILE" | cut -d'=' -f2)}
+        POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-$(grep "^POSTGRES_PASSWORD=" "$ENV_FILE" | cut -d'=' -f2)}
+    fi
+    
+    print_info "Intentando realizar dump de la base de datos..."
+    
+    # Intentar usar las credenciales actuales cargadas en el entorno
+    if $DOCKER_COMPOSE_CMD exec -T db sh -c "PGPASSWORD='$POSTGRES_PASSWORD' pg_dump -U '$POSTGRES_USER' '$POSTGRES_DB'" > "$BACKUP_FILE" 2>/dev/null; then
+        print_success "Copia de seguridad creada exitosamente en: backups/$(basename "$BACKUP_FILE")"
+        echo "$BACKUP_FILE" > "${PROJECT_DIR}/.last_backup"
+        return 0
+    else
+        print_warning "No se pudo realizar el backup con las credenciales automáticas."
+        read -p "¿Desea intentar ingresar las credenciales manualmente? (s/N): " manual_dump
+        if [[ "$manual_dump" =~ ^[Ss]$ ]]; then
+            read -p "Usuario de la base de datos: " MANUAL_USER
+            read -sp "Contraseña: " MANUAL_PASS
+            echo ""
+            if $DOCKER_COMPOSE_CMD exec -T db sh -c "PGPASSWORD='$MANUAL_PASS' pg_dump -U '$MANUAL_USER' '$POSTGRES_DB'" > "$BACKUP_FILE" 2>/dev/null; then
+                print_success "Copia de seguridad creada exitosamente."
+                echo "$BACKUP_FILE" > "${PROJECT_DIR}/.last_backup"
+                return 0
+            fi
+        fi
+        print_error "No se pudo crear la copia de seguridad. Los datos actuales no podrán ser restaurados automáticamente."
+        rm -f "$BACKUP_FILE"
+        return 1
+    fi
+}
+
+restore_db() {
+    print_step "Restaurando copia de seguridad..."
+    
+    LAST_BACKUP=""
+    if [ -f "${PROJECT_DIR}/.last_backup" ]; then
+        LAST_BACKUP=$(cat "${PROJECT_DIR}/.last_backup")
+    fi
+    
+    if [ -n "$LAST_BACKUP" ] && [ -f "$LAST_BACKUP" ]; then
+        read -p "¿Desea restaurar el backup más reciente ($(basename "$LAST_BACKUP"))? (S/n): " do_restore
+        if [[ ! "$do_restore" =~ ^[Nn]$ ]]; then
+            print_info "Restaurando datos..."
+            # Asegurar que las nuevas variables están cargadas correctamente
+            export_env
+            if $DOCKER_COMPOSE_CMD exec -T db sh -c "PGPASSWORD='$POSTGRES_PASSWORD' psql -U '$POSTGRES_USER' -d '$POSTGRES_DB'" < "$LAST_BACKUP" > /dev/null 2>&1; then
+                print_success "Datos restaurados exitosamente."
+                return 0
+            else
+                print_error "Error al restaurar los datos."
+                return 1
+            fi
+        fi
+    else
+        print_info "No se encontró ningún backup reciente para restaurar automáticamente."
+    fi
+    return 0
 }
 
 install_dependencies() {
@@ -244,15 +326,7 @@ configure_environment() {
     if [ -f "$ENV_FILE" ]; then
         print_warning "El archivo .env ya existe."
         # Cargar variables actuales para que sean los valores por defecto
-        # Usamos un método más robusto para cargar el .env
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            if [[ ! "$line" =~ ^# ]] && [[ "$line" =~ = ]]; then
-                # Extraer nombre y valor
-                var_name=$(echo "$line" | cut -d'=' -f1)
-                var_value=$(echo "$line" | cut -d'=' -f2-)
-                export "$var_name"="$var_value"
-            fi
-        done < "$ENV_FILE"
+        export_env
         
         # Mapear variables de POSTGRES a las usadas en el script si existen
         DB_NAME=${POSTGRES_DB:-$DB_NAME}
@@ -671,6 +745,15 @@ create_admin() {
 ################################################################################
 
 main() {
+    # Soporte para flags
+    if [ "$1" == "--backup" ]; then
+        backup_db
+        exit 0
+    elif [ "$1" == "--restore" ]; then
+        restore_db
+        exit 0
+    fi
+
     print_header
     
     # Verificar dependencias
@@ -715,8 +798,15 @@ main() {
     # Configurar entorno
     configure_environment
     
-    # Limpiar volúmenes si es necesario
-    clean_volumes
+    # Limpiar volúmenes si así se solicitó
+    if [ "$RECONFIGURE" = true ]; then
+        echo ""
+        read -p "¿Desea realizar un BACKUP de los datos actuales antes de borrarlos? (S/n): " pre_backup
+        if [[ ! "$pre_backup" =~ ^[Nn]$ ]]; then
+            backup_db
+        fi
+        clean_volumes
+    fi
     
     # Construir sistema
     build_system
@@ -729,6 +819,11 @@ main() {
     
     # Ejecutar migraciones
     run_migrations
+    
+    # Ofrecer restauración si hubo cambio de credenciales o se desea
+    if [ "$RECONFIGURE" = true ]; then
+        restore_db
+    fi
     
     # Crear usuario administrador
     create_admin
