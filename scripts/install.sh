@@ -241,28 +241,49 @@ configure_environment() {
     echo ""
     
     # Verificar si .env ya existe
-    RECONFIGURE=false
     if [ -f "$ENV_FILE" ]; then
         print_warning "El archivo .env ya existe."
-        read -p "¿Desea sobrescribirlo? (s/N): " overwrite
-        if [[ ! "$overwrite" =~ ^[Ss]$ ]]; then
-            print_info "Usando configuración existente."
-            # Cargar variables del .env existente
-            export $(grep -v '^#' "$ENV_FILE" | xargs)
-            return 0
-        else
+        # Cargar variables actuales para que sean los valores por defecto
+        # Usamos un método más robusto para cargar el .env
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ ! "$line" =~ ^# ]] && [[ "$line" =~ = ]]; then
+                # Extraer nombre y valor
+                var_name=$(echo "$line" | cut -d'=' -f1)
+                var_value=$(echo "$line" | cut -d'=' -f2-)
+                export "$var_name"="$var_value"
+            fi
+        done < "$ENV_FILE"
+        
+        # Mapear variables de POSTGRES a las usadas en el script si existen
+        DB_NAME=${POSTGRES_DB:-$DB_NAME}
+        DB_USER=${POSTGRES_USER:-$DB_USER}
+        DB_PASSWORD=${POSTGRES_PASSWORD:-$DB_PASSWORD}
+        ADMIN_USER=${ADMIN_USERNAME:-$ADMIN_USER}
+        ADMIN_EMAIL=${ADMIN_EMAIL:-$ADMIN_EMAIL}
+        ADMIN_PASSWORD=${ADMIN_PASSWORD:-$ADMIN_PASSWORD}
+        # Extraer URL pública del CORS_ORIGINS o VITE_API_URL si es posible
+        if [ -n "$CORS_ORIGINS" ]; then
+            # Intentar sacar la primera URL que no sea localhost
+            EXT_URL=$(echo "$CORS_ORIGINS" | tr ',' '\n' | grep -v "localhost" | grep -v "127.0.0.1" | head -n 1)
+            DEFAULT_PUBLIC_URL=${EXT_URL:-"http://localhost"}
+        fi
+        
+        read -p "¿Desea CAMBIAR las credenciales de Base de Datos y Admin? (s/N): " change_creds
+        if [[ "$change_creds" =~ ^[Ss]$ ]]; then
             echo ""
             print_warning "⚠️  ATENCIÓN: Cambiar las credenciales requiere eliminar la base de datos actual."
-            print_warning "   Esto borrará TODOS los datos almacenados (usuarios, carteras, transacciones, etc.)."
+            print_warning "   Esto borrará TODOS los datos almacenados."
             echo ""
-            read -p "¿Está seguro de que desea continuar? (s/N): " confirm_delete
-            if [[ ! "$confirm_delete" =~ ^[Ss]$ ]]; then
-                print_info "Operación cancelada. Manteniendo configuración existente."
-                return 0
+            read -p "¿Está seguro? (s/N): " confirm_delete
+            if [[ "$confirm_delete" =~ ^[Ss]$ ]]; then
+                RECONFIGURE=true
+                DB_NAME=""
+                DB_USER=""
+                DB_PASSWORD=""
+                ADMIN_USER=""
+                ADMIN_EMAIL=""
+                ADMIN_PASSWORD=""
             fi
-            RECONFIGURE=true
-            print_info "Se eliminarán los volúmenes de Docker para aplicar las nuevas credenciales."
-            echo ""
         fi
     fi
     
