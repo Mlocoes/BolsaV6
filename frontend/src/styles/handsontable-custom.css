@@ -153,9 +153,135 @@
     background-color: #1e293b;
 }
 
-/* Filter menus if used */
+/* Filter menus and dropdowns */
+.htDropdownMenu, 
 .htFiltersMenu {
-    background-color: #1e293b;
-    border: 1px solid var(--color-border);
-    color: white;
+    background-color: #1e293b !important;
+    border: 1px solid var(--color-border) !important;
+    color: #e2e8f0 !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.25) !important;
+    padding: 4px !important;
+    border-radius: 8px !important;
+}
+
+.htDropdownMenu table.htCore {
+    background-color: #1e293b !important;
+}
+
+.htDropdownMenu td {
+    background-color: #1e293b !important;
+    color: #e2e8f0 !important;
+    border: none !important;
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+    cursor: pointer !important;
+}
+
+.htDropdownMenu td.htHighlight {
+    background-color: var(--color-primary) !important;
+    color: white !important;
+}
+
+.htDropdownMenu td.htSeparator {
+    border-top: 1px solid var(--color-border) !important;
+    height: 1px !important;
+    padding: 0 !important;
+    background-color: transparent !important;
+}
+
+/* Filter components (Inputs, Selects) */
+.htUIInput, 
+.htUISelect,
+.htUIMultipleSelect {
+    background-color: #0f172a !important;
+    border: 1px solid var(--color-border) !important;
+    color: #f8fafc !important;
+    border-radius: 4px !important;
+}
+
+.htUIInput input,
+.htUISelect_Text,
+.htUIMultipleSelect_Text {
+    color: #f8fafc !important;
+    background: transparent !important;
+}
+
+.htUIInput_Caption,
+.htUISelect_Caption,
+.htUIMultipleSelect_Caption {
+    color: #94a3b8 !important; /* text-slate-400 */
+    font-size: 9px !important;
+    text-transform: uppercase !important;
+    font-weight: 600 !important;
+    margin-bottom: 4px !important;
+}
+
+/* Search Box in filter */
+.htFiltersMenuValue .htUIInput input {
+    padding: 6px 8px !important;
+}
+
+/* List items in multiple select */
+.htUIMultipleSelect_List {
+    background-color: #0f172a !important;
+    border: 1px solid var(--color-border) !important;
+    margin-top: 4px !important;
+}
+
+.htUIMultipleSelect_List .htUISelectionContainer {
+    color: #e2e8f0 !important;
+}
+
+.htUIMultipleSelect_List .htUISelectionContainer:hover {
+    background-color: #1e293b !important;
+}
+
+/* Buttons in filter menu */
+.htUIButton {
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.2s !important;
+}
+
+.htUIButton.htUIButtonOK {
+    background-color: #10b981 !important; /* green-500 */
+    color: white !important;
+    border: none !important;
+}
+
+.htUIButton.htUIButtonOK:hover {
+    background-color: #059669 !important; /* green-600 */
+}
+
+.htUIButton.htUIButtonCancel {
+    background-color: #334155 !important; /* slate-700 */
+    color: #cbd5e1 !important; /* slate-300 */
+    border: 1px solid #475569 !important;
+    margin-left: 8px !important;
+}
+
+.htUIButton.htUIButtonCancel:hover {
+    background-color: #475569 !important;
+    color: white !important;
+}
+
+/* Scrollbar for the filter list */
+.htUIMultipleSelect_List::-webkit-scrollbar {
+    width: 6px;
+}
+.htUIMultipleSelect_List::-webkit-scrollbar-track {
+    background: transparent;
+}
+.htUIMultipleSelect_List::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 3px;
+}
+
+/* Condition select icons/arrows */
+.htUISelect_Button,
+.htUIMultipleSelect_Button {
+    filter: invert(1) !important;
 }
