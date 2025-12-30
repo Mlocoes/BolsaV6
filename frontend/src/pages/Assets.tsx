@@ -1,12 +1,13 @@
 /**
  * Página de Catálogo de Activos
  */
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import Handsontable from 'handsontable';
 import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { getActionRenderer } from '../utils/handsontableUtils';
 
 interface Asset {
     id: string;
@@ -27,9 +28,18 @@ export default function Assets() {
         symbol: '',
         name: '',
         asset_type: 'stock',
-        currency: 'USD',
+        currency: 'EUR',
         market: ''
     });
+
+    // Memoized table data
+    const tableData = useMemo(() => assets, [assets]);
+
+    // Ref to avoid stale closures in event listeners
+    const assetsRef = useRef(assets);
+    useEffect(() => {
+        assetsRef.current = assets;
+    }, [assets]);
 
     /**
      * Calcular estadísticas de los activos
@@ -40,12 +50,7 @@ export default function Assets() {
         currencies: new Set(assets.map(a => a.currency)).size
     };
 
-    useEffect(() => {
-        loadAssets();
-    }, []);
-
-    // Inicializar Handsontable
-    useEffect(() => {
+    const initializeHandsontable = () => {
         if (!hotTableRef.current) return;
 
         if (hotInstance.current) {
@@ -53,85 +58,100 @@ export default function Assets() {
         }
 
         hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: assets,
+            data: tableData,
             licenseKey: 'non-commercial-and-evaluation',
             width: '100%',
             height: '100%',
             colHeaders: ['Símbolo', 'Nombre', 'Tipo', 'Moneda', 'Mercado', 'Acciones'],
             columns: [
-                { data: 'symbol', readOnly: true, width: 120, className: 'htLeft' },
+                { data: 'symbol', readOnly: true, width: 100, className: 'htLeft' },
                 { data: 'name', readOnly: true, width: 250, className: 'htLeft' },
                 { data: 'asset_type', readOnly: true, width: 100, className: 'htLeft' },
-                { data: 'currency', readOnly: true, width: 100, className: 'htCenter' },
-                { data: 'market', readOnly: true, width: 150, className: 'htLeft' },
+                { data: 'currency', readOnly: true, width: 80, className: 'htCenter' },
+                { data: 'market', readOnly: true, width: 120, className: 'htLeft' },
                 {
                     data: 'id',
                     readOnly: true,
-                    width: 280,
+                    width: 150,
                     className: 'htCenter htMiddle',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        td.innerHTML = '';
-                        const container = document.createElement('div');
-                        container.style.display = 'inline-flex';
-                        container.style.gap = '8px';
-                        container.style.alignItems = 'center';
-                        const editBtn = `<button type="button" class="text-yellow-500 hover:text-yellow-700 text-sm font-medium cursor-pointer" data-action="edit" data-id="${value}">✏️ Editar</button>`;
-                        const fetchBtn = `<button type="button" class="text-blue-500 hover:text-blue-700 text-sm font-medium cursor-pointer" data-action="fetch" data-id="${value}">📥 Importar</button>`;
-                        const deleteBtn = `<button type="button" class="text-red-500 hover:text-red-700 text-sm font-medium cursor-pointer" data-action="delete" data-id="${value}">🗑️ Eliminar</button>`;
-                        container.innerHTML = `${editBtn}${fetchBtn}${deleteBtn}`;
-                        td.appendChild(container);
-                        td.style.textAlign = 'center';
-                        return td;
-                    }
+                    renderer: getActionRenderer([
+                        { name: 'edit', tooltip: 'Editar' },
+                        { name: 'custom', label: 'fetch', icon: '📥', tooltip: 'Importar Cotizaciones' },
+                        { name: 'delete', tooltip: 'Eliminar' }
+                    ])
                 }
             ],
             rowHeaders: true,
             stretchH: 'all',
-            autoColumnSize: false,
             filters: true,
-            dropdownMenu: [
-                'filter_by_condition',
-                'filter_by_value',
-                'filter_action_bar'
-            ],
+            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
             columnSorting: true,
             manualColumnResize: true,
             wordWrap: false,
             rowHeights: 28
         });
+    };
 
-        // Handle clicks on action buttons
-        if (hotTableRef.current) {
-            hotTableRef.current.addEventListener('click', (e: any) => {
-                const target = e.target as HTMLElement;
-                const btn = target.closest('button');
-                if (!btn) return;
+    // Dedicated effect for the click event listener
+    useEffect(() => {
+        const tableElement = hotTableRef.current;
+        if (!tableElement) return;
 
-                const action = btn.dataset.action;
-                const id = btn.dataset.id;
+        const handleTableClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const btn = target.closest('button');
+            if (!btn) return;
 
-                if (!id || !action) return;
+            const action = btn.dataset.action;
+            if (!action) return;
 
-                const asset = assets.find(a => a.id === id);
-                if (!asset) return;
+            const td = target.closest('td');
+            if (!td) return;
 
-                if (action === 'edit') {
-                    handleEdit(asset);
-                } else if (action === 'fetch') {
-                    handleFetchQuotes(id, asset.symbol);
-                } else if (action === 'delete') {
-                    handleDelete(id);
-                }
-            });
+            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
+            if (!coords || coords.row < 0) return;
+
+            const assetId = hotInstance.current?.getDataAtRowProp(coords.row, 'id');
+            if (!assetId) return;
+
+            const asset = assetsRef.current.find(a => a.id === assetId);
+            if (!asset) return;
+
+            if (action === 'edit') {
+                handleEdit(asset);
+            } else if (action === 'delete') {
+                handleDelete(asset.id);
+            } else if (action === 'custom') {
+                handleFetchQuotes(asset);
+            }
+        };
+
+        tableElement.addEventListener('click', handleTableClick);
+        return () => tableElement.removeEventListener('click', handleTableClick);
+    }, []);
+
+    // Effect for initializing and updating data
+    useEffect(() => {
+        if (!hotInstance.current) {
+            if (assets.length > 0) initializeHandsontable();
+        } else {
+            hotInstance.current.loadData(tableData);
         }
+    }, [tableData]);
 
+    // Final cleanup
+    useEffect(() => {
         return () => {
             if (hotInstance.current) {
                 hotInstance.current.destroy();
                 hotInstance.current = null;
             }
         };
-    }, [assets]);
+    }, []);
+
+    useEffect(() => {
+        loadAssets();
+    }, []);
 
     /**
      * Carga el catálogo completo de activos
@@ -168,18 +188,16 @@ export default function Assets() {
         e.preventDefault();
         try {
             if (editingAsset) {
-                // Actualizar activo existente
                 await api.patch(`/assets/${editingAsset.id}`, formData);
                 toast.success('Activo actualizado correctamente');
             } else {
-                // Crear nuevo activo
                 await api.post('/assets', formData);
                 toast.success('Activo creado correctamente');
             }
 
             setShowForm(false);
             setEditingAsset(null);
-            setFormData({ symbol: '', name: '', asset_type: 'stock', currency: 'USD', market: '' });
+            setFormData({ symbol: '', name: '', asset_type: 'stock', currency: 'EUR', market: '' });
             loadAssets();
         } catch (error) {
             console.error('Error saving asset:', error);
@@ -190,10 +208,10 @@ export default function Assets() {
     /**
      * Inicia la descarga manual de históricos para un activo
      */
-    const handleFetchQuotes = async (assetId: string, symbol: string) => {
+    const handleFetchQuotes = async (asset: Asset) => {
         try {
-            await api.post(`/quotes/asset/${assetId}/fetch-history`);
-            toast.success(`Importación de historial iniciada para ${symbol}`);
+            await api.post(`/quotes/asset/${asset.id}/fetch-history`);
+            toast.success(`Importación de historial iniciada para ${asset.symbol}`);
         } catch (error) {
             console.error('❌ Error fetching quotes:', error);
             toast.error('Error al importar cotizaciones. Por favor, inténtelo de nuevo.');
@@ -228,7 +246,7 @@ export default function Assets() {
                         <button
                             onClick={() => {
                                 setEditingAsset(null);
-                                setFormData({ symbol: '', name: '', asset_type: 'stock', currency: 'USD', market: '' });
+                                setFormData({ symbol: '', name: '', asset_type: 'stock', currency: 'EUR', market: '' });
                                 setShowForm(true);
                             }}
                             className="bg-primary hover:bg-primary-dark text-white px-4 py-1 rounded text-xs transition-colors font-medium"

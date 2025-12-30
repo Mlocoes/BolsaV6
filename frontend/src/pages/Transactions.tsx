@@ -1,13 +1,11 @@
-/**
- * Página de Gestión de Transacciones
- */
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import Handsontable from 'handsontable';
 import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import { getActionRenderer } from '../utils/handsontableUtils';
 
 interface Transaction {
     id: string;
@@ -55,39 +53,51 @@ export default function Transactions() {
         sells: filteredTransactions.filter(t => t.transaction_type === 'SELL').length
     };
 
-    // Preparar datos para Handsontable
-    const tableData = filteredTransactions.map(t => {
-        const asset = assets.find(a => a.id === t.asset_id);
-        const typeMap: Record<string, string> = {
-            'BUY': 'Compra',
-            'SELL': 'Venta',
-            'DIVIDEND': 'Dividendo',
-            'SPLIT': 'Split',
-            'CORPORATE': 'Corporativa'
-        };
-        const quantity = Number(t.quantity) || 0;
-        const price = Number(t.price) || 0;
-        const fees = Number(t.fees) || 0;
-        const total = (quantity * price) + fees;
+    // Memoized table data to avoid unnecessary re-renders
+    const tableData = useMemo(() => {
+        return filteredTransactions.map(t => {
+            const asset = assets.find(a => a.id === t.asset_id);
+            const typeMap: Record<string, string> = {
+                'BUY': 'Compra',
+                'SELL': 'Venta',
+                'DIVIDEND': 'Dividendo',
+                'SPLIT': 'Split',
+                'CORPORATE': 'Corporativa'
+            };
+            const quantity = Number(t.quantity) || 0;
+            const price = Number(t.price) || 0;
+            const fees = Number(t.fees) || 0;
+            const total = (quantity * price) + fees;
 
-        return {
-            id: t.id,
-            portfolio_id: t.portfolio_id,
-            asset_id: t.asset_id,
-            date: t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '',
-            type: typeMap[t.transaction_type] || t.transaction_type,
-            type_raw: t.transaction_type,
-            asset: asset ? asset.symbol : t.asset_id,
-            quantity: quantity,
-            price: price,
-            fees: fees,
-            total: total,
-            notes: t.notes || ''
-        };
-    });
+            return {
+                id: t.id,
+                portfolio_id: t.portfolio_id,
+                asset_id: t.asset_id,
+                date: t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '',
+                type: typeMap[t.transaction_type] || t.transaction_type,
+                type_raw: t.transaction_type,
+                asset: asset ? asset.symbol : t.asset_id,
+                quantity: quantity,
+                price: price,
+                fees: fees,
+                total: total,
+                notes: t.notes || ''
+            };
+        });
+    }, [filteredTransactions, assets]);
+
+    // Ref to avoid stale closures in event listeners
+    const filteredTransactionsRef = useRef(filteredTransactions);
+    useEffect(() => {
+        filteredTransactionsRef.current = filteredTransactions;
+    }, [filteredTransactions]);
 
     const initializeHandsontable = () => {
         if (!hotTableRef.current) return;
+
+        if (hotInstance.current) {
+            hotInstance.current.destroy();
+        }
 
         hotInstance.current = new Handsontable(hotTableRef.current, {
             data: tableData,
@@ -95,15 +105,7 @@ export default function Transactions() {
             width: '100%',
             height: '100%',
             colHeaders: [
-                'Fecha',
-                'Tipo',
-                'Activo',
-                'Cantidad',
-                'Precio',
-                'Comisiones',
-                'Total',
-                'Notas',
-                'Acciones'
+                'Fecha', 'Tipo', 'Activo', 'Cantidad', 'Precio', 'Comisiones', 'Total', 'Notas', 'Acciones'
             ],
             columns: [
                 { data: 'date', readOnly: true, width: 120, className: 'htLeft' },
@@ -112,7 +114,7 @@ export default function Transactions() {
                     readOnly: true,
                     width: 120,
                     className: 'htLeft',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                    renderer: (instance: any, td: HTMLTableCellElement, row: number, _col: number, _prop: any, value: any) => {
                         td.textContent = value;
                         const source = instance.getSourceDataAtRow(instance.toPhysicalRow(row));
                         const colorMap: Record<string, string> = {
@@ -127,143 +129,115 @@ export default function Transactions() {
                     }
                 },
                 { data: 'asset', readOnly: true, width: 120, className: 'htLeft' },
-                { 
-                    data: 'quantity', 
-                    readOnly: true, 
-                    width: 120, 
+                { data: 'quantity', readOnly: true, width: 120, className: 'htRight', type: 'numeric' },
+                {
+                    data: 'price',
+                    readOnly: true,
+                    width: 120,
                     className: 'htRight',
-                    type: 'numeric',
-                    numericFormat: {
-                        pattern: '0',
-                        culture: 'es-ES'
-                    }
-                },
-                { 
-                    data: 'price', 
-                    readOnly: true, 
-                    width: 120, 
-                    className: 'htRight',
-                    type: 'numeric',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value;
-                        }
+                    renderer: (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) => {
+                        td.textContent = typeof value === 'number' ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : value;
                         td.style.textAlign = 'right';
                         return td;
                     }
                 },
-                { 
-                    data: 'fees', 
-                    readOnly: true, 
-                    width: 120, 
+                {
+                    data: 'fees',
+                    readOnly: true,
+                    width: 120,
                     className: 'htRight',
-                    type: 'numeric',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value;
-                        }
+                    renderer: (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) => {
+                        td.textContent = typeof value === 'number' ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : value;
                         td.style.textAlign = 'right';
                         return td;
                     }
                 },
-                { 
-                    data: 'total', 
-                    readOnly: true, 
-                    width: 130, 
-                    className: 'htRight', 
-                    type: 'numeric',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value;
-                        }
+                {
+                    data: 'total',
+                    readOnly: true,
+                    width: 130,
+                    className: 'htRight',
+                    renderer: (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) => {
+                        td.textContent = typeof value === 'number' ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : value;
                         td.style.fontWeight = 'bold';
                         td.style.textAlign = 'right';
                         return td;
-                    } 
+                    }
                 },
                 { data: 'notes', readOnly: true, width: 200, className: 'htLeft' },
                 {
                     data: 'id',
                     readOnly: true,
-                    width: 140,
+                    width: 120,
                     className: 'htCenter htMiddle',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        td.innerHTML = '';
-                        td.style.whiteSpace = 'nowrap';
-                        const source = instance.getSourceDataAtRow(instance.toPhysicalRow(row));
-                        const container = document.createElement('div');
-                        container.style.display = 'inline-flex';
-                        container.style.gap = '8px';
-                        container.style.alignItems = 'center';
-                        const editBtn = `<button type="button" class="text-yellow-500 hover:text-yellow-700 text-sm font-medium cursor-pointer" data-action="edit" data-transaction-id="${value}">✏️ Editar</button>`;
-                        const deleteBtn = `<button type="button" class="text-red-500 hover:text-red-700 text-sm font-medium cursor-pointer" data-action="delete" data-transaction-id="${value}">🗑️ Eliminar</button>`;
-                        container.innerHTML = `${editBtn}${deleteBtn}`;
-                        td.appendChild(container);
-                        return td;
-                    }
+                    renderer: getActionRenderer([
+                        { name: 'edit', tooltip: 'Editar' },
+                        { name: 'delete', tooltip: 'Eliminar' }
+                    ])
                 }
             ],
             rowHeaders: false,
             stretchH: 'all',
-            autoColumnSize: false,
             filters: true,
-            dropdownMenu: [
-                'filter_by_condition',
-                'filter_by_value',
-                'filter_action_bar'
-            ],
+            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
             columnSorting: true,
             manualColumnResize: true,
             wordWrap: false,
             rowHeights: 28
         });
-
-        // Handle clicks on action buttons
-        if (hotTableRef.current) {
-            hotTableRef.current.addEventListener('click', (e: any) => {
-                const target = e.target as HTMLElement;
-                if (target.tagName === 'BUTTON') {
-                    const action = target.dataset.action;
-                    const transactionId = target.dataset.transactionId;
-                    if (action && transactionId) {
-                        const transaction = filteredTransactions.find(t => t.id === transactionId);
-                        if (transaction) {
-                            if (action === 'edit') {
-                                handleEdit(transaction);
-                            } else if (action === 'delete') {
-                                handleDelete(transaction.id);
-                            }
-                        }
-                    }
-                }
-            });
-        }
     };
 
-    const updateHandsontableData = () => {
-        if (!hotInstance.current) return;
-        hotInstance.current.loadData(tableData);
-    };
-
+    // Dedicated effect for the click event listener
     useEffect(() => {
-        if (hotTableRef.current && !hotInstance.current && assets.length > 0) {
-            initializeHandsontable();
-        }
-        if (hotInstance.current && assets.length > 0) {
-            updateHandsontableData();
+        const tableElement = hotTableRef.current;
+        if (!tableElement) return;
+
+        const handleTableClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const btn = target.closest('button');
+            if (!btn) return;
+
+            const action = btn.dataset.action;
+            if (!action) return;
+
+            const td = target.closest('td');
+            if (!td) return;
+
+            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
+            if (!coords || coords.row < 0) return;
+
+            const transactionId = hotInstance.current?.getDataAtRowProp(coords.row, 'id');
+            if (!transactionId) return;
+
+            const transaction = filteredTransactionsRef.current.find(t => t.id === transactionId);
+            if (transaction) {
+                if (action === 'edit') {
+                    handleEdit(transaction);
+                } else if (action === 'delete') {
+                    handleDelete(transaction.id);
+                }
+            }
+        };
+
+        tableElement.addEventListener('click', handleTableClick);
+        return () => tableElement.removeEventListener('click', handleTableClick);
+    }, []);
+
+    // Effect for initializing and updating data
+    useEffect(() => {
+        if (!hotInstance.current) {
+            if (assets.length > 0) initializeHandsontable();
+        } else {
+            hotInstance.current.loadData(tableData);
         }
     }, [tableData, assets]);
 
+    // Final cleanup
     useEffect(() => {
         return () => {
             if (hotInstance.current) {
                 hotInstance.current.destroy();
+                hotInstance.current = null;
             }
         };
     }, []);

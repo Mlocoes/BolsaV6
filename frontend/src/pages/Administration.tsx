@@ -51,6 +51,12 @@ export default function Administration() {
         }
     ], []);
 
+    // Ref to avoid stale closures in event listeners
+    const marketsRef = useRef(markets);
+    useEffect(() => {
+        marketsRef.current = markets;
+    }, [markets]);
+
     /**
      * Inicializa la instancia de Handsontable
      */
@@ -87,34 +93,45 @@ export default function Administration() {
                 });
             }
         });
+    };
 
-        // Registrar listener de clics para acciones
-        hotTableRef.current.addEventListener('click', (e: MouseEvent) => {
+    // Dedicated effect for the click event listener
+    useEffect(() => {
+        const tableElement = hotTableRef.current;
+        if (!tableElement) return;
+
+        const handleTableClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             const btn = target.closest('button');
             if (!btn) return;
 
             const action = btn.dataset.action;
+            if (!action) return;
 
-            // Alternativa: usar las coordenadas de Handsontable para obtener el dato
-            const coords = hotInstance.current?.getCoords(target as HTMLTableCellElement);
-            if (coords && coords.row >= 0) {
-                const rowData = hotInstance.current?.getSourceDataAtRow(coords.row) as Market;
-                if (rowData && action) {
-                    if (action === 'edit') handleEdit(rowData);
-                    else if (action === 'delete') handleDelete(rowData.id);
-                }
+            const td = target.closest('td');
+            if (!td) return;
+
+            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
+            if (!coords || coords.row < 0) return;
+
+            const rowData = hotInstance.current?.getSourceDataAtRow(coords.row) as Market;
+            if (rowData) {
+                if (action === 'edit') handleEdit(rowData);
+                else if (action === 'delete') handleDelete(rowData.id);
             }
-        });
-    };
+        };
+
+        tableElement.addEventListener('click', handleTableClick);
+        return () => tableElement.removeEventListener('click', handleTableClick);
+    }, []);
 
     /**
      * Actualiza los datos de la tabla cuando cambian los mercados
      */
     useEffect(() => {
-        if (hotTableRef.current && !hotInstance.current && markets.length >= 0) {
+        if (!hotInstance.current) {
             initializeHandsontable();
-        } else if (hotInstance.current) {
+        } else {
             hotInstance.current.loadData(markets);
         }
     }, [markets]);

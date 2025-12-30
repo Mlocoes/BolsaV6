@@ -1,11 +1,12 @@
 /**
  * Componente para Gestión de Usuarios (Extraído de Users.tsx)
  */
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import Handsontable from 'handsontable';
 import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
 import api from '../services/api';
+import { getActionRenderer } from '../utils/handsontableUtils';
 
 interface User {
     id: string;
@@ -40,8 +41,16 @@ export default function UserManagement() {
         loadUsers();
     }, []);
 
-    // Inicializar Handsontable
+    // Memoized table data
+    const tableData = useMemo(() => users, [users]);
+
+    // Ref to avoid stale closures in event listeners
+    const usersRef = useRef(users);
     useEffect(() => {
+        usersRef.current = users;
+    }, [users]);
+
+    const initializeHandsontable = () => {
         if (!hotTableRef.current) return;
 
         if (hotInstance.current) {
@@ -49,7 +58,7 @@ export default function UserManagement() {
         }
 
         hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: users,
+            data: tableData,
             licenseKey: 'non-commercial-and-evaluation',
             width: '100%',
             height: '100%',
@@ -86,71 +95,79 @@ export default function UserManagement() {
                 {
                     data: 'id',
                     readOnly: true,
-                    width: 200,
+                    width: 120,
                     className: 'htCenter htMiddle',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
-                        td.innerHTML = '';
-                        const container = document.createElement('div');
-                        container.style.display = 'inline-flex';
-                        container.style.gap = '8px';
-                        container.style.alignItems = 'center';
-                        const editBtn = `<button type="button" class="text-yellow-500 hover:text-yellow-700 text-sm font-medium cursor-pointer" data-action="edit" data-id="${value}">✏️ Editar</button>`;
-                        const deleteBtn = `<button type="button" class="text-red-500 hover:text-red-700 text-sm font-medium cursor-pointer" data-action="delete" data-id="${value}">🗑️ Eliminar</button>`;
-                        container.innerHTML = `${editBtn}${deleteBtn}`;
-                        td.appendChild(container);
-                        td.style.textAlign = 'center';
-                        return td;
-                    }
+                    renderer: getActionRenderer([
+                        { name: 'edit', tooltip: 'Editar Usuario' },
+                        { name: 'delete', tooltip: 'Eliminar Usuario' }
+                    ])
                 }
             ],
             rowHeaders: true,
             stretchH: 'all',
-            autoColumnSize: false,
             filters: true,
-            dropdownMenu: [
-                'filter_by_condition',
-                'filter_by_value',
-                'filter_action_bar'
-            ],
+            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
             columnSorting: true,
             manualColumnResize: true,
             wordWrap: false,
             rowHeights: 28
         });
+    };
 
-        // Handle clicks on action buttons
-        const handleTableClick = (e: any) => {
+    // Dedicated effect for the click event listener
+    useEffect(() => {
+        const tableElement = hotTableRef.current;
+        if (!tableElement) return;
+
+        const handleTableClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             const btn = target.closest('button');
             if (!btn) return;
 
             const action = btn.dataset.action;
-            const id = btn.dataset.id;
+            if (!action) return;
 
-            if (!id || !action) return;
+            const td = target.closest('td');
+            if (!td) return;
 
-            const user = users.find(u => u.id === id);
+            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
+            if (!coords || coords.row < 0) return;
+
+            const userId = hotInstance.current?.getDataAtRowProp(coords.row, 'id');
+            if (!userId) return;
+
+            const user = usersRef.current.find(u => u.id === userId);
             if (!user) return;
 
             if (action === 'edit') {
                 handleEdit(user);
             } else if (action === 'delete') {
-                handleDelete(id);
+                handleDelete(userId);
             }
         };
 
-        hotTableRef.current.addEventListener('click', handleTableClick);
+        tableElement.addEventListener('click', handleTableClick);
+        return () => tableElement.removeEventListener('click', handleTableClick);
+    }, []);
 
+    // Effect for initializing and updating data
+    useEffect(() => {
+        if (!hotInstance.current) {
+            initializeHandsontable();
+        } else {
+            hotInstance.current.loadData(tableData);
+        }
+    }, [tableData]);
+
+    // Cleanup
+    useEffect(() => {
         return () => {
-            if (hotTableRef.current) {
-                hotTableRef.current.removeEventListener('click', handleTableClick);
-            }
             if (hotInstance.current) {
                 hotInstance.current.destroy();
                 hotInstance.current = null;
             }
         };
-    }, [users]);
+    }, []);
 
     const loadUsers = async () => {
         try {

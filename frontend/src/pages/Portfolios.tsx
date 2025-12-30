@@ -1,10 +1,11 @@
 /**
  * Página de Gestión de Carteras
  */
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import Handsontable from 'handsontable';
 import 'handsontable/dist/handsontable.full.min.css';
 import { toast } from 'react-toastify';
+import { getActionRenderer } from '../utils/handsontableUtils';
 import Layout from '../components/Layout';
 import api from '../services/api';
 
@@ -39,7 +40,16 @@ export default function Portfolios() {
     }, []);
 
     // Inicializar Handsontable
+    // Memoized table data
+    const tableData = useMemo(() => portfolios, [portfolios]);
+
+    // Ref to avoid stale closures in event listeners
+    const portfoliosRef = useRef(portfolios);
     useEffect(() => {
+        portfoliosRef.current = portfolios;
+    }, [portfolios]);
+
+    const initializeHandsontable = () => {
         if (!hotTableRef.current) return;
 
         if (hotInstance.current) {
@@ -47,7 +57,7 @@ export default function Portfolios() {
         }
 
         hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: portfolios,
+            data: tableData,
             licenseKey: 'non-commercial-and-evaluation',
             width: '100%',
             height: '100%',
@@ -60,7 +70,7 @@ export default function Portfolios() {
                     readOnly: true,
                     width: 150,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                    renderer: (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) => {
                         if (value) {
                             td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
                         } else {
@@ -73,57 +83,71 @@ export default function Portfolios() {
                 {
                     data: 'id',
                     readOnly: true,
-                    width: 150,
+                    width: 70,
                     className: 'htCenter htMiddle',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        td.innerHTML = '';
-                        const deleteBtn = `<button type="button" class="text-red-500 hover:text-red-700 text-sm font-medium cursor-pointer" data-action="delete" data-id="${value}">🗑️ Eliminar</button>`;
-                        td.innerHTML = deleteBtn;
-                        td.style.textAlign = 'center';
-                        return td;
-                    }
+                    renderer: getActionRenderer([
+                        { name: 'delete', tooltip: 'Eliminar Cartera' }
+                    ])
                 }
             ],
             rowHeaders: true,
             stretchH: 'all',
-            autoColumnSize: false,
             filters: true,
-            dropdownMenu: [
-                'filter_by_condition',
-                'filter_by_value',
-                'filter_action_bar'
-            ],
+            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
             columnSorting: true,
             manualColumnResize: true,
             wordWrap: false,
             rowHeights: 28
         });
+    };
 
-        // Handle clicks on action buttons
-        if (hotTableRef.current) {
-            hotTableRef.current.addEventListener('click', (e: any) => {
-                const target = e.target as HTMLElement;
-                const btn = target.closest('button');
-                if (!btn) return;
+    // Dedicated effect for the click event listener
+    useEffect(() => {
+        const tableElement = hotTableRef.current;
+        if (!tableElement) return;
 
-                const action = btn.dataset.action;
-                const id = btn.dataset.id;
+        const handleTableClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const btn = target.closest('button');
+            if (!btn) return;
 
-                if (!id || !action) return;
+            const action = btn.dataset.action;
+            if (action !== 'delete') return;
 
-                if (action === 'delete') {
-                    handleDelete(id);
-                }
-            });
+            const td = target.closest('td');
+            if (!td) return;
+
+            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
+            if (!coords || coords.row < 0) return;
+
+            const id = hotInstance.current?.getDataAtRowProp(coords.row, 'id');
+            if (id) {
+                handleDelete(id);
+            }
+        };
+
+        tableElement.addEventListener('click', handleTableClick);
+        return () => tableElement.removeEventListener('click', handleTableClick);
+    }, []);
+
+    // Effect for initializing and updating data
+    useEffect(() => {
+        if (!hotInstance.current) {
+            initializeHandsontable();
+        } else {
+            hotInstance.current.loadData(tableData);
         }
+    }, [tableData]);
 
+    // Cleanup
+    useEffect(() => {
         return () => {
             if (hotInstance.current) {
                 hotInstance.current.destroy();
                 hotInstance.current = null;
             }
         };
-    }, [portfolios]);
+    }, []);
 
     /**
      * Carga las carteras desde la API
