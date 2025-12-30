@@ -4,6 +4,7 @@ import 'handsontable/dist/handsontable.full.min.css';
 import Layout from '../components/Layout';
 import { usePortfolioStore } from '../stores/portfolioStore';
 import { formatCurrency, formatPercent } from '../utils/formatters';
+import { priceRenderer, numberRenderer, percentRenderer } from '../utils/handsontableUtils';
 
 /**
  * Página de Posiciones Actuales
@@ -66,150 +67,72 @@ export default function Positions() {
                     readOnly: true,
                     width: 100,
                     className: 'htRight',
-                    type: 'numeric',
-                    numericFormat: {
-                        pattern: '0',
-                        culture: 'es-ES'
-                    }
+                    renderer: numberRenderer
                 },
                 {
                     data: 'avg_price',
                     readOnly: true,
                     width: 110,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value;
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'previous_close',
                     readOnly: true,
                     width: 110,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value;
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'current_price',
                     readOnly: true,
                     width: 110,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value;
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'day_change_percent',
                     readOnly: true,
                     width: 90,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
-                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
-                        } else {
-                            td.textContent = value;
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: percentRenderer
                 },
                 {
                     data: 'day_result',
                     readOnly: true,
                     width: 110,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
-                            td.style.fontWeight = 'bold';
-                        } else {
-                            td.textContent = value;
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'cost_basis',
                     readOnly: true,
                     width: 120,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value;
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'current_value',
                     readOnly: true,
                     width: 120,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                        } else {
-                            td.textContent = value;
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'profit_loss_percent',
                     readOnly: true,
                     width: 100,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
-                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
-                        } else {
-                            td.textContent = value;
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: percentRenderer
                 },
                 {
                     data: 'profit_loss',
                     readOnly: true,
                     width: 130,
                     className: 'htRight',
-                    renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
-                        if (typeof value === 'number') {
-                            td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
-                            td.style.fontWeight = 'bold';
-                        } else {
-                            td.textContent = value;
-                        }
-                        td.style.textAlign = 'right';
+                    renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                        priceRenderer(instance, td, row, col, prop, value, cellProperties);
+                        td.style.fontWeight = 'bold';
                         return td;
                     }
                 }

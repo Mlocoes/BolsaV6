@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import Modal from '../components/Modal';
-import { getActionRenderer } from '../utils/handsontableUtils';
+import { getActionRenderer, priceRenderer, numberRenderer } from '../utils/handsontableUtils';
 
 interface Transaction {
     id: string;
@@ -129,38 +129,29 @@ export default function Transactions() {
                     }
                 },
                 { data: 'asset', readOnly: true, width: 120, className: 'htLeft' },
-                { data: 'quantity', readOnly: true, width: 120, className: 'htRight', type: 'numeric' },
+                { data: 'quantity', readOnly: true, width: 120, className: 'htRight', renderer: numberRenderer },
                 {
                     data: 'price',
                     readOnly: true,
                     width: 120,
                     className: 'htRight',
-                    renderer: (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) => {
-                        td.textContent = typeof value === 'number' ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : value;
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'fees',
                     readOnly: true,
                     width: 120,
                     className: 'htRight',
-                    renderer: (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) => {
-                        td.textContent = typeof value === 'number' ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : value;
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
+                    renderer: priceRenderer
                 },
                 {
                     data: 'total',
                     readOnly: true,
                     width: 130,
                     className: 'htRight',
-                    renderer: (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) => {
-                        td.textContent = typeof value === 'number' ? value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : value;
+                    renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                        priceRenderer(instance, td, row, col, prop, value, cellProperties);
                         td.style.fontWeight = 'bold';
-                        td.style.textAlign = 'right';
                         return td;
                     }
                 },
@@ -523,7 +514,7 @@ export default function Transactions() {
                             <label className="block text-sm font-medium mb-1">Cantidad *</label>
                             <input
                                 type="number"
-                                step="0.0001"
+                                step="0.00000001"
                                 value={formData.quantity}
                                 onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                                 className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
@@ -536,7 +527,7 @@ export default function Transactions() {
                             <label className="block text-sm font-medium mb-1">Precio *</label>
                             <input
                                 type="number"
-                                step="0.01"
+                                step="0.00000001"
                                 value={formData.price}
                                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                                 className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"
@@ -549,7 +540,7 @@ export default function Transactions() {
                             <label className="block text-sm font-medium mb-1">Comisiones</label>
                             <input
                                 type="number"
-                                step="0.01"
+                                step="0.00000001"
                                 value={formData.fees}
                                 onChange={(e) => setFormData({ ...formData, fees: e.target.value })}
                                 className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-white"

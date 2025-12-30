@@ -31,7 +31,7 @@ export const formatQuantity = (val: number | undefined | null): string => {
     if (val === undefined || val === null) return '';
     return new Intl.NumberFormat('es-ES', {
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        maximumFractionDigits: 8,
         useGrouping: false
     }).format(val);
 };
@@ -46,13 +46,13 @@ export const formatPercent = (val: number | undefined | null): string => {
 };
 
 /**
- * Formato de precio con 4 decimales
+ * Formato de precio con hasta 8 decimales
  */
 export const formatPrice = (val: number | undefined | null): string => {
     if (val === undefined || val === null) return '';
     return new Intl.NumberFormat('es-ES', {
         minimumFractionDigits: 2,
-        maximumFractionDigits: 4,
+        maximumFractionDigits: 8,
         useGrouping: true
     }).format(val);
 };
