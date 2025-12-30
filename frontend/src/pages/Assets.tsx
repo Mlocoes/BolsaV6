@@ -199,9 +199,13 @@ export default function Assets() {
             setEditingAsset(null);
             setFormData({ symbol: '', name: '', asset_type: 'stock', currency: 'EUR', market: '' });
             loadAssets();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving asset:', error);
-            toast.error('Error al guardar el activo. Por favor, verifique los datos.');
+            const detail = error.response?.data?.detail;
+            const message = typeof detail === 'string' ? detail :
+                Array.isArray(detail) ? detail.map((d: any) => `${d.loc.join('.')}: ${d.msg}`).join(', ') :
+                    'Error al guardar el activo. Por favor, verifique los datos.';
+            toast.error(message);
         }
     };
 
