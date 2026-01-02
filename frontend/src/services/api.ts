@@ -9,16 +9,38 @@ import axios from 'axios';
  * 2. Detecta automáticamente usando el mismo hostname que el navegador
  */
 function getApiUrl(): string {
-    // Si hay variable de entorno, usarla (producción o configuración manual)
+    // Debug
+    console.log('Environment VITE_API_URL:', import.meta.env.VITE_API_URL);
+    console.log('Window Protocol:', window.location.protocol);
+
+    const { protocol, hostname } = window.location;
+
+    // DEBUG EXTREMO
+    console.log('🔍 API Config Debug:', {
+        protocol,
+        hostname,
+        envUrl: import.meta.env.VITE_API_URL
+    });
+
+    // 1. Si estamos en el dominio de producción (kronos), FORZAR ruta relativa
+    if (hostname.includes('kronos.cloudns.ph')) {
+        console.log('🌍 Dominio Kronos detectado: Forzando /api');
+        return '/api';
+    }
+
+    // 2. Si el protocolo es HTTPS, FORZAR ruta relativa
+    if (protocol === 'https:') {
+        console.log('🔒 HTTPS detectado: Forzando /api');
+        return '/api';
+    }
+
+    // 3. Si hay variable de entorno y NO estamos en los casos anteriores
     if (import.meta.env.VITE_API_URL) {
         return import.meta.env.VITE_API_URL;
     }
     
-    // Detección automática: usar el mismo hostname que el navegador pero puerto 8000
-    // Esto funciona tanto si accedes por localhost como por IP de red
-    const { protocol, hostname } = window.location;
+    // Detección automática para desarrollo local (HTTP)
     const apiUrl = `${protocol}//${hostname}:8000/api`;
-    
     return apiUrl;
 }
 

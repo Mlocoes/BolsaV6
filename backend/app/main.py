@@ -3,6 +3,7 @@ FastAPI Main Application
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.core.config import settings
 
 # Importar routers
@@ -17,6 +18,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# IMPORTANTE: Confiar en headers de proxy (Traefik)
+# Esto asegura que FastAPI sepa que está corriendo detrás de HTTPS
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Configurar CORS
 # En desarrollo: permite cualquier origen de red local automáticamente
