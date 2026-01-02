@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 import { getActionRenderer } from '../utils/handsontableUtils';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { usePortfolioStore } from '../stores/portfolioStore';
 
 interface Portfolio {
     id: string;
@@ -19,7 +20,7 @@ interface Portfolio {
 export default function Portfolios() {
     const hotTableRef = useRef<HTMLDivElement>(null);
     const hotInstance = useRef<Handsontable | null>(null);
-    const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+    const { portfolios, loadPortfolios } = usePortfolioStore();
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ name: '', description: '' });
 
@@ -148,19 +149,6 @@ export default function Portfolios() {
             }
         };
     }, []);
-
-    /**
-     * Carga las carteras desde la API
-     */
-    const loadPortfolios = async () => {
-        try {
-            const response = await api.get('/portfolios');
-            setPortfolios(response.data);
-        } catch (error) {
-            console.error('Error loading portfolios:', error);
-            toast.error('Error al cargar las carteras. Por favor, inténtelo de nuevo.');
-        }
-    };
 
     /**
      * Procesa el envío del formulario de nueva cartera
