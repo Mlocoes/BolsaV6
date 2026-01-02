@@ -29,9 +29,9 @@ export interface DashboardStats {
     total_pl_percentage: number;
 }
 
-export const getDashboardStats = async (portfolioId: string, year?: number): Promise<DashboardStats> => {
+export const getDashboardStats = async (portfolioId: string, year?: number, online: boolean = false): Promise<DashboardStats> => {
     const response = await api.get(`/dashboard/${portfolioId}/stats`, {
-        params: { year }
+        params: { year, online }
     });
     return response.data;
 };

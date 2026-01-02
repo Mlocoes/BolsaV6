@@ -145,6 +145,13 @@ class ForexService:
             
         logger.warning(f"No rate found for asset {asset_id} near {target_date}")
         return None
+
+    def inject_live_rate(self, from_currency: str, to_currency: str, target_date: date, rate: float):
+        """Inyecta una tasa de cambio en la caché manual"""
+        self._rate_cache[(from_currency, to_currency, target_date)] = rate
+        # Inyectar también la inversa
+        if rate > 0:
+            self._rate_cache[(to_currency, from_currency, target_date)] = 1.0 / rate
         
     async def convert_value(
         self,

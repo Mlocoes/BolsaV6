@@ -1,7 +1,8 @@
 from datetime import date, timedelta
 from typing import List, Dict, Any, Optional
+from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, desc
 from collections import defaultdict
 import datetime
 import logging
@@ -12,6 +13,7 @@ from app.models.asset import Asset, AssetType
 from app.models.user import User
 from app.schemas.dashboard import DashboardStats, PerformancePoint, MonthlyValue, AssetAllocation
 from app.services.forex_service import forex_service
+from app.services.yfinance_service import yfinance_service
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -22,7 +24,8 @@ class DashboardService:
         portfolio_id: str, 
         year: int, 
         user_id: str,
-        db: AsyncSession
+        db: AsyncSession,
+        online: bool = False
     ) -> DashboardStats:
         logger.info(f"Dashboard stats requested for portfolio {portfolio_id}, year {year}")
         try:
@@ -32,11 +35,11 @@ class DashboardService:
             base_currency = user.base_currency if user else "EUR"
             logger.info(f"Using base currency: {base_currency}")
             
-            # 1. Fetch all transactions (ordered by date)
+            # 1. Fetch all transactions (ordered by date and id for deterministic order)
             result = await db.execute(
                 select(Transaction)
                 .where(Transaction.portfolio_id == portfolio_id)
-                .order_by(Transaction.transaction_date)
+                .order_by(Transaction.transaction_date, Transaction.id)
             )
             transactions = result.scalars().all()
             logger.info(f"Found {len(transactions)} transactions")
@@ -88,11 +91,35 @@ class DashboardService:
                 q_date = q.date.date()
                 quotes_map[str(q.asset_id)][q_date] = float(q.close)
 
+            # 4.1 Inyectar precios en tiempo real si online=True
+            if online and end_date == today:
+                logger.info(f"⚡ Inyectando precios en tiempo real para el dashboard")
+                symbols = [assets[aid].symbol for aid in asset_ids if aid in assets]
+                current_quotes = await yfinance_service.get_multiple_current_quotes(symbols)
+                
+                for aid_str, asset_obj in assets.items():
+                    symbol = asset_obj.symbol
+                    if symbol in current_quotes and current_quotes[symbol]:
+                        live_price = current_quotes[symbol]['close']
+                        quotes_map[aid_str][today] = float(live_price)
+                        logger.debug(f"  - {symbol}: {live_price}")
+                
             # 5. Pre-cargar tasas de cambio (N+1 Optimization)
             currencies = {a.currency for a in assets.values() if a.currency != base_currency}
             if currencies:
                 pairs = [(curr, base_currency) for curr in currencies]
                 await forex_service.preload_rates(pairs, start_date, end_date, db)
+
+                # 5.1 Inyectar tasas de cambio en tiempo real (sobrescribe lo cargado de BD para hoy)
+                if online and end_date == today:
+                    needed_pairs = [f"{curr}{base_currency}=X" for curr in currencies]
+                    currency_quotes = await yfinance_service.get_multiple_current_quotes(needed_pairs)
+                    for pair, data in currency_quotes.items():
+                        if data:
+                            from_c = pair[:3]
+                            to_c = pair[3:6]
+                            forex_service.inject_live_rate(from_c, to_c, today, data["close"])
+                            logger.info(f"⚡ Live Forex: {from_c}/{to_c} = {data['close']}")
 
             # 6. Calculate Performance History
             performance_history: List[PerformancePoint] = []
@@ -115,7 +142,25 @@ class DashboardService:
                 tx_by_date[t.transaction_date.date()].append(t)
                 
             current_date = start_date
-            last_known_prices: Dict[str, float] = {} # asset_id -> price
+            
+            # 6.5 Initialize last_known_prices with latest available quotes before start_date
+            # This prevents the dashboard from showing 0 value at the beginning of the year
+            initial_prices_stmt = select(
+                Quote.asset_id, 
+                Quote.close
+            ).distinct(Quote.asset_id).where(
+                and_(
+                    Quote.asset_id.in_(asset_ids),
+                    Quote.date < start_date
+                )
+            ).order_by(Quote.asset_id, Quote.date.desc())
+            
+            initial_prices_result = await db.execute(initial_prices_stmt)
+            last_known_prices: Dict[str, float] = {
+                str(row.asset_id): float(row.close) 
+                for row in initial_prices_result.all()
+            }
+            logger.info(f"Initialized {len(last_known_prices)} prices from previous history")
             
             # Loop through days
             while current_date <= end_date:
@@ -220,15 +265,15 @@ class DashboardService:
                     item.percentage = round((item.value / total_value) * 100, 2)
                     
             # Calculate Total Invested (Cost Basis approximation) - con conversión
-            cost_basis_map = defaultdict(float) # asset_id -> total_cost
-            current_holdings_replay = defaultdict(float) 
-            avg_price_map = defaultdict(float)
+            # Use Decimal for precision to match portfolios.py
+            current_holdings_replay = defaultdict(Decimal) 
+            avg_price_map = defaultdict(Decimal)
             
             for t in transactions:
                 aid = str(t.asset_id)
-                qty = float(t.quantity)
-                price = float(t.price)
-                fees = float(t.fees or 0.0)
+                qty = Decimal(str(t.quantity))
+                price = Decimal(str(t.price))
+                fees = Decimal(str(t.fees or 0.0))
                 
                 if t.transaction_type == TransactionType.BUY:
                     old_qty = current_holdings_replay[aid]
@@ -244,8 +289,8 @@ class DashboardService:
             
             real_total_invested = 0.0
             for aid, qty in current_holdings_replay.items():
-                if qty > 0.000001:
-                    cost_in_asset_currency = qty * avg_price_map[aid]
+                if qty > Decimal("0.000001"):
+                    cost_in_asset_currency = float(qty * avg_price_map[aid])
                     asset_obj = assets.get(aid)
                     
                     if asset_obj:

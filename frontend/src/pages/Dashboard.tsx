@@ -3,7 +3,6 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { toast } from 'react-toastify';
 import {
     AreaChart,
     Area,
@@ -20,27 +19,26 @@ import {
     Legend
 } from 'recharts';
 import Layout from '../components/Layout';
-import api from '../services/api';
-import { getDashboardStats, DashboardStats } from '../services/dashboardService';
 import { formatCurrency, formatPercent, getCurrencySymbol } from '../utils/formatters';
 import { useUser } from '../context/UserContext';
-
-interface Portfolio {
-    id: string;
-    name: string;
-    description: string;
-    created_at: string;
-}
+import { usePortfolioStore } from '../stores/portfolioStore';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'];
 
 export default function Dashboard() {
     const { user } = useUser();
-    const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-    const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
-    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const { 
+        portfolios, 
+        selectedPortfolio, 
+        dashboardStats: stats, 
+        isRealTime, 
+        lastSync,
+        loadPortfolios, 
+        selectPortfolio, 
+        setRealTime 
+    } = usePortfolioStore();
+
     const [loading, setLoading] = useState(true);
-    const [loadingStats, setLoadingStats] = useState(false);
 
     // Obtener símbolo de moneda del usuario
     const currencySymbol = user ? getCurrencySymbol(user.base_currency) : '€';
@@ -49,54 +47,22 @@ export default function Dashboard() {
      * Cargar carteras al inicio
      */
     useEffect(() => {
-        loadPortfolios();
+        const init = async () => {
+            if (portfolios.length === 0) {
+                await loadPortfolios();
+            }
+            setLoading(false);
+        };
+        init();
     }, []);
 
     /**
-     * Cargar estadísticas cuando cambia la cartera seleccionada
+     * Activar tiempo real al montar el componente
      */
     useEffect(() => {
-        if (selectedPortfolioId) {
-            loadStats(selectedPortfolioId);
-        }
-    }, [selectedPortfolioId]);
-
-    /**
-     * Función para obtener la lista de carteras
-     */
-    const loadPortfolios = async () => {
-        try {
-            const response = await api.get('/portfolios');
-            const ports = response.data;
-            setPortfolios(ports);
-            if (ports.length > 0) {
-                // Seleccionar la primera cartera por defecto
-                setSelectedPortfolioId(ports[0].id);
-            }
-        } catch (error) {
-            console.error('Error loading portfolios:', error);
-            toast.error('Error al cargar las carteras.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    /**
-     * Función para obtener las estadísticas del dashboard
-     */
-    const loadStats = async (portfolioId: string) => {
-        setLoadingStats(true);
-        try {
-            const data = await getDashboardStats(portfolioId);
-            setStats(data);
-        } catch (error) {
-            console.error('Error loading dashboard stats:', error);
-            toast.error('Error al cargar estadísticas.');
-            setStats(null);
-        } finally {
-            setLoadingStats(false);
-        }
-    };
+        setRealTime(true);
+        return () => setRealTime(false);
+    }, []);
 
     if (loading) {
         return (
@@ -131,13 +97,21 @@ export default function Dashboard() {
                 <div className="space-y-3 max-w-full mx-auto">
                     {/* Header Row: Title & Selector inline */}
                     <div className="flex flex-row justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border">
-                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
-                            📊 Dashboard
-                        </h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                                📊 Dashboard
+                            </h1>
+                            {lastSync && (
+                                <span className="text-[10px] text-dark-muted flex items-center gap-1">
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isRealTime ? 'bg-primary animate-pulse' : 'bg-green-500'}`}></span>
+                                    Sincronizado: {lastSync.toLocaleTimeString()}
+                                </span>
+                            )}
+                        </div>
                         <div className="w-48">
                             <select
-                                value={selectedPortfolioId}
-                                onChange={(e) => setSelectedPortfolioId(e.target.value)}
+                                value={selectedPortfolio ? selectedPortfolio.id : ''}
+                                onChange={(e) => selectPortfolio(e.target.value)}
                                 className="w-full bg-dark-bg border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
                             >
                                 {portfolios.map(p => (
@@ -147,7 +121,7 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {loadingStats || !stats ? (
+                    {!stats ? (
                         <div className="text-center py-20 text-dark-muted">Cargando estadísticas...</div>
                     ) : (
                         <>

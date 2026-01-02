@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import Handsontable from 'handsontable';
 import 'handsontable/dist/handsontable.full.min.css';
 import Layout from '../components/Layout';
@@ -12,8 +12,16 @@ import { priceRenderer, numberRenderer, percentRenderer } from '../utils/handson
 export default function Positions() {
     const hotTableRef = useRef<HTMLDivElement>(null);
     const hotInstance = useRef<Handsontable | null>(null);
-    const [lastSync, setLastSync] = useState<Date | null>(null);
-    const { portfolios, selectedPortfolio, positions, loadPortfolios, selectPortfolio, loadPositions } = usePortfolioStore();
+    const { 
+        portfolios, 
+        selectedPortfolio, 
+        positions, 
+        isRealTime,
+        lastSync,
+        loadPortfolios, 
+        selectPortfolio, 
+        setRealTime 
+    } = usePortfolioStore();
 
     /**
      * Calcula estadísticas resumen de las posiciones filtradas
@@ -29,8 +37,18 @@ export default function Positions() {
     }
 
     useEffect(() => {
-        loadPortfolios();
-    }, [loadPortfolios]);
+        if (portfolios.length === 0) {
+            loadPortfolios();
+        }
+    }, []);
+
+    /**
+     * Activar tiempo real al montar el componente
+     */
+    useEffect(() => {
+        setRealTime(true);
+        return () => setRealTime(false);
+    }, []);
 
     // Inicializar Handsontable
     useEffect(() => {
@@ -161,24 +179,7 @@ export default function Positions() {
     }, [positions, selectedPortfolio]);
 
     // Refresco automático de precios online
-    useEffect(() => {
-        if (!selectedPortfolio) return;
-
-        // Función para cargar precios online
-        const refreshOnline = async () => {
-            console.log("⏱️ Refrescando precios online...");
-            await loadPositions(selectedPortfolio.id, true);
-            setLastSync(new Date());
-        };
-
-        // Ejecución inmediata la primera vez
-        refreshOnline();
-
-        // El timer dispara el refresco cada 60 segundos
-        const timer = setInterval(refreshOnline, 60000);
-
-        return () => clearInterval(timer);
-    }, [selectedPortfolio, loadPositions]);
+    // Eliminado: Ahora gestionado por usePortfolioStore
 
     return (
         <Layout>
@@ -191,13 +192,10 @@ export default function Positions() {
                                 📈 Posiciones
                             </h1>
                             {lastSync && (
-                                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/10 border border-green-500/20 rounded-full">
-                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                                    <span className="text-[10px] text-green-500 font-medium uppercase tracking-tight">Tiempo Real</span>
-                                    <span className="text-[10px] text-green-500/60 ml-1">
-                                        {lastSync.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                    </span>
-                                </div>
+                                <span className="text-[10px] text-dark-muted flex items-center gap-1">
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isRealTime ? 'bg-primary animate-pulse' : 'bg-green-500'}`}></span>
+                                    Sincronizado: {lastSync.toLocaleTimeString()}
+                                </span>
                             )}
                         </div>
                         <div className="w-48">

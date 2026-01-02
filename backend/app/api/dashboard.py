@@ -14,6 +14,7 @@ router = APIRouter()
 async def get_dashboard_stats(
     portfolio_id: str,
     year: Optional[int] = Query(None, description="Year to analyze"),
+    online: bool = Query(False, description="Whether to include real-time quotes"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -27,7 +28,7 @@ async def get_dashboard_stats(
     user_id = current_user["user_id"]
         
     try:
-        stats = await dashboard_service.get_stats(portfolio_id, year, user_id, db)
+        stats = await dashboard_service.get_stats(portfolio_id, year, user_id, db, online=online)
         return stats
     except Exception as e:
         print(f"Error calculating dashboard stats: {e}")

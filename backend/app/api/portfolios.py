@@ -15,6 +15,7 @@ from app.models.asset import Asset, AssetType
 from app.models.quote import Quote
 from app.models.user import User
 from app.schemas.portfolio import PortfolioCreate, PortfolioUpdate, PortfolioResponse
+from app.services.forex_service import forex_service
 
 router = APIRouter()
 
@@ -166,7 +167,7 @@ async def get_portfolio_positions(
     transactions_result = await db.execute(
         select(Transaction, Asset).join(Asset).where(
             Transaction.portfolio_id == portfolio_id
-        ).order_by(Transaction.transaction_date)
+        ).order_by(Transaction.transaction_date, Transaction.id)
     )
     transactions = transactions_result.all()
     
@@ -215,9 +216,21 @@ async def get_portfolio_positions(
     
     # Obtener precios online si se solicita
     online_prices = {}
+    today = datetime.now().date()
     if online and active_symbols:
         from app.services.yfinance_service import yfinance_service
         online_prices = await yfinance_service.get_multiple_current_quotes(active_symbols)
+        
+        # Inyectar tasas de cambio online si es necesario
+        needed_currencies = {pos["currency"] for pos in positions.values() if pos["quantity"] > 0 and pos["currency"] != base_currency}
+        if needed_currencies:
+            needed_pairs = [f"{curr}{base_currency}=X" for curr in needed_currencies]
+            currency_quotes = await yfinance_service.get_multiple_current_quotes(needed_pairs)
+            for pair, data in currency_quotes.items():
+                if data:
+                    from_c = pair[:3]
+                    to_c = pair[3:6]
+                    forex_service.inject_live_rate(from_c, to_c, today, data["close"])
     
     # Batch fetch the last 2 quotes for each active asset (N+1 Optimization)
     quotes_map = {}
@@ -291,72 +304,32 @@ async def get_portfolio_positions(
                 "source": source
             })
 
-    # Prepare list of needed exchange rates
-    needed_pairs = set()
+    # Apply conversion using ForexService
     for pos in active_positions:
-        if pos.get("currency") != base_currency:
-             needed_pairs.add(f"{pos['currency']}{base_currency}=X")
-
-    # Fetch exchange rates
-    exchange_rates = {}
-    if needed_pairs:
-        # Check database for latest quotes of these currency pairs
-        # OR fallback to 1.0 if not found
-        # Ideally we should look for Asset with symbol=pair
-        # For MVP, we assume we can look up by symbol directly or fetch online
-        
-        if online and needed_pairs:
-             # Fetch online for these pairs
-             from app.services.yfinance_service import yfinance_service
-             currency_quotes = await yfinance_service.get_multiple_current_quotes(list(needed_pairs))
-             for pair, data in currency_quotes.items():
-                 if data:
-                     exchange_rates[pair] = data["close"]
-        
-        # If not online or missed some, try DB
-        missing_pairs = [p for p in needed_pairs if p not in exchange_rates]
-        if missing_pairs:
-            # Look for assets with these symbols
-            assets_result = await db.execute(select(Asset).where(Asset.symbol.in_(missing_pairs)))
-            currency_assets = assets_result.scalars().all()
-            for ca in currency_assets:
-                # Get latest quote
-                q_res = await db.execute(select(Quote).where(Quote.asset_id == ca.id).order_by(desc(Quote.date)).limit(1))
-                latest = q_res.scalar_one_or_none()
-                if latest:
-                    exchange_rates[ca.symbol] = float(latest.close)
-
-    # Apply conversion
-    for pos in active_positions:
-        asset_currency = pos.get("currency", "USD") # Default to USD if missing, but should be there
-        if asset_currency != base_currency:
-            pair_symbol = f"{asset_currency}{base_currency}=X"
-            rate = exchange_rates.get(pair_symbol)
-            if not rate:
-                 # Try reverse pair?
-                 reverse_pair = f"{base_currency}{asset_currency}=X"
-                 reverse_rate = exchange_rates.get(reverse_pair)
-                 if reverse_rate:
-                     rate = 1.0 / reverse_rate
+        asset_currency = pos.get("currency")
+        if asset_currency == base_currency:
+            continue
             
-            if rate:
-                pos["current_price"] *= rate
-                pos["current_value"] *= rate
-                pos["cost_basis"] *= rate # Using current rate for simplified "homogenization"
-                pos["avg_price"] *= rate
-                pos["profit_loss"] = pos["current_value"] - pos["cost_basis"]
-                # profit_loss_percent remains same technically if bought in foreign currency, 
-                # but valid to recalc based on converted values
-                pos["profit_loss_percent"] = (pos["profit_loss"] / pos["cost_basis"] * 100) if pos["cost_basis"] > 0 else 0.0
-                
-                # Append info that it is converted
-                pos["converted"] = True
-                pos["original_currency"] = asset_currency
-                pos["exchange_rate"] = rate
-                pos["currency"] = base_currency
-            else:
-                 # Could not convert
-                 pos["conversion_error"] = f"Missing rate for {asset_currency}->{base_currency}"
+        # Convertir todos los valores monetarios
+        # cost_basis: aproximamos usando la tasa actual (homogeneización) como pedía la lógica original
+        # pero ahora centralizado en forex_service
+        rate = await forex_service.get_exchange_rate(asset_currency, base_currency, today, db)
+        
+        if rate and rate != 1.0:
+            pos["current_price"] *= rate
+            pos["current_value"] *= rate
+            pos["cost_basis"] *= rate
+            pos["avg_price"] *= rate
+            pos["day_result"] *= rate
+            pos["profit_loss"] = pos["current_value"] - pos["cost_basis"]
+            pos["profit_loss_percent"] = (pos["profit_loss"] / pos["cost_basis"] * 100) if pos["cost_basis"] > 0 else 0.0
+            
+            pos["converted"] = True
+            pos["original_currency"] = asset_currency
+            pos["exchange_rate"] = rate
+            pos["currency"] = base_currency
+        elif asset_currency != base_currency:
+             pos["conversion_error"] = f"Missing rate for {asset_currency}->{base_currency}"
     
     return active_positions
 
