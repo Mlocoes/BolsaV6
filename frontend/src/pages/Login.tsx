@@ -96,8 +96,8 @@ export default function Login() {
 
                     {/* Info */}
                     <div className="mt-6 text-center text-sm text-dark-muted">
-                        <p>Usuario por defecto: <span className="text-primary">admin</span></p>
-                        <p>Contraseña: <span className="text-primary">admin123</span></p>
+                        {/* <p>Usuario por defecto: <span className="text-primary">admin</span></p> */}
+                        {/* <p>Contraseña: <span className="text-primary">admin123</span></p> */}
                     </div>
                 </div>
             </div>

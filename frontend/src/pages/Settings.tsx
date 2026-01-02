@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import { useAuthStore } from '../stores/authStore';
 import UserManagement from '../components/UserManagement';
+import { BackupRestoreTab } from '../components/settings/BackupRestoreTab';
 
 const SUPPORTED_CURRENCIES = [
     { code: 'EUR', name: 'Euro', symbol: '€', flag: '🇪🇺' },
@@ -18,7 +19,7 @@ const SUPPORTED_CURRENCIES = [
 
 export default function Settings() {
     const { user, isLoading, updateProfile } = useAuthStore();
-    const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'backup'>('profile');
 
     // State para Monedad Base
     const [selectedCurrency, setSelectedCurrency] = useState(user?.base_currency || 'EUR');
@@ -157,15 +158,26 @@ export default function Settings() {
                             🆔 Mi Perfil
                         </button>
                         {user.is_admin && (
-                            <button
-                                onClick={() => setActiveTab('users')}
-                                className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'users'
-                                        ? 'bg-primary text-white shadow-lg'
-                                        : 'text-dark-muted hover:bg-dark-bg hover:text-white'
-                                    }`}
-                            >
-                                👥 Usuarios
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => setActiveTab('users')}
+                                    className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'users'
+                                            ? 'bg-primary text-white shadow-lg'
+                                            : 'text-dark-muted hover:bg-dark-bg hover:text-white'
+                                        }`}
+                                >
+                                    👥 Usuarios
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('backup')}
+                                    className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'backup'
+                                            ? 'bg-primary text-white shadow-lg'
+                                            : 'text-dark-muted hover:bg-dark-bg hover:text-white'
+                                        }`}
+                                >
+                                    💾 Backup
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
@@ -303,9 +315,13 @@ export default function Settings() {
                                 </section>
                             </div>
                         </div>
-                    ) : (
+                    ) : activeTab === 'users' ? (
                         <div className="h-full animate-in fade-in slide-in-from-right-2">
                             <UserManagement />
+                        </div>
+                    ) : (
+                        <div className="h-full animate-in fade-in slide-in-from-right-2">
+                            <BackupRestoreTab />
                         </div>
                     )}
                 </div>

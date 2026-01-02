@@ -7,7 +7,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.core.config import settings
 
 # Importar routers
-from app.api import assets, transactions, portfolios, quotes, import_transactions, auth, users, fiscal, dashboard, markets
+from app.api import assets, transactions, portfolios, quotes, import_transactions, auth, users, fiscal, dashboard, markets, backup
 from app.services.scheduler_service import scheduler_service
 
 # Crear aplicación
@@ -53,6 +53,14 @@ else:
 app.include_router(auth.router, prefix="/api/auth", tags=["Autenticación"])
 app.include_router(users.router, prefix="/api/users", tags=["Usuarios"])
 app.include_router(assets.router, prefix="/api/assets", tags=["Activos"])
+app.include_router(transactions.router, prefix="/api/transactions", tags=["Transacciones"])
+app.include_router(portfolios.router, prefix="/api/portfolios", tags=["Carteras"])
+app.include_router(quotes.router, prefix="/api/quotes", tags=["Cotizaciones"])
+app.include_router(import_transactions.router, prefix="/api/import", tags=["Importación"])
+app.include_router(fiscal.router, prefix="/api/fiscal", tags=["Fiscalidad"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(markets.router, prefix="/api/markets", tags=["Mercados"])
+app.include_router(backup.router, prefix="/api/backup", tags=["Backup"])
 app.include_router(portfolios.router, prefix="/api/portfolios", tags=["Carteras"])
 app.include_router(transactions.router, prefix="/api/transactions", tags=["Transacciones"])
 app.include_router(quotes.router, prefix="/api/quotes", tags=["Cotizaciones"])
