@@ -20,6 +20,7 @@ interface PortfolioState {
 }
 
 let intervalId: any = null;
+let realTimeSubscribers = 0;
 
 export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   portfolios: [],
@@ -89,22 +90,33 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   },
 
   setRealTime: (active: boolean) => {
-      set({ isRealTime: active });
-      
-      if (intervalId) {
-          clearInterval(intervalId);
-          intervalId = null;
-      }
-
       if (active) {
-          // Immediate update
-          get().syncData(true);
-          
-          // Start interval (60s)
-          intervalId = setInterval(() => {
-              console.log('🔄 Auto-refreshing data...');
+          realTimeSubscribers++;
+          // Solo iniciar si es el primer suscriptor
+          if (realTimeSubscribers === 1) {
+              console.log('🚀 Iniciando actualizaciones en tiempo real');
+              // Actualización inmediata
               get().syncData(true);
-          }, 60000);
+              
+              // Iniciar intervalo (60s)
+              intervalId = setInterval(() => {
+                  console.log('🔄 Auto-actualizando datos...');
+                  get().syncData(true);
+              }, 60000);
+          }
+          set({ isRealTime: true });
+      } else {
+          realTimeSubscribers--;
+          // Solo detener si no quedan suscriptores
+          if (realTimeSubscribers <= 0) {
+              realTimeSubscribers = 0;
+              console.log('🛑 Deteniendo actualizaciones en tiempo real');
+              if (intervalId) {
+                  clearInterval(intervalId);
+                  intervalId = null;
+              }
+              set({ isRealTime: false });
+          }
       }
   }
 }));

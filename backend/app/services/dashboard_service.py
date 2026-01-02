@@ -94,15 +94,34 @@ class DashboardService:
             # 4.1 Inyectar precios en tiempo real si online=True
             if online and end_date == today:
                 logger.info(f"⚡ Inyectando precios en tiempo real para el dashboard")
-                symbols = [assets[aid].symbol for aid in asset_ids if aid in assets]
-                current_quotes = await yfinance_service.get_multiple_current_quotes(symbols)
                 
-                for aid_str, asset_obj in assets.items():
-                    symbol = asset_obj.symbol
-                    if symbol in current_quotes and current_quotes[symbol]:
-                        live_price = current_quotes[symbol]['close']
-                        quotes_map[aid_str][today] = float(live_price)
-                        logger.debug(f"  - {symbol}: {live_price}")
+                # OPTIMIZACIÓN: Solo buscar precios online para activos que tenemos ACTUALMENTE
+                # Esto evita timeouts y errores al pedir cientos de tickers antiguos
+                temp_holdings = defaultdict(float)
+                for t in transactions:
+                    aid = str(t.asset_id)
+                    qty = float(t.quantity)
+                    if t.transaction_type == TransactionType.BUY:
+                        temp_holdings[aid] += qty
+                    elif t.transaction_type == TransactionType.SELL:
+                        temp_holdings[aid] -= qty
+                
+                active_asset_ids_set = {aid for aid, qty in temp_holdings.items() if qty > 0.000001}
+                
+                symbols = [assets[aid].symbol for aid in active_asset_ids_set if aid in assets]
+                
+                if symbols:
+                    current_quotes = await yfinance_service.get_multiple_current_quotes(symbols)
+                    
+                    for aid_str in active_asset_ids_set:
+                        if aid_str not in assets: continue
+                        
+                        asset_obj = assets[aid_str]
+                        symbol = asset_obj.symbol
+                        if symbol in current_quotes and current_quotes[symbol]:
+                            live_price = current_quotes[symbol]['close']
+                            quotes_map[aid_str][today] = float(live_price)
+                            logger.debug(f"  - {symbol}: {live_price}")
                 
             # 5. Pre-cargar tasas de cambio (N+1 Optimization)
             currencies = {a.currency for a in assets.values() if a.currency != base_currency}

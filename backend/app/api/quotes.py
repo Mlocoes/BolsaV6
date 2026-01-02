@@ -17,7 +17,8 @@ from app.core.security import get_current_user
 from app.models.asset import Asset
 from app.models.quote import Quote
 from app.schemas.quote import QuoteResponse, QuoteResponseWithAsset
-from app.services.finnhub_service import finnhub_service
+# from app.services.finnhub_service import finnhub_service
+from app.services.yfinance_service import yfinance_service
 from app.services.alpha_vantage_service import alpha_vantage_service
 from app.core.utils import clean_decimal
 from sqlalchemy import func
@@ -355,7 +356,7 @@ async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool 
     Función helper para obtener y guardar cotizaciones
     
     - Si full_history=True: Usa Polygon.io para obtener hasta 500 días de histórico
-    - Si full_history=False: Usa Finnhub para obtener solo cotización actual
+    - Si full_history=False: Usa Yahoo Finance para obtener cotización actual
     
     Ejecutada en background
     """
@@ -372,12 +373,14 @@ async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool 
         from app.services.polygon_service import polygon_service
         quotes_data = await polygon_service.get_historical_quotes(symbol)
     else:
-        # Usar Finnhub para cotización actual
-        logger.info(f"📊 Usando Finnhub para cotización actual de {symbol}")
-        quotes_data = await finnhub_service.get_daily_quotes(symbol, full_history=False)
+        # Usar Yahoo Finance para cotización actual (últimos 5 días para asegurar datos recientes)
+        logger.info(f"📊 Usando Yahoo Finance para cotización actual de {symbol}")
+        # Usamos el servicio importado globalmente o lo importamos aquí si es necesario
+        from app.services.yfinance_service import yfinance_service
+        quotes_data = await yfinance_service.get_historical_quotes(symbol, period="5d")
     
     if not quotes_data:
-        logger.warning(f"⚠️ No se obtuvieron datos de Finnhub para {symbol}")
+        logger.warning(f"⚠️ No se obtuvieron datos de Yahoo Finance para {symbol}")
         return
     
     logger.info(f"📊 Se obtuvieron {len(quotes_data)} cotizaciones para {symbol}")
@@ -407,7 +410,7 @@ async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool 
                 
                 # Crear nueva cotización con fecha normalizada
                 # Determinar source según el servicio usado
-                source = "alpha_vantage" if full_history else "finnhub"
+                source = "polygon" if full_history else "yahoo"
                 
                 new_quote = Quote(
                     asset_id=asset_id,

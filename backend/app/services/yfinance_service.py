@@ -5,10 +5,12 @@ yfinance es completamente gratuito y sin límites de llamadas
 import yfinance as yf
 import pandas as pd
 import logging
+import json
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from app.core.redis_client import redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,26 @@ class YFinanceService:
         self.cache = {}  # Cache para precios actuales: {symbol: (price_dict, timestamp)}
         self.cache_ttl = 60  # 1 minuto de caché para evitar saturar la API
         logger.info("✅ YFinance service initialized")
+
+    async def fetch_real_time_quotes(self, symbols: List[str]) -> Dict[str, Optional[Dict]]:
+        """
+        Método interno usado por el MarketDataService para poblar la tabla virtual.
+        Realiza la llamada real a Yahoo Finance.
+        """
+        logger.info(f"🌐 Fetching REAL Yahoo Finance data for {len(symbols)} symbols")
+        results = {}
+        
+        # Dividir en chunks para no saturar
+        chunk_size = 10
+        for i in range(0, len(symbols), chunk_size):
+            chunk = symbols[i:i + chunk_size]
+            tasks = [self.get_current_quote(symbol) for symbol in chunk]
+            batch_results = await asyncio.gather(*tasks)
+            
+            for j, symbol in enumerate(chunk):
+                results[symbol] = batch_results[j]
+                
+        return results
     
     def _download_historical_sync(
         self,
@@ -141,26 +163,9 @@ class YFinanceService:
                 except:
                     pass
 
-            # 3. Fallback a Finnhub si Yahoo falla (Yahoo suele dar errores de tipos en este entorno)
-            if current_price is None:
-                try:
-                    from app.services.finnhub_service import finnhub_service
-                    logger.info(f"⚙️ Usando fallback a Finnhub para {symbol}")
-                    f_quote = await finnhub_service.get_quote(symbol)
-                    if f_quote:
-                        quote = {
-                            "date": now,
-                            "open": f_quote.get('open', 0),
-                            "high": f_quote.get('high', 0),
-                            "low": f_quote.get('low', 0),
-                            "close": f_quote.get('current', 0),
-                            "volume": 0,
-                            "source": "finnhub"
-                        }
-                        self.cache[symbol] = (quote, now)
-                        return quote
-                except Exception as fh_err:
-                    logger.error(f"❌ Fallback Finnhub falló para {symbol}: {str(fh_err)}")
+            # 3. Fallback a Finnhub ELIMINADO (No funcional)
+            # if current_price is None:
+            #     ... (código eliminado)
 
             # 4. Scrum/Scrape manual como último recurso (si yfinance falla por errores de tipos)
             if current_price is None:
@@ -222,32 +227,39 @@ class YFinanceService:
 
     async def get_multiple_current_quotes(self, symbols: List[str]) -> Dict[str, Optional[Dict]]:
         """
-        Obtener múltiples cotizaciones actuales de forma eficiente
+        Obtener múltiples cotizaciones actuales.
+        AHORA: Lee primero de la 'Tabla Virtual' (Redis).
         """
-        now = datetime.now()
         results = {}
-        to_fetch = []
+        missing_symbols = []
         
-        for symbol in symbols:
-            if symbol in self.cache:
-                cached_data, timestamp = self.cache[symbol]
-                if (now - timestamp).total_seconds() < self.cache_ttl:
-                    results[symbol] = cached_data
-                    continue
-            to_fetch.append(symbol)
-        
-        if not to_fetch:
-            return results
+        # 1. Intentar leer de Redis (Tabla Virtual)
+        try:
+            keys = [f"quote:{s}" for s in symbols]
+            cached_values = await redis_client.mget(keys)
             
-        logger.info(f"🔄 Obteniendo precios en tiempo real para {len(to_fetch)} activos")
-        
-        # Yahoo Finance download es inestable en este entorno, usamos obtención concurrente con fallback
-        # Esto es más robusto que un download() masivo que falla por completo si hay un error de tipos
-        tasks = [self.get_current_quote(symbol) for symbol in to_fetch]
-        batch_results = await asyncio.gather(*tasks)
-        
-        for i, symbol in enumerate(to_fetch):
-            results[symbol] = batch_results[i]
+            for i, val in enumerate(cached_values):
+                symbol = symbols[i]
+                if val:
+                    results[symbol] = json.loads(val)
+                else:
+                    missing_symbols.append(symbol)
+                    
+            if not missing_symbols:
+                return results
+                
+        except Exception as e:
+            logger.error(f"⚠️ Error leyendo de Redis: {e}")
+            missing_symbols = symbols # Fallback total
+            
+        # 2. Fallback: Si no está en Redis, usar caché local o fetch directo
+        # (Esto solo debería pasar si el servicio background no ha arrancado aún)
+        if missing_symbols:
+            logger.info(f"⚠️ {len(missing_symbols)} símbolos no encontrados en Redis. Usando fallback.")
+            fallback_results = await self.fetch_real_time_quotes(missing_symbols)
+            results.update(fallback_results)
+            
+        return results
                 
         return results
 
@@ -257,7 +269,7 @@ class YFinanceService:
         Cruza resultados de Yahoo, Alpha Vantage y Finnhub para encontrar el activo real.
         """
         from app.services.alpha_vantage_service import alpha_vantage_service
-        from app.services.finnhub_service import finnhub_service
+        # from app.services.finnhub_service import finnhub_service
 
         search_query = f"{name_hint or ''} {symbol} {market_hint or ''}".strip()
         logger.info(f"🔎 Iniciando investigación para: '{search_query}'")
@@ -280,12 +292,13 @@ class YFinanceService:
                 try: return await alpha_vantage_service.search_symbols(search_query)
                 except: return []
 
-            async def safe_fh_search():
-                try: return await finnhub_service.search_symbols(search_query)
-                except: return []
+            # async def safe_fh_search():
+            #     try: return await finnhub_service.search_symbols(search_query)
+            #     except: return []
 
-            results = await asyncio.gather(safe_yf_search(), safe_av_search(), safe_fh_search())
-            yf_results, av_results, fh_results = results
+            results = await asyncio.gather(safe_yf_search(), safe_av_search())
+            yf_results, av_results = results
+            fh_results = [] # Finnhub deshabilitado
 
             # 2. SISTEMA DE PUNTUACIÓN DE CANDIDATOS
             candidates = [] # List of {ticker, score, name, currency, market, source}
@@ -318,17 +331,9 @@ class YFinanceService:
                     "currency": q.get('currency'), "market": q_region, "source": "AlphaVantage"
                 })
 
-            # Procesar Finnhub
-            for q in (fh_results or []):
-                q_sym = str(q.get('symbol', '')).upper()
-                q_desc = str(q.get('description', '')).upper()
-                score = 0
-                if symbol.upper() in q_sym: score += 10
-                if market_hint and (market_hint.upper() in q_desc or market_hint.upper() in q_sym): score += 20
-                candidates.append({
-                    "symbol": q_sym, "score": score, "name": q_desc,
-                    "currency": None, "market": None, "source": "Finnhub"
-                })
+            # Procesar Finnhub (DESHABILITADO)
+            # for q in (fh_results or []):
+            #     ...
 
             # 3. SELECCIÓN Y REFINAMIENTO
             if candidates:
@@ -346,17 +351,17 @@ class YFinanceService:
                 dt_tasks = [
                     loop.run_in_executor(executor, lambda: yf.Ticker(best_ticker).info),
                     alpha_vantage_service.get_company_profile(best_ticker),
-                    finnhub_service.get_company_profile(best_ticker)
+                    # finnhub_service.get_company_profile(best_ticker)
                 ]
                 dt_res = await asyncio.gather(*dt_tasks, return_exceptions=True)
                 return [r if not isinstance(r, Exception) else None for r in dt_res]
 
             details = await get_details()
-            yf_info, av_info, fh_info = details
+            yf_info, av_info = details # fh_info eliminado
 
             # Consolidación final de metadatos (evitando el fallo general a USD)
             # Priorizamos datos explícitos de AV y Finnhub sobre Yahoo si este último devuelve datos genéricos
-            info_sources = [av_info, fh_info, yf_info]
+            info_sources = [av_info, yf_info] # fh_info eliminado
             for info in info_sources:
                 if info and info.get('currency'):
                     # Si la moneda encontrada NO es USD, o si es USD pero la fuente es muy fiable para ese activo

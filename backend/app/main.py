@@ -91,9 +91,18 @@ async def root():
 async def startup_event():
     """Evento de inicio"""
     from app.core.session import session_manager
+    from app.core.redis_client import redis_client
+    from app.services.market_data_service import market_data_service
+    
     await session_manager.connect()
+    await redis_client.connect()
+    
     # Iniciar programador de tareas
     scheduler_service.start()
+    
+    # Iniciar servicio de datos de mercado (Background)
+    import asyncio
+    asyncio.create_task(market_data_service.start_background_service())
 
 
 # Shutdown event
@@ -101,6 +110,12 @@ async def startup_event():
 async def shutdown_event():
     """Evento de cierre"""
     from app.core.session import session_manager
+    from app.core.redis_client import redis_client
+    from app.services.market_data_service import market_data_service
+    
+    await market_data_service.stop_background_service()
     await session_manager.disconnect()
+    await redis_client.close()
+    
     # Detener programador de tareas
     scheduler_service.shutdown()
