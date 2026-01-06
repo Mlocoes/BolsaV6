@@ -6,6 +6,7 @@ import { DashboardStats } from '../services/dashboardService';
 interface PortfolioState {
   portfolios: any[];
   selectedPortfolio: any | null;
+  selectedDate: string | null;
   positions: any[];
   dashboardStats: DashboardStats | null;
   isRealTime: boolean;
@@ -13,7 +14,8 @@ interface PortfolioState {
   
   loadPortfolios: () => Promise<void>;
   selectPortfolio: (portfolioId: string) => void;
-  loadPositions: (portfolioId: string, online?: boolean) => Promise<void>;
+  setSelectedDate: (date: string | null) => void;
+  loadPositions: (portfolioId: string, online?: boolean, date?: string | null) => Promise<void>;
   loadDashboardStats: (portfolioId: string, online?: boolean) => Promise<void>;
   syncData: (online?: boolean) => Promise<void>;
   setRealTime: (active: boolean) => void;
@@ -25,6 +27,7 @@ let realTimeSubscribers = 0;
 export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   portfolios: [],
   selectedPortfolio: null,
+  selectedDate: null,
   positions: [],
   dashboardStats: null,
   isRealTime: false,
@@ -53,9 +56,27 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
     }
   },
 
-  loadPositions: async (portfolioId: string, online: boolean = false) => {
+  setSelectedDate: (date: string | null) => {
+    set({ selectedDate: date });
+    const { selectedPortfolio, isRealTime, setRealTime } = get();
+    
+    // Si se selecciona una fecha histórica, desactivar tiempo real
+    if (date && isRealTime) {
+        setRealTime(false);
+    }
+    
+    if (selectedPortfolio) {
+        get().syncData(false);
+    }
+  },
+
+  loadPositions: async (portfolioId: string, online: boolean = false, date: string | null = null) => {
     try {
-      const response = await api.get(`/portfolios/${portfolioId}/positions?online=${online}`);
+      const params: any = { online };
+      if (date) {
+          params.target_date = date;
+      }
+      const response = await api.get(`/portfolios/${portfolioId}/positions`, { params });
       set({ positions: response.data });
     } catch (error) {
       console.error('Error loading positions:', error);
@@ -74,14 +95,18 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   },
 
   syncData: async (online: boolean = false) => {
-      const { selectedPortfolio, loadPositions, loadDashboardStats } = get();
+      const { selectedPortfolio, selectedDate, loadPositions, loadDashboardStats } = get();
       if (!selectedPortfolio) return;
 
       try {
+          // Si hay una fecha seleccionada, forzar online=false para evitar confusión
+          const effectiveOnline = selectedDate ? false : online;
+          
           // Run in parallel
           await Promise.all([
-              loadPositions(selectedPortfolio.id, online),
-              loadDashboardStats(selectedPortfolio.id, online)
+              loadPositions(selectedPortfolio.id, effectiveOnline, selectedDate),
+              // Dashboard stats for now don't support history as easily, we'll focus on positions
+              loadDashboardStats(selectedPortfolio.id, effectiveOnline)
           ]);
           set({ lastSync: new Date() });
       } catch (error) {
@@ -90,6 +115,14 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   },
 
   setRealTime: (active: boolean) => {
+      const { selectedDate } = get();
+      
+      // No permitir tiempo real si hay una fecha histórica seleccionada
+      if (active && selectedDate) {
+          console.warn('⚠️ No se puede activar tiempo real en una fecha histórica');
+          return;
+      }
+
       if (active) {
           realTimeSubscribers++;
           // Solo iniciar si es el primer suscriptor

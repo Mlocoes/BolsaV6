@@ -12,15 +12,17 @@ import { priceRenderer, numberRenderer, percentRenderer } from '../utils/handson
 export default function Positions() {
     const hotTableRef = useRef<HTMLDivElement>(null);
     const hotInstance = useRef<Handsontable | null>(null);
-    const { 
-        portfolios, 
-        selectedPortfolio, 
-        positions, 
+    const {
+        portfolios,
+        selectedPortfolio,
+        selectedDate,
+        positions,
         isRealTime,
         lastSync,
-        loadPortfolios, 
-        selectPortfolio, 
-        setRealTime 
+        loadPortfolios,
+        selectPortfolio,
+        setSelectedDate,
+        setRealTime
     } = usePortfolioStore();
 
     /**
@@ -30,6 +32,7 @@ export default function Positions() {
         totalValue: positions.reduce((acc, pos) => acc + (pos.current_value || 0), 0),
         totalCost: positions.reduce((acc, pos) => acc + (pos.cost_basis || 0), 0),
         totalPL: positions.reduce((acc, pos) => acc + (pos.profit_loss || 0), 0),
+        totalDayResult: positions.reduce((acc, pos) => acc + (pos.day_result || 0), 0),
         totalPLPercent: 0
     };
     if (stats.totalCost > 0) {
@@ -46,9 +49,12 @@ export default function Positions() {
      * Activar tiempo real al montar el componente
      */
     useEffect(() => {
-        setRealTime(true);
+        // Solo activar tiempo real si no hay una fecha seleccionada
+        if (!selectedDate) {
+            setRealTime(true);
+        }
         return () => setRealTime(false);
-    }, []);
+    }, [selectedDate]);
 
     // Inicializar Handsontable
     useEffect(() => {
@@ -198,24 +204,34 @@ export default function Positions() {
                                 </span>
                             )}
                         </div>
-                        <div className="w-48">
-                            <select
-                                value={selectedPortfolio ? selectedPortfolio.id : ''}
-                                onChange={(e) => selectPortfolio(e.target.value)}
-                                className="w-full bg-dark-bg border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
-                            >
-                                <option value="">Selecciona una cartera</option>
-                                {portfolios.map((p) => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
+                        <div className="flex items-center gap-3">
+                            <div className="w-36">
+                                <input
+                                    type="date"
+                                    value={selectedDate || ''}
+                                    onChange={(e) => setSelectedDate(e.target.value || null)}
+                                    className="w-full bg-dark-bg border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
+                                />
+                            </div>
+                            <div className="w-48">
+                                <select
+                                    value={selectedPortfolio ? selectedPortfolio.id : ''}
+                                    onChange={(e) => selectPortfolio(e.target.value)}
+                                    className="w-full bg-dark-bg border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
+                                >
+                                    <option value="">Selecciona una cartera</option>
+                                    {portfolios.map((p) => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
 
                     {selectedPortfolio ? (
                         <>
                             {/* Summary Cards Row - Coherente con Dashboard */}
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-none">
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 flex-none">
                                 <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
                                     <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Valor Actual</h3>
                                     <div className="text-lg font-bold text-white leading-tight">
@@ -226,6 +242,12 @@ export default function Positions() {
                                     <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Inversión</h3>
                                     <div className="text-lg font-bold text-white leading-tight">
                                         {formatCurrency(stats.totalCost)} €
+                                    </div>
+                                </div>
+                                <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">
+                                    <h3 className="text-dark-muted text-[10px] uppercase tracking-wider font-semibold mb-0.5">Res. Día</h3>
+                                    <div className={`text-lg font-bold leading-tight ${stats.totalDayResult >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                        {stats.totalDayResult >= 0 ? '+' : ''}{formatCurrency(stats.totalDayResult)} €
                                     </div>
                                 </div>
                                 <div className="bg-dark-surface border border-dark-border rounded-lg p-3 flex flex-col justify-center">

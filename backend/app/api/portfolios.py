@@ -4,9 +4,9 @@ API de Carteras
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
-from typing import List
+from typing import List, Optional
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, date
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.portfolio import Portfolio
@@ -139,10 +139,15 @@ async def delete_portfolio(
 async def get_portfolio_positions(
     portfolio_id: str,
     online: bool = False,
+    target_date: Optional[date] = None,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Obtener posiciones actuales de una cartera"""
+    """
+    Obtener posiciones de una cartera.
+    Si se proporciona target_date, se calculan las posiciones a esa fecha.
+    En caso contrario, se calculan las posiciones actuales.
+    """
     # Obtener moneda base del usuario
     user_result = await db.execute(select(User).where(User.id == current_user["user_id"]))
     user = user_result.scalar_one()
@@ -163,12 +168,19 @@ async def get_portfolio_positions(
             detail="Cartera no encontrada"
         )
     
-    # Obtener todas las transacciones de la cartera
-    transactions_result = await db.execute(
-        select(Transaction, Asset).join(Asset).where(
-            Transaction.portfolio_id == portfolio_id
-        ).order_by(Transaction.transaction_date, Transaction.id)
+    # Calcular fecha de referencia
+    ref_date = target_date or datetime.now().date()
+    
+    # Obtener todas las transacciones de la cartera hasta la fecha de referencia
+    stmt = select(Transaction, Asset).join(Asset).where(
+        Transaction.portfolio_id == portfolio_id
     )
+    if target_date:
+        stmt = stmt.where(Transaction.transaction_date <= target_date)
+    
+    stmt = stmt.order_by(Transaction.transaction_date, Transaction.id)
+    
+    transactions_result = await db.execute(stmt)
     transactions = transactions_result.all()
     
     # Calcular posiciones por activo
@@ -214,10 +226,11 @@ async def get_portfolio_positions(
     active_asset_ids = [pos["asset_id"] for pos in positions.values() if pos["quantity"] > 0]
     active_symbols = [pos["symbol"] for pos in positions.values() if pos["quantity"] > 0]
     
-    # Obtener precios online si se solicita
+    # Obtener precios online solo si es para "HOY" (no target_date o target_date es hoy)
+    is_today = not target_date or target_date == datetime.now().date()
+    
     online_prices = {}
-    today = datetime.now().date()
-    if online and active_symbols:
+    if online and active_symbols and is_today:
         from app.services.yfinance_service import yfinance_service
         online_prices = await yfinance_service.get_multiple_current_quotes(active_symbols)
         
@@ -230,19 +243,29 @@ async def get_portfolio_positions(
                 if data:
                     from_c = pair[:3]
                     to_c = pair[3:6]
-                    forex_service.inject_live_rate(from_c, to_c, today, data["close"])
+                    forex_service.inject_live_rate(from_c, to_c, ref_date, data["close"])
     
     # Batch fetch the last 2 quotes for each active asset (N+1 Optimization)
+    # If target_date is set, we want the quote on or before target_date, 
+    # and the one before that for daily change.
     quotes_map = {}
     if active_asset_ids:
         # Subquery to rank quotes by date per asset using row_number window function
         stmt = select(
-            Quote,
+            Quote.id,
+            Quote.asset_id,
+            Quote.date,
+            Quote.close,
             func.row_number().over(
                 partition_by=Quote.asset_id,
                 order_by=Quote.date.desc()
             ).label("rn")
-        ).where(Quote.asset_id.in_(active_asset_ids)).subquery()
+        ).where(Quote.asset_id.in_(active_asset_ids))
+        
+        if target_date:
+            stmt = stmt.where(Quote.date <= target_date)
+            
+        stmt = stmt.subquery()
         
         # Select only the top 2 for each asset
         batch_result = await db.execute(select(stmt).where(stmt.c.rn <= 2))
@@ -261,7 +284,7 @@ async def get_portfolio_positions(
             asset_quotes = quotes_map.get(asset_id_str, [])
             
             # Obtener precio actual (Online > Historic)
-            if online and pos["symbol"] in online_prices and online_prices[pos["symbol"]]:
+            if online and is_today and pos["symbol"] in online_prices and online_prices[pos["symbol"]]:
                 current_price = online_prices[pos["symbol"]]["close"]
                 source = "online"
             else:
@@ -271,6 +294,9 @@ async def get_portfolio_positions(
             
             # Obtener precio del día anterior (penúltima cotización o fallback a la actual)
             previous_close = float(asset_quotes[1].close) if len(asset_quotes) > 1 else current_price
+            
+            # Si estamos en una fecha histórica, el "anterior" debe ser estrictamente menor que la fecha de la cotización actual
+            # para que el "resultado del día" tenga sentido.
             
             quantity = float(pos["quantity"])
             avg_price = float(pos["average_price"])
@@ -301,7 +327,8 @@ async def get_portfolio_positions(
                 "current_value": current_value,
                 "profit_loss": profit_loss,
                 "profit_loss_percent": profit_loss_percent,
-                "source": source
+                "source": source,
+                "date": ref_date.isoformat()
             })
 
     # Apply conversion using ForexService
@@ -311,9 +338,7 @@ async def get_portfolio_positions(
             continue
             
         # Convertir todos los valores monetarios
-        # cost_basis: aproximamos usando la tasa actual (homogeneización) como pedía la lógica original
-        # pero ahora centralizado en forex_service
-        rate = await forex_service.get_exchange_rate(asset_currency, base_currency, today, db)
+        rate = await forex_service.get_exchange_rate(asset_currency, base_currency, ref_date, db)
         
         if rate and rate != 1.0:
             pos["current_price"] *= rate
