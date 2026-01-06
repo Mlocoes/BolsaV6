@@ -7,6 +7,7 @@ import Layout from '../components/Layout';
 import { useAuthStore } from '../stores/authStore';
 import UserManagement from '../components/UserManagement';
 import { BackupRestoreTab } from '../components/settings/BackupRestoreTab';
+import { SystemSettingsTab } from '../components/settings/SystemSettingsTab';
 
 const SUPPORTED_CURRENCIES = [
     { code: 'EUR', name: 'Euro', symbol: '€', flag: '🇪🇺' },
@@ -19,7 +20,7 @@ const SUPPORTED_CURRENCIES = [
 
 export default function Settings() {
     const { user, isLoading, updateProfile } = useAuthStore();
-    const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'backup'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'backup' | 'system'>('profile');
 
     // State para Monedad Base
     const [selectedCurrency, setSelectedCurrency] = useState(user?.base_currency || 'EUR');
@@ -151,8 +152,8 @@ export default function Settings() {
                         <button
                             onClick={() => setActiveTab('profile')}
                             className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'profile'
-                                    ? 'bg-primary text-white shadow-lg'
-                                    : 'text-dark-muted hover:bg-dark-bg hover:text-white'
+                                ? 'bg-primary text-white shadow-lg'
+                                : 'text-dark-muted hover:bg-dark-bg hover:text-white'
                                 }`}
                         >
                             🆔 Mi Perfil
@@ -162,8 +163,8 @@ export default function Settings() {
                                 <button
                                     onClick={() => setActiveTab('users')}
                                     className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'users'
-                                            ? 'bg-primary text-white shadow-lg'
-                                            : 'text-dark-muted hover:bg-dark-bg hover:text-white'
+                                        ? 'bg-primary text-white shadow-lg'
+                                        : 'text-dark-muted hover:bg-dark-bg hover:text-white'
                                         }`}
                                 >
                                     👥 Usuarios
@@ -171,11 +172,20 @@ export default function Settings() {
                                 <button
                                     onClick={() => setActiveTab('backup')}
                                     className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'backup'
-                                            ? 'bg-primary text-white shadow-lg'
-                                            : 'text-dark-muted hover:bg-dark-bg hover:text-white'
+                                        ? 'bg-primary text-white shadow-lg'
+                                        : 'text-dark-muted hover:bg-dark-bg hover:text-white'
                                         }`}
                                 >
                                     💾 Backup
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('system')}
+                                    className={`flex-1 sm:flex-none px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${activeTab === 'system'
+                                        ? 'bg-primary text-white shadow-lg'
+                                        : 'text-dark-muted hover:bg-dark-bg hover:text-white'
+                                        }`}
+                                >
+                                    ⚙️ Sistema
                                 </button>
                             </>
                         )}
@@ -319,9 +329,13 @@ export default function Settings() {
                         <div className="h-full animate-in fade-in slide-in-from-right-2">
                             <UserManagement />
                         </div>
-                    ) : (
+                    ) : activeTab === 'backup' ? (
                         <div className="h-full animate-in fade-in slide-in-from-right-2">
                             <BackupRestoreTab />
+                        </div>
+                    ) : (
+                        <div className="h-full animate-in fade-in slide-in-from-right-2">
+                            <SystemSettingsTab />
                         </div>
                     )}
                 </div>

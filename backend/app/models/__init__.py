@@ -9,6 +9,7 @@ from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction, TransactionType
 from app.models.result import Result
 from app.models.market import Market
+from app.models.system_setting import SystemSetting
 
 __all__ = [
     "Base",
@@ -21,4 +22,5 @@ __all__ = [
     "TransactionType",
     "Result",
     "Market",
+    "SystemSetting",
 ]

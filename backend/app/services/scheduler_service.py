@@ -5,12 +5,14 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from pytz import timezone
+import asyncio
 from datetime import datetime, timedelta
 from sqlalchemy import select, and_
 from app.core.database import AsyncSessionLocal
 from app.models.asset import Asset
 from app.models.quote import Quote
 from app.services.yfinance_service import yfinance_service
+from app.models.system_setting import SystemSetting
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +24,10 @@ class SchedulerService:
     def start(self):
         """Inicia el programador de tareas"""
         if not self.scheduler.running:
-            # Tarea diaria a las 22:00 (Hora España)
-            self.scheduler.add_job(
-                self.sync_all_quotes,
-                CronTrigger(hour=22, minute=0, timezone=self.timezone),
-                id='sync_all_quotes_daily',
-                name='Sincronización diaria de cotizaciones',
-                replace_existing=True
-            )
+            # Tarea diaria (configurada por Base de Datos o 00:00 UTC)
             self.scheduler.start()
-            logger.info("✅ Programador de tareas iniciado (22:00 Madrid)")
+            asyncio.create_task(self.reload_jobs())
+            logger.info("✅ Programador de tareas iniciado")
 
     def shutdown(self):
         """Detiene el programador de tareas"""
@@ -45,9 +41,9 @@ class SchedulerService:
         
         async with AsyncSessionLocal() as db:
             try:
-                # Obtener solo activos habilitados para sincronización
+                # Obtener todos los activos registrados
                 result = await db.execute(
-                    select(Asset).where(Asset.sync_enabled == True)
+                    select(Asset)
                 )
                 assets = result.scalars().all()
                 
@@ -104,6 +100,40 @@ class SchedulerService:
             except Exception as e:
                 await db.rollback()
                 logger.error(f"❌ Error general en la sincronización de cotizaciones: {str(e)}")
+
+    async def reload_jobs(self):
+        """Recarga los trabajos del programador basándose en la configuración de la DB"""
+        async with AsyncSessionLocal() as db:
+            try:
+                # Obtener configuración de hora y minuto
+                res_h = await db.execute(select(SystemSetting).where(SystemSetting.key == "scheduler_sync_hour_utc"))
+                res_m = await db.execute(select(SystemSetting).where(SystemSetting.key == "scheduler_sync_minute_utc"))
+                
+                h_set = res_h.scalar_one_or_none()
+                m_set = res_m.scalar_one_or_none()
+                
+                hour = int(h_set.value) if h_set else 0
+                minute = int(m_set.value) if m_set else 0
+                
+                logger.info(f"⏰ Configurando sincronización diaria para las {hour:02d}:{minute:02d} UTC")
+                
+                self.scheduler.add_job(
+                    self.sync_all_quotes,
+                    CronTrigger(hour=hour, minute=minute, timezone='UTC'),
+                    id='sync_all_quotes_daily',
+                    name='Sincronización diaria de cotizaciones',
+                    replace_existing=True
+                )
+            except Exception as e:
+                logger.error(f"❌ Error recargando trabajos del scheduler: {str(e)}")
+                # Reintento básico por defecto si falla
+                self.scheduler.add_job(
+                    self.sync_all_quotes,
+                    CronTrigger(hour=0, minute=0, timezone='UTC'),
+                    id='sync_all_quotes_daily',
+                    name='Sincronización diaria de cotizaciones',
+                    replace_existing=True
+                )
 
 # Instancia global
 scheduler_service = SchedulerService()

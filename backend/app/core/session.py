@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 from datetime import timedelta
 import redis.asyncio as redis
 from app.core.config import settings
+from sqlalchemy import select
 
 
 class SessionManager:
@@ -55,9 +56,23 @@ class SessionManager:
         }
         
         key = f"{self.prefix}{session_id}"
+        
+        # Obtener TTL dinámico
+        ttl = self.session_ttl
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.models.system_setting import SystemSetting
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(SystemSetting).where(SystemSetting.key == "session_expire_minutes"))
+                setting = result.scalar_one_or_none()
+                if setting:
+                    ttl = timedelta(minutes=int(setting.value))
+        except Exception:
+            pass # Fallback a SESSION_EXPIRE_MINUTES de env
+
         await self.redis_client.setex(
             key,
-            self.session_ttl,
+            ttl,
             json.dumps(session_data)
         )
         
@@ -95,7 +110,21 @@ class SessionManager:
         await self.connect()
         
         key = f"{self.prefix}{session_id}"
-        result = await self.redis_client.expire(key, self.session_ttl)
+        
+        # Obtener TTL dinámico
+        ttl = self.session_ttl
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.models.system_setting import SystemSetting
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(select(SystemSetting).where(SystemSetting.key == "session_expire_minutes"))
+                setting = result.scalar_one_or_none()
+                if setting:
+                    ttl = timedelta(minutes=int(setting.value))
+        except Exception:
+            pass
+
+        result = await self.redis_client.expire(key, ttl)
         return result == 1
     
     async def delete_session(self, session_id: str) -> bool:
