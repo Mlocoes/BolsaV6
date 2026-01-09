@@ -3,7 +3,7 @@
  */
 import { useEffect, useState, useRef, useMemo } from 'react';
 import Handsontable from 'handsontable';
-import 'handsontable/dist/handsontable.full.min.css';
+
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
@@ -62,6 +62,7 @@ export default function Assets() {
             licenseKey: 'non-commercial-and-evaluation',
             width: '100%',
             height: '100%',
+            themeName: 'ht-theme-main',
             colHeaders: ['Símbolo', 'Nombre', 'Tipo', 'Moneda', 'Mercado', 'Acciones'],
             columns: [
                 { data: 'symbol', readOnly: true, width: 100, className: 'htLeft' },

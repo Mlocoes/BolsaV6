@@ -3,7 +3,7 @@
  */
 import { useEffect, useState, useRef } from 'react';
 import Handsontable from 'handsontable';
-import 'handsontable/dist/handsontable.full.min.css';
+
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
@@ -68,7 +68,7 @@ export default function Quotes() {
                 readOnly: true,
                 width: 100,
                 className: 'htRight',
-                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
                     td.textContent = value ? new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-';
                     td.style.textAlign = 'right';
                     return td;
@@ -79,7 +79,7 @@ export default function Quotes() {
                 readOnly: true,
                 width: 100,
                 className: 'htRight',
-                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
                     if (typeof value === 'number') {
                         td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     } else {
@@ -94,7 +94,7 @@ export default function Quotes() {
                 readOnly: true,
                 width: 100,
                 className: 'htRight',
-                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
                     if (typeof value === 'number') {
                         td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     } else {
@@ -109,7 +109,7 @@ export default function Quotes() {
                 readOnly: true,
                 width: 100,
                 className: 'htRight',
-                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
                     if (typeof value === 'number') {
                         td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     } else {
@@ -124,7 +124,7 @@ export default function Quotes() {
                 readOnly: true,
                 width: 110,
                 className: 'htRight',
-                renderer: function(instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any) {
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
                     if (typeof value === 'number') {
                         td.textContent = value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     } else {
@@ -154,6 +154,7 @@ export default function Quotes() {
             licenseKey: 'non-commercial-and-evaluation',
             width: '100%',
             height: '100%',
+            themeName: 'ht-theme-main',
             colHeaders: headers,
             columns: columns,
             rowHeaders: true,

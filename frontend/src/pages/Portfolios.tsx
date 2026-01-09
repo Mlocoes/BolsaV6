@@ -3,19 +3,14 @@
  */
 import { useEffect, useState, useRef, useMemo } from 'react';
 import Handsontable from 'handsontable';
-import 'handsontable/dist/handsontable.full.min.css';
+
 import { toast } from 'react-toastify';
 import { getActionRenderer } from '../utils/handsontableUtils';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import { usePortfolioStore } from '../stores/portfolioStore';
 
-interface Portfolio {
-    id: string;
-    name: string;
-    description: string;
-    created_at: string;
-}
+
 
 export default function Portfolios() {
     const hotTableRef = useRef<HTMLDivElement>(null);
@@ -62,6 +57,7 @@ export default function Portfolios() {
             licenseKey: 'non-commercial-and-evaluation',
             width: '100%',
             height: '100%',
+            themeName: 'ht-theme-main',
             colHeaders: ['Nombre', 'Descripción', 'Creada', 'Acciones'],
             columns: [
                 { data: 'name', readOnly: true, width: 250, className: 'htLeft' },

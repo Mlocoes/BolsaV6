@@ -4,6 +4,7 @@
     font-size: 11px;
     color: #e2e8f0;
     background: var(--color-bg);
+    touch-action: none;
 }
 
 .handsontable table.htCore {

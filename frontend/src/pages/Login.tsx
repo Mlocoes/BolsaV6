@@ -60,6 +60,7 @@ export default function Login() {
                          text-dark-text placeholder-dark-muted"
                                 placeholder="Ingresa tu usuario"
                                 disabled={isLoading}
+                                autoComplete="username"
                             />
                         </div>
 
@@ -79,6 +80,7 @@ export default function Login() {
                          text-dark-text placeholder-dark-muted"
                                 placeholder="Ingresa tu contraseña"
                                 disabled={isLoading}
+                                autoComplete="current-password"
                             />
                         </div>
 

@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { HotTable } from '@handsontable/react';
 
-import 'handsontable/dist/handsontable.full.min.css';
+
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
@@ -593,6 +593,7 @@ export default function Import() {
                                 filters={true}
                                 dropdownMenu={['filter_by_condition', 'filter_by_value', 'filter_action_bar']}
                                 readOnly={true}
+                                themeName='ht-theme-main'
                                 className="handsontable-dark"
                             />
                         </div>

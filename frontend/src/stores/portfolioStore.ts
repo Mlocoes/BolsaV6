@@ -11,7 +11,7 @@ interface PortfolioState {
   dashboardStats: DashboardStats | null;
   isRealTime: boolean;
   lastSync: Date | null;
-  
+
   loadPortfolios: () => Promise<void>;
   selectPortfolio: (portfolioId: string) => void;
   setSelectedDate: (date: string | null) => void;
@@ -39,7 +39,7 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
       set({ portfolios: response.data });
       // If no portfolio selected, select the first one
       if (!get().selectedPortfolio && response.data.length > 0) {
-          get().selectPortfolio(response.data[0].id);
+        get().selectPortfolio(response.data[0].id);
       }
     } catch (error) {
       console.error('Error loading portfolios:', error);
@@ -59,14 +59,14 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   setSelectedDate: (date: string | null) => {
     set({ selectedDate: date });
     const { selectedPortfolio, isRealTime, setRealTime } = get();
-    
+
     // Si se selecciona una fecha histórica, desactivar tiempo real
     if (date && isRealTime) {
-        setRealTime(false);
+      setRealTime(false);
     }
-    
+
     if (selectedPortfolio) {
-        get().syncData(false);
+      get().syncData(false);
     }
   },
 
@@ -74,7 +74,7 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
     try {
       const params: any = { online };
       if (date) {
-          params.target_date = date;
+        params.target_date = date;
       }
       const response = await api.get(`/portfolios/${portfolioId}/positions`, { params });
       set({ positions: response.data });
@@ -86,7 +86,7 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   loadDashboardStats: async (portfolioId: string, online: boolean = false) => {
     try {
       const response = await api.get(`/dashboard/${portfolioId}/stats`, {
-          params: { online }
+        params: { online }
       });
       set({ dashboardStats: response.data });
     } catch (error) {
@@ -95,61 +95,61 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   },
 
   syncData: async (online: boolean = false) => {
-      const { selectedPortfolio, selectedDate, loadPositions, loadDashboardStats } = get();
-      if (!selectedPortfolio) return;
+    const { selectedPortfolio, selectedDate, loadPositions, loadDashboardStats } = get();
+    if (!selectedPortfolio) return;
 
-      try {
-          // Si hay una fecha seleccionada, forzar online=false para evitar confusión
-          const effectiveOnline = selectedDate ? false : online;
-          
-          // Run in parallel
-          await Promise.all([
-              loadPositions(selectedPortfolio.id, effectiveOnline, selectedDate),
-              // Dashboard stats for now don't support history as easily, we'll focus on positions
-              loadDashboardStats(selectedPortfolio.id, effectiveOnline)
-          ]);
-          set({ lastSync: new Date() });
-      } catch (error) {
-          console.error("Sync error:", error);
-      }
+    try {
+      // Si hay una fecha seleccionada, forzar online=false para evitar confusión
+      const effectiveOnline = selectedDate ? false : online;
+
+      // Run in parallel
+      await Promise.all([
+        loadPositions(selectedPortfolio.id, effectiveOnline, selectedDate),
+        // Dashboard stats for now don't support history as easily, we'll focus on positions
+        loadDashboardStats(selectedPortfolio.id, effectiveOnline)
+      ]);
+      set({ lastSync: new Date() });
+    } catch (error) {
+      console.error("Sync error:", error);
+    }
   },
 
   setRealTime: (active: boolean) => {
-      const { selectedDate } = get();
-      
-      // No permitir tiempo real si hay una fecha histórica seleccionada
-      if (active && selectedDate) {
-          console.warn('⚠️ No se puede activar tiempo real en una fecha histórica');
-          return;
-      }
+    const { selectedDate } = get();
 
-      if (active) {
-          realTimeSubscribers++;
-          // Solo iniciar si es el primer suscriptor
-          if (realTimeSubscribers === 1) {
-              console.log('🚀 Iniciando actualizaciones en tiempo real');
-              // Actualización inmediata
-              get().syncData(true);
-              
-              // Iniciar intervalo (60s)
-              intervalId = setInterval(() => {
-                  console.log('🔄 Auto-actualizando datos...');
-                  get().syncData(true);
-              }, 60000);
-          }
-          set({ isRealTime: true });
-      } else {
-          realTimeSubscribers--;
-          // Solo detener si no quedan suscriptores
-          if (realTimeSubscribers <= 0) {
-              realTimeSubscribers = 0;
-              console.log('🛑 Deteniendo actualizaciones en tiempo real');
-              if (intervalId) {
-                  clearInterval(intervalId);
-                  intervalId = null;
-              }
-              set({ isRealTime: false });
-          }
+    // No permitir tiempo real si hay una fecha histórica seleccionada
+    if (active && selectedDate) {
+      console.warn('⚠️ No se puede activar tiempo real en una fecha histórica');
+      return;
+    }
+
+    if (active) {
+      realTimeSubscribers++;
+      // Solo iniciar si es el primer suscriptor
+      if (realTimeSubscribers === 1) {
+
+        // Actualización inmediata
+        get().syncData(true);
+
+        // Iniciar intervalo (60s)
+        intervalId = setInterval(() => {
+
+          get().syncData(true);
+        }, 60000);
       }
+      set({ isRealTime: true });
+    } else {
+      realTimeSubscribers--;
+      // Solo detener si no quedan suscriptores
+      if (realTimeSubscribers <= 0) {
+        realTimeSubscribers = 0;
+
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+        set({ isRealTime: false });
+      }
+    }
   }
 }));

@@ -21,7 +21,7 @@ import './styles/index.css';
 
 function App() {
     return (
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <UserProvider>
                 <ToastContainer
                     position="top-right"

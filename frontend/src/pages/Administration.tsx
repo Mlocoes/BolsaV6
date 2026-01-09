@@ -3,7 +3,7 @@
  */
 import { useEffect, useState, useRef, useMemo } from 'react';
 import Handsontable from 'handsontable';
-import 'handsontable/dist/handsontable.full.min.css';
+
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
@@ -81,6 +81,7 @@ export default function Administration() {
             columnSorting: true,
             filters: true,
             dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
+            themeName: 'ht-theme-main',
             className: 'handsontable-dark',
             afterChange: (changes, source) => {
                 if (!changes || source === 'loadData') return;

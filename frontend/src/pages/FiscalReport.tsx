@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Handsontable from 'handsontable';
-import 'handsontable/dist/handsontable.full.min.css';
+
 import api from '../services/api';
 import { getFiscalReport, FiscalReport as FiscalReportType } from '../services/fiscalService';
 import { formatCurrency } from '../utils/formatters';
@@ -136,7 +136,7 @@ const FiscalReport: React.FC = () => {
             columnSorting: true,
             manualColumnResize: true,
             wordWrap: false,
-            rowHeights: 28
+            themeName: 'ht-theme-main'
         });
 
         return () => {

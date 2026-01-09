@@ -274,6 +274,15 @@ export default function Settings() {
                                     </div>
                                     <div className="p-4 space-y-3">
                                         <form onSubmit={handleSaveSecurity} className="space-y-4">
+                                            {/* Hidden username for accessibility/password manager support */}
+                                            <input
+                                                type="text"
+                                                name="username"
+                                                value={user.username}
+                                                autoComplete="username"
+                                                style={{ display: 'none' }}
+                                                readOnly
+                                            />
                                             <div>
                                                 <label className="block text-[9px] uppercase font-bold text-dark-muted mb-1 tracking-widest">Nueva Contraseña</label>
                                                 <input
@@ -282,6 +291,7 @@ export default function Settings() {
                                                     onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
                                                     className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-primary transition-all"
                                                     placeholder="Mínimo 8 caracteres"
+                                                    autoComplete="new-password"
                                                 />
                                             </div>
                                             <div>
@@ -291,6 +301,7 @@ export default function Settings() {
                                                     value={passwords.confirm}
                                                     onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
                                                     className="w-full bg-dark-bg border border-dark-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-primary transition-all"
+                                                    autoComplete="new-password"
                                                 />
                                             </div>
                                             <button

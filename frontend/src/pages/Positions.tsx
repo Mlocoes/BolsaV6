@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import Handsontable from 'handsontable';
-import 'handsontable/dist/handsontable.full.min.css';
+
 import Layout from '../components/Layout';
 import { usePortfolioStore } from '../stores/portfolioStore';
 import { formatCurrency, formatPercent } from '../utils/formatters';
@@ -69,6 +69,7 @@ export default function Positions() {
             licenseKey: 'non-commercial-and-evaluation',
             width: '100%',
             height: '100%',
+            themeName: 'ht-theme-main',
             colHeaders: [
                 'Símbolo',
                 'Nombre',
