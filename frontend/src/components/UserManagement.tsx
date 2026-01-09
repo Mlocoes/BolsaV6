@@ -3,7 +3,7 @@
  */
 import { useEffect, useState, useRef, useMemo } from 'react';
 import Handsontable from 'handsontable';
-import 'handsontable/dist/handsontable.full.min.css';
+
 import { toast } from 'react-toastify';
 import api from '../services/api';
 import { getActionRenderer } from '../utils/handsontableUtils';
@@ -60,6 +60,8 @@ export default function UserManagement() {
         hotInstance.current = new Handsontable(hotTableRef.current, {
             data: tableData,
             licenseKey: 'non-commercial-and-evaluation',
+            themeName: 'ht-theme-main',
+            className: 'handsontable-dark',
             width: '100%',
             height: '100%',
             colHeaders: ['Usuario', 'Email', 'Admin', 'Creado', 'Acciones'],

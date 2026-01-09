@@ -280,7 +280,7 @@ export default function Settings() {
                                                 name="username"
                                                 value={user.username}
                                                 autoComplete="username"
-                                                style={{ display: 'none' }}
+                                                style={{ position: 'absolute', opacity: 0, height: 0, width: 0, padding: 0, margin: 0, pointerEvents: 'none' }}
                                                 readOnly
                                             />
                                             <div>
