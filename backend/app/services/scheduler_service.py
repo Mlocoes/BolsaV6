@@ -36,31 +36,42 @@ class SchedulerService:
             logger.info("🛑 Programador de tareas detenido")
 
     async def sync_all_quotes(self):
-        """Sincroniza las cotizaciones de todos los activos registrados (solo sync_enabled=True)"""
-        logger.info("🔄 Iniciando sincronización automática de cotizaciones...")
+        """Sincroniza las cotizaciones de todos los activos registrados (Cierre Diario)"""
+        logger.info("🔄 Iniciando sincronización automática de cotizaciones (Cierre Diario)...")
         
         async with AsyncSessionLocal() as db:
             try:
                 # Obtener todos los activos registrados
-                result = await db.execute(
-                    select(Asset)
-                )
+                result = await db.execute(select(Asset))
                 assets = result.scalars().all()
                 
-                logger.info(f"📊 Procesando {len(assets)} activos habilitados para actualizar cotizaciones")
+                logger.info(f"📊 Procesando {len(assets)} activos para cierre diario")
+                
+                # Obtener fecha actual en UTC para validación básica
+                from datetime import timezone as dt_timezone
+                now_utc = datetime.now(dt_timezone.utc)
                 
                 for asset in assets:
                     try:
-                        logger.info(f"🔎 Actualizando {asset.symbol}...")
+                        logger.info(f"🔎 Obteniendo cierre para {asset.symbol}...")
                         
-                        # Obtener cotización actual (o del último cierre)
+                        # Obtener cotización de cierre/actual
                         price_data = await yfinance_service.get_current_quote(asset.symbol)
                         
                         if price_data:
-                            # Normalizar fecha a medianoche para la tabla de histórico
-                            quote_date = datetime.combine(price_data["date"].date(), datetime.min.time())
+                            # Normalizar fecha a medianoche UTC
+                            data_date = price_data["date"]
                             
-                            # Verificar si ya existe para hoy
+                            # EVITAR FINES DE SEMANA para persistencia de histórico para activos no-24/7
+                            # (Sábado = 5, Domingo = 6)
+                            from app.models.asset import AssetType
+                            if asset.asset_type != AssetType.CRYPTO and data_date.weekday() >= 5:
+                                logger.info(f"⏭️ Saltando persistencia para {asset.symbol}: El dato es de fin de semana ({data_date.date()})")
+                                continue
+                                
+                            quote_date = datetime.combine(data_date.date(), datetime.min.time()).replace(tzinfo=dt_timezone.utc)
+                            
+                            # Verificar si ya existe exactamente para esa fecha
                             existing = await db.execute(
                                 select(Quote).where(
                                     and_(
@@ -71,35 +82,34 @@ class SchedulerService:
                             )
                             
                             if existing.scalar_one_or_none():
-                                logger.info(f"⏭️ Cotización ya existe para {asset.symbol} en {quote_date.date()}, actualizando...")
-                                # Opcional: Podríamos actualizar el precio si cambió, pero para cierre diario suele bastar
+                                logger.info(f"⏭️ Registro ya existe para {asset.symbol} en {quote_date.date()}")
                                 continue
                                 
-                            # Crear nueva cotización
+                            # Crear nueva cotización con datos OHLCV
                             new_quote = Quote(
                                 asset_id=asset.id,
                                 date=quote_date,
-                                open=price_data["open"],
-                                high=price_data["high"],
-                                low=price_data["low"],
+                                open=price_data.get("open", price_data["close"]),
+                                high=price_data.get("high", price_data["close"]),
+                                low=price_data.get("low", price_data["close"]),
                                 close=price_data["close"],
-                                volume=price_data["volume"],
-                                source="yfinance_auto"
+                                volume=price_data.get("volume", 0),
+                                source="daily_close"
                             )
                             db.add(new_quote)
-                            logger.info(f"✅ Nueva cotización para {asset.symbol}: {price_data['close']}")
+                            logger.info(f"✅ Cierre guardado para {asset.symbol}: {price_data['close']} ({quote_date.date()})")
                         else:
-                            logger.warning(f"⚠️ No se pudo obtener cotización para {asset.symbol}")
+                            logger.warning(f"⚠️ No se pudo obtener cierre para {asset.symbol}")
                             
                     except Exception as e:
                         logger.error(f"❌ Error sincronizando {asset.symbol}: {str(e)}")
                 
                 await db.commit()
-                logger.info("✅ Sincronización automática de cotizaciones completada exitosamente")
+                logger.info("✅ Cierre diario completado exitosamente")
                 
             except Exception as e:
                 await db.rollback()
-                logger.error(f"❌ Error general en la sincronización de cotizaciones: {str(e)}")
+                logger.error(f"❌ Error general en la sincronización de cierre: {str(e)}")
 
     async def reload_jobs(self):
         """Recarga los trabajos del programador basándose en la configuración de la DB"""
@@ -112,26 +122,27 @@ class SchedulerService:
                 h_set = res_h.scalar_one_or_none()
                 m_set = res_m.scalar_one_or_none()
                 
+                # Por defecto 00:00 UTC si no está configurado
                 hour = int(h_set.value) if h_set else 0
                 minute = int(m_set.value) if m_set else 0
                 
-                logger.info(f"⏰ Configurando sincronización diaria para las {hour:02d}:{minute:02d} UTC")
+                logger.info(f"⏰ Configurando sincronización diaria (Cierre) para las {hour:02d}:{minute:02d} UTC")
                 
                 self.scheduler.add_job(
                     self.sync_all_quotes,
                     CronTrigger(hour=hour, minute=minute, timezone='UTC'),
                     id='sync_all_quotes_daily',
-                    name='Sincronización diaria de cotizaciones',
+                    name='Sincronización diaria de cotizaciones (Cierre)',
                     replace_existing=True
                 )
             except Exception as e:
                 logger.error(f"❌ Error recargando trabajos del scheduler: {str(e)}")
-                # Reintento básico por defecto si falla
+                # Reintento básico 00:00 UTC
                 self.scheduler.add_job(
                     self.sync_all_quotes,
                     CronTrigger(hour=0, minute=0, timezone='UTC'),
                     id='sync_all_quotes_daily',
-                    name='Sincronización diaria de cotizaciones',
+                    name='Sincronización diaria de cotizaciones (Fallback 00:00 UTC)',
                     replace_existing=True
                 )
 

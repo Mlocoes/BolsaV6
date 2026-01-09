@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import joinedload
 from typing import List, Optional
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timezone, timedelta
+from app.models.transaction import Transaction
 from decimal import Decimal
 from pydantic import BaseModel
 import pandas as pd
@@ -436,61 +437,99 @@ async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool 
 
 async def _get_asset_quote_coverage(asset_id: str, db: AsyncSession) -> dict:
     """
-    Obtener información sobre la cobertura de cotizaciones de un activo
-    
-    Retorna:
-        - has_quotes: bool - Si tiene al menos una cotización
-        - total_quotes: int - Cantidad total de cotizaciones
-        - first_date: date - Fecha de la primera cotización
-        - last_date: date - Fecha de la última cotización
-        - days_since_last_update: int - Días desde la última actualización
-        - is_complete: bool - Si tiene ≥400 cotizaciones (considerado completo)
-        - needs_update: bool - Si han pasado >7 días sin actualizar
+    Obtener información detallada sobre la cobertura de cotizaciones de un activo
+    identificando huecos reales basados en las transacciones del usuario.
     """
-    result = await db.execute(
-        select(
-            func.count(Quote.id).label("total_quotes"),
-            func.min(Quote.date).label("first_date"),
-            func.max(Quote.date).label("last_date")
-        ).where(Quote.asset_id == asset_id)
+    from app.models.asset import Asset, AssetType
+    from app.models.transaction import Transaction
+    from datetime import date, timedelta, timezone, datetime
+    
+    # 1. Obtener detalles del activo
+    asset_result = await db.execute(select(Asset).where(Asset.id == asset_id))
+    asset = asset_result.scalar_one_or_none()
+    if not asset:
+        return {"has_quotes": False, "is_complete": False}
+
+    # 2. Determinar la fecha de inicio necesaria (primera TRX - 7 días, o 1 año)
+    tx_result = await db.execute(
+        select(func.min(Transaction.transaction_date)).where(Transaction.asset_id == asset_id)
     )
+    first_tx_date = tx_result.scalar()
     
-    row = result.one()
+    today = date.today()
+    if first_tx_date:
+        required_start = first_tx_date.date() - timedelta(days=7)
+    else:
+        required_start = today - timedelta(days=365)
     
-    if row.total_quotes == 0:
-        return {
-            "has_quotes": False,
-            "total_quotes": 0,
-            "first_date": None,
-            "last_date": None,
-            "days_since_last_update": None,
-            "is_complete": False,
-            "needs_update": True
-        }
+    # 3. Obtener todas las cotizaciones existentes en ese rango
+    quotes_result = await db.execute(
+        select(Quote.date).where(
+            and_(
+                Quote.asset_id == asset_id,
+                Quote.date >= datetime.combine(required_start, datetime.min.time()).replace(tzinfo=timezone.utc)
+            )
+        ).order_by(Quote.date.asc())
+    )
+    existing_dates = {row[0].date() for row in quotes_result.all()}
     
-    first_date = row.first_date.date() if row.first_date else None
-    last_date = row.last_date.date() if row.last_date else None
+    # 4. Detectar huecos
+    missing_days = []
+    curr = required_start
+    is_crypto = (asset.asset_type == AssetType.CRYPTO)
     
-    # Calcular días desde última actualización
-    from datetime import date as date_type
-    today = date_type.today()
+    while curr < today:
+        # Si es Crypto, 24/7. Si no, solo L-V.
+        if is_crypto or curr.weekday() < 5:
+            if curr not in existing_dates:
+                missing_days.append(curr)
+        curr += timedelta(days=1)
+    
+    # 5. Calcular métricas finales
+    total_quotes = len(existing_dates)
+    first_date = min(existing_dates) if existing_dates else None
+    last_date = max(existing_dates) if existing_dates else None
     days_since_last_update = (today - last_date).days if last_date else None
     
-    # Considerar completo si tiene ≥300 cotizaciones (aprox 1.2 años de días hábiles)
-    # Plan gratuito de Polygon.io: ~350 cotizaciones máximo (500 días)
-    is_complete = row.total_quotes >= 300
+    # Calcular porcentaje de cobertura sobre días esperados
+    expected_count = total_quotes + len(missing_days)
+    coverage_ratio = total_quotes / expected_count if expected_count > 0 else 0
     
-    # Necesita actualización si han pasado más de 7 días
-    needs_update = days_since_last_update > 7 if days_since_last_update else False
+    # Un activo está completo si:
+    # 1. Tiene más del 95% de los días esperados (permite festivos aislados)
+    # 2. No tiene huecos grandes (bloques de >5 días seguidos faltantes)
+    # 3. El último dato es reciente (< 5 días para permitir fines de semana largos)
+    
+    max_consecutive_missing = 0
+    if missing_days:
+        consecutive = 1
+        for i in range(1, len(missing_days)):
+            if (missing_days[i] - missing_days[i-1]).days <= 3: # Permitir fin de semana en medio
+                consecutive += 1
+            else:
+                max_consecutive_missing = max(max_consecutive_missing, consecutive)
+                consecutive = 1
+        max_consecutive_missing = max(max_consecutive_missing, consecutive)
+
+    has_large_gaps = max_consecutive_missing > 5
+    is_up_to_date = days_since_last_update < 5 if days_since_last_update is not None else False
+    
+    # Si es Crypto, somos más estrictos con el ratio porque cotiza 24/7
+    min_ratio = 0.99 if is_crypto else 0.94
+    is_complete = coverage_ratio >= min_ratio and not has_large_gaps and is_up_to_date
     
     return {
-        "has_quotes": True,
-        "total_quotes": row.total_quotes,
+        "has_quotes": total_quotes > 0,
+        "total_quotes": total_quotes,
         "first_date": first_date,
         "last_date": last_date,
         "days_since_last_update": days_since_last_update,
+        "required_start_date": required_start,
+        "missing_days_count": len(missing_days),
+        "coverage_ratio": round(coverage_ratio, 4),
+        "has_gaps": has_large_gaps or coverage_ratio < min_ratio,
         "is_complete": is_complete,
-        "needs_update": needs_update
+        "needs_update": days_since_last_update > 7 if days_since_last_update is not None else True
     }
 
 
@@ -651,7 +690,7 @@ async def import_bulk_historical(
     # Agregar tarea en background
     background_tasks.add_task(
         _bulk_import_historical,
-        assets=[{"id": str(a.id), "symbol": a.symbol} for a in assets],
+        assets=[{"id": str(a.id), "symbol": a.symbol, "asset_type": a.asset_type} for a in assets],
         force_refresh=request.force_refresh
     )
     
@@ -664,22 +703,27 @@ async def import_bulk_historical(
 
 async def _bulk_import_historical(assets: List[dict], force_refresh: bool = False):
     """
-    Función helper para importación masiva en background
+    Función helper para importación masiva en background con REPARACIÓN DE LAGUNAS.
     
-    Itera sobre cada activo, verifica si necesita importación y ejecuta el fetch.
-    Implementa rate limiting para no sobrecargar las APIs externas.
+    Para cada activo:
+    1. Determina el rango de fechas necesario (desde la primera transacción o hace 2 años).
+    2. Identifica días hábiles faltantes (lagunas).
+    3. Descarga y rellena solo lo necesario.
     """
     import asyncio
+    from datetime import datetime, date, timezone, timedelta
     from app.core.database import AsyncSessionLocal
     from app.services.polygon_service import polygon_service
     from app.services.yfinance_service import yfinance_service
+    from app.models.transaction import Transaction
+    from sqlalchemy import func
     
-    logger.info(f"🚀 Iniciando importación masiva de {len(assets)} activos")
+    logger.info(f"🚀 Iniciando importación y REPARACIÓN de {len(assets)} activos")
     
     async with AsyncSessionLocal() as db:
         processed = 0
-        skipped = 0
-        imported = 0
+        repaired_assets = 0
+        total_quotes_saved = 0
         errors = []
         
         for asset_data in assets:
@@ -687,91 +731,117 @@ async def _bulk_import_historical(assets: List[dict], force_refresh: bool = Fals
             symbol = asset_data["symbol"]
             
             try:
-                # Verificar si necesita importación
-                if not force_refresh:
-                    check = await _check_asset_needs_import(asset_id, db)
-                    
-                    if not check["needs_import"]:
-                        logger.info(f"⏩ Saltando {symbol}: {check['message']}")
-                        skipped += 1
-                        processed += 1
-                        continue
-                    
-                    logger.info(f"📥 Importando {symbol}: {check['message']}")
-                else:
-                    logger.info(f"🔄 Forzando reimportación de {symbol}")
+                # 1. Determinar rango de reparación
+                # Usar la lógica de cobertura centralizada para ser consistentes
+                coverage = await _get_asset_quote_coverage(asset_id, db)
+                start_date = coverage["required_start_date"]
                 
-                # Intentar con Polygon.io primero (hasta 500 días)
-                logger.info(f"📊 Usando Polygon.io para {symbol}")
-                quotes_data = await polygon_service.get_historical_quotes(symbol)
+                logger.info(f"🔎 Analizando {symbol} desde {start_date} hasta hoy (Reparación)")
                 
-                # Si Polygon falla, usar yfinance como fallback
-                if not quotes_data:
-                    logger.warning(f"⚠️ Polygon.io falló para {symbol}, intentando yfinance...")
-                    quotes_data = await yfinance_service.get_historical_quotes(symbol, period="2y")
+                # 2. Obtener cotizaciones existentes para detectar lagunas
+                existing_result = await db.execute(
+                    select(Quote.date).where(
+                        and_(Quote.asset_id == asset_id, Quote.date >= datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc))
+                    )
+                )
+                existing_dates = {r[0].date() for r in existing_result.all()}
                 
-                if not quotes_data:
-                    logger.warning(f"❌ No se pudieron obtener datos para {symbol}")
-                    errors.append(f"{symbol}: Sin datos disponibles")
+                # 3. Identificar días faltantes
+                missing_days = []
+                curr = start_date
+                today = date.today()
+                asset_type = asset_data.get("asset_type")
+                
+                # Importar AssetType para comparación si no está
+                from app.models.asset import AssetType
+                
+                while curr < today:
+                    # Si es Crypto, incluimos fines de semana. Si no, solo L-V.
+                    is_crypto = (asset_type == AssetType.CRYPTO)
+                    if is_crypto or curr.weekday() < 5:
+                        if curr not in existing_dates:
+                            missing_days.append(curr)
+                    curr += timedelta(days=1)
+                
+                if not missing_days and not force_refresh:
+                    logger.info(f"✅ {symbol} no tiene lagunas detectadas. Saltando.")
                     processed += 1
                     continue
                 
-                # Guardar cotizaciones
+                logger.info(f"📥 {symbol} tiene {len(missing_days)} lagunas. Intentando descarga...")
+                
+                # 4. Descarga de datos MULTI-FUENTE
+                # Intento 1: Polygon.io (Más fiable para históricos específicos)
+                quotes_data = await polygon_service.get_historical_quotes(
+                    symbol, 
+                    start_date=start_date,
+                    end_date=today
+                )
+                
+                # Intento 2: Fallback a Yahoo Finance
+                if not quotes_data:
+                    logger.info(f"⚠️ Polygon falló para {symbol}, intentando Yahoo Finance...")
+                    quotes_data = await yfinance_service.get_historical_quotes(
+                        symbol, 
+                        start_date=start_date,
+                        end_date=today
+                    )
+                
+                if not quotes_data:
+                    logger.warning(f"❌ Sin datos disponibles en ningún feed para {symbol}")
+                    errors.append(f"{symbol}: Sin datos en Feeds")
+                    processed += 1
+                    continue
+                
+                # 5. Guardar lo que falte
                 saved_count = 0
                 for quote_data in quotes_data:
-                    quote_date = quote_data["date"]
-                    if isinstance(quote_date, datetime):
-                        quote_date = datetime.combine(quote_date.date(), datetime.min.time())
+                    q_date = quote_data["date"]
+                    # Normalizar a fecha pura para comparación
+                    q_date_only = q_date.date() if isinstance(q_date, datetime) else q_date
                     
-                    # Verificar duplicados
-                    existing = await db.execute(
-                        select(Quote).where(
-                            and_(
-                                Quote.asset_id == asset_id,
-                                Quote.date == quote_date
-                            )
+                    if q_date_only not in existing_dates or force_refresh:
+                        # Asegurar datetime completo para la base de datos en UTC
+                        db_date = datetime.combine(q_date_only, datetime.min.time()).replace(tzinfo=timezone.utc)
+                        
+                        new_quote = Quote(
+                            asset_id=asset_id,
+                            date=db_date,
+                            open=quote_data["open"],
+                            high=quote_data["high"],
+                            low=quote_data["low"],
+                            close=quote_data["close"],
+                            volume=quote_data.get("volume", 0),
+                            source="historical_repair"
                         )
-                    )
-                    
-                    if existing.scalar_one_or_none():
-                        continue
-                    
-                    new_quote = Quote(
-                        asset_id=asset_id,
-                        date=quote_date,
-                        open=quote_data["open"],
-                        high=quote_data["high"],
-                        low=quote_data["low"],
-                        close=quote_data["close"],
-                        volume=quote_data.get("volume", 0),
-                        source="polygon"
-                    )
-                    db.add(new_quote)
-                    saved_count += 1
+                        db.add(new_quote)
+                        saved_count += 1
+                        # Evitar duplicar en el mismo lote si el feed trae repetidos
+                        existing_dates.add(q_date_only) 
                 
                 await db.commit()
-                logger.info(f"✅ {symbol}: {saved_count} cotizaciones nuevas guardadas")
-                imported += 1
+                logger.info(f"✅ {symbol}: Reparado con {saved_count} nuevas cotizaciones")
+                if saved_count > 0:
+                    repaired_assets += 1
+                    total_quotes_saved += saved_count
                 processed += 1
                 
-                # Rate limiting: esperar 12 segundos entre requests (5 req/min de Polygon)
-                if processed < len(assets):
-                    logger.debug(f"⏱️ Esperando 12s (rate limit)...")
-                    await asyncio.sleep(12)
+                # Rate limiting suave para no bloquear el API
+                await asyncio.sleep(1)
                 
             except Exception as e:
-                logger.error(f"❌ Error procesando {symbol}: {str(e)}")
+                logger.error(f"❌ Error reparando {symbol}: {str(e)}")
                 errors.append(f"{symbol}: {str(e)}")
                 await db.rollback()
                 processed += 1
         
         logger.info(f"""
         ═══════════════════════════════════════
-        📊 IMPORTACIÓN MASIVA COMPLETADA
+        📊 REPARACIÓN HISTÓRICA COMPLETADA
         ═══════════════════════════════════════
-        Total procesados: {processed}
-        Importados: {imported}
-        Saltados: {skipped}
+        Activos procesados: {processed}
+        Activos con lagunas reparadas: {repaired_assets}
+        Total cotizaciones añadidas: {total_quotes_saved}
         Errores: {len(errors)}
         ═══════════════════════════════════════
         """)

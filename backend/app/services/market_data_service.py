@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import AsyncSessionLocal
 from app.core.redis_client import redis_client
 from app.models.transaction import Transaction, TransactionType
-from app.models.asset import Asset
+from app.models.asset import Asset, AssetType
 from app.services.yfinance_service import yfinance_service
 
 logger = logging.getLogger(__name__)
@@ -46,36 +46,36 @@ class MarketDataService:
     async def update_market_data(self):
         """
         1. Identifica todos los activos con saldo > 0 en el sistema.
-        2. Obtiene cotizaciones unificadas.
-        3. Actualiza la 'tabla virtual' (Redis).
+        2. Identifica todas las monedas catastradas para conversión.
+        3. Obtiene cotizaciones unificadas.
+        4. Actualiza la 'tabla virtual' (Redis).
         """
         logger.info("🔄 Ejecutando ciclo de actualización de mercado...")
         
         async with AsyncSessionLocal() as db:
-            active_symbols = await self._get_all_active_symbols(db)
+            active_symbols = await self._get_symbols_to_track(db)
             
         if not active_symbols:
-            logger.info("⚠️ No hay activos activos en el sistema.")
+            logger.info("⚠️ No hay activos ni monedas para trackear en el sistema.")
             return
 
-        logger.info(f"📊 Activos a actualizar: {len(active_symbols)} ({', '.join(active_symbols[:5])}...)")
+        logger.info(f"📊 {len(active_symbols)} símbolos a actualizar ({', '.join(active_symbols[:10])}...)")
         
-        # Obtener cotizaciones de Yahoo Finance (u otros proveedores)
+        # Obtener cotizaciones de Yahoo Finance
         quotes = await yfinance_service.fetch_real_time_quotes(active_symbols)
         
         if quotes:
             await self._update_virtual_table(quotes)
             logger.info(f"✅ Tabla virtual actualizada con {len(quotes)} cotizaciones")
 
-    async def _get_all_active_symbols(self, db: AsyncSession) -> list[str]:
+    async def _get_symbols_to_track(self, db: AsyncSession) -> list[str]:
         """
-        Consulta SQL optimizada para obtener símbolos únicos de activos 
-        que tienen un saldo DISTINTO DE CERO en CUALQUIER cartera.
-        (Incluye posiciones cortas/vendidas)
+        Identifica símbolos que deben ser monitorizados 24/7:
+        1. Activos con saldo DISTINTO DE CERO en cualquier cartera.
+        2. Activos catastrados como tipo 'currency' (Monedas para conversión).
         """
-        # Calcular suma de cantidades agrupadas por activo
-        # SUM(CASE WHEN type='BUY' THEN quantity ELSE -quantity END)
-        stmt = select(Asset.symbol).\
+        # Símbolos con posición activa
+        active_pos_stmt = select(Asset.symbol).\
             join(Transaction, Asset.id == Transaction.asset_id).\
             group_by(Asset.id, Asset.symbol).\
             having(
@@ -90,8 +90,17 @@ class MarketDataService:
                 ) > 0.000001
             )
             
-        result = await db.execute(stmt)
-        return result.scalars().all()
+        # Monedas configuradas en el sistema (para conversiones)
+        currencies_stmt = select(Asset.symbol).where(Asset.asset_type == AssetType.CURRENCY)
+        
+        # Combinar resultados
+        res_active = await db.execute(active_pos_stmt)
+        res_curr = await db.execute(currencies_stmt)
+        
+        symbols = set(res_active.scalars().all())
+        symbols.update(res_curr.scalars().all())
+        
+        return list(symbols)
 
     async def _update_virtual_table(self, quotes: dict):
         """

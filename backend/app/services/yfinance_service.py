@@ -6,7 +6,7 @@ import yfinance as yf
 import pandas as pd
 import logging
 import json
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import List, Dict, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -25,6 +25,13 @@ class YFinanceService:
         self.cache = {}  # Cache para precios actuales: {symbol: (price_dict, timestamp)}
         self.cache_ttl = 60  # 1 minuto de caché para evitar saturar la API
         logger.info("✅ YFinance service initialized")
+
+    def _normalize_symbol(self, symbol: str) -> str:
+        """Normaliza el ticker para Yahoo Finance (ej: SOL/USD -> SOL-USD)"""
+        if not symbol: return symbol
+        if "/" in symbol:
+            return symbol.replace("/", "-")
+        return symbol
 
     async def fetch_real_time_quotes(self, symbols: List[str]) -> Dict[str, Optional[Dict]]:
         """
@@ -57,10 +64,12 @@ class YFinanceService:
         Descarga síncrona de datos históricos (ejecutada en thread pool)
         """
         try:
-            logger.info(f"🔄 Obteniendo histórico de yfinance para {symbol}")
+            # Normalizar símbolo para Yahoo (ej: SOL/USD -> SOL-USD)
+            yf_symbol = self._normalize_symbol(symbol)
+            logger.info(f"🔄 Obteniendo histórico de yfinance para {yf_symbol} (original: {symbol})")
             
             # Crear ticker con timeout
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(yf_symbol)
             
             # Descargar datos históricos
             if start_date and end_date:
@@ -81,17 +90,64 @@ class YFinanceService:
             
             logger.info(f"📊 DataFrame shape: {df.shape}, empty: {df.empty}")
             
+            # FALLBACK: Si history() falla o está vacío, intentar descarga manual
             if df.empty:
-                logger.warning(f"⚠️ No hay datos históricos para {symbol}")
+                logger.warning(f"⚠️ yfinance history() fallback para {symbol}. Intentando descarga manual v8...")
+                try:
+                    import requests
+                    # Convertir fechas a timestamps
+                    p1 = int(datetime.combine(start_date or (date.today() - timedelta(days=90)), datetime.min.time()).timestamp())
+                    p2 = int(datetime.combine(end_date or date.today(), datetime.max.time()).timestamp())
+                    
+                    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_symbol}?period1={p1}&period2={p2}&interval=1d"
+                    headers = {'User-Agent': 'Mozilla/5.0'}
+                    resp = requests.get(url, headers=headers, timeout=10)
+                    
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        result = data.get('chart', {}).get('result', [{}])[0]
+                        timestamps = result.get('timestamp', [])
+                        indicators = result.get('indicators', {}).get('quote', [{}])[0]
+                        
+                        if timestamps:
+                            quotes = []
+                            for i in range(len(timestamps)):
+                                try:
+                                    # Validar que tengamos el precio de cierre
+                                    close_val = indicators.get('close', [])[i]
+                                    if close_val is None: continue
+                                    
+                                    q_date = datetime.fromtimestamp(timestamps[i], tz=timezone.utc)
+                                    # Normalizar a medianoche UTC
+                                    q_date = datetime.combine(q_date.date(), datetime.min.time()).replace(tzinfo=timezone.utc)
+                                    
+                                    quotes.append({
+                                        "date": q_date,
+                                        "open": float(indicators.get('open', [close_val])[i] or close_val),
+                                        "high": float(indicators.get('high', [close_val])[i] or close_val),
+                                        "low": float(indicators.get('low', [close_val])[i] or close_val),
+                                        "close": float(close_val),
+                                        "volume": int(indicators.get('volume', [0])[i] or 0)
+                                    })
+                                except: continue
+                            
+                            if quotes:
+                                logger.info(f"✅ {len(quotes)} cotizaciones obtenidas vía manual v8 para {symbol}")
+                                return quotes
+                except Exception as e:
+                    logger.error(f"❌ Fallback manual falló para {symbol}: {str(e)}")
+
+            if df.empty:
+                logger.warning(f"⚠️ No hay datos históricos para {symbol} tras agotar opciones.")
                 return None
             
-            # Convertir DataFrame a lista de diccionarios
+            # Convertir DataFrame a lista de diccionarios (proceder con el DF si no estaba vacío)
             quotes = []
             for index, row in df.iterrows():
                 # index es un Timestamp de pandas, convertir a datetime
                 quote_date = index.to_pydatetime()
-                # Normalizar a medianoche
-                quote_date = datetime.combine(quote_date.date(), datetime.min.time())
+                # Normalizar a medianoche UTC
+                quote_date = datetime.combine(quote_date.date(), datetime.min.time()).replace(tzinfo=timezone.utc)
                 
                 quote = {
                     "date": quote_date,
@@ -103,7 +159,7 @@ class YFinanceService:
                 }
                 quotes.append(quote)
             
-            logger.info(f"✅ {len(quotes)} cotizaciones obtenidas para {symbol} desde yfinance")
+            logger.info(f"✅ {len(quotes)} cotizaciones obtenidas para {symbol} desde yfinance history()")
             return quotes
             
         except Exception as e:
@@ -132,10 +188,10 @@ class YFinanceService:
     
     async def get_current_quote(self, symbol: str) -> Optional[Dict]:
         """
-        Obtener cotización actual usando yfinance con soporte de caché y fallback a Finnhub
+        Obtener cotización actual usando yfinance con soporte de caché
         """
         # Verificar caché
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         if symbol in self.cache:
             cached_data, timestamp = self.cache[symbol]
             if (now - timestamp).total_seconds() < self.cache_ttl:
@@ -143,18 +199,26 @@ class YFinanceService:
                 return cached_data
 
         try:
-            ticker = yf.Ticker(symbol)
+            yf_symbol = self._normalize_symbol(symbol)
+            ticker = yf.Ticker(yf_symbol)
             current_price = None
             
-            # 1. Intentar obtener de fast_info (muy rápido)
+            # Intentar obtener la fecha real del dato
+            data_date = now
+            
+            # 1. Intentar obtener de fast_info
             try:
                 f_info = getattr(ticker, 'fast_info', None)
                 if f_info is not None:
                     current_price = f_info.get('last_price')
+                    # Si hay un timestamp, usarlo
+                    t_ms = f_info.get('last_trade')
+                    if t_ms:
+                        data_date = datetime.fromtimestamp(t_ms / 1000, tz=timezone.utc)
             except:
                 pass
 
-            # 2. Intentar obtener de info (más lento, requiere scrap/api)
+            # 2. Intentar obtener de info
             if current_price is None:
                 try:
                     info = ticker.info
@@ -163,19 +227,13 @@ class YFinanceService:
                 except:
                     pass
 
-            # 3. Fallback a Finnhub ELIMINADO (No funcional)
-            # if current_price is None:
-            #     ... (código eliminado)
-
-            # 4. Scrum/Scrape manual como último recurso (si yfinance falla por errores de tipos)
+            # 4. Scrape manual como último recurso
             if current_price is None:
                 try:
                     import requests
-                    import re
-                    logger.info(f"🕵️ Intentando scraping manual para {symbol}")
-                    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d"
+                    logger.info(f"🕵️ Intentando scraping manual para {yf_symbol} (original: {symbol})")
+                    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_symbol}?interval=1m&range=1d"
                     headers = {'User-Agent': 'Mozilla/5.0'}
-                    # Usar loop.run_in_executor para no bloquear el loop de asyncio si usamos requests
                     loop = asyncio.get_event_loop()
                     def fetch_url():
                         return requests.get(url, headers=headers, timeout=5)
@@ -186,8 +244,8 @@ class YFinanceService:
                         meta = data.get('chart', {}).get('result', [{}])[0].get('meta', {})
                         current_price = meta.get('regularMarketPrice')
                         if current_price:
-                             quote = {
-                                "date": now,
+                            quote = {
+                                "date": data_date,
                                 "open": float(meta.get('chartPreviousClose', current_price)),
                                 "high": float(meta.get('regularMarketDayHigh', current_price)),
                                 "low": float(meta.get('regularMarketDayLow', current_price)),
@@ -195,21 +253,20 @@ class YFinanceService:
                                 "volume": 0,
                                 "source": "yahoo_scrape"
                             }
-                             self.cache[symbol] = (quote, now)
-                             return quote
+                            self.cache[symbol] = (quote, now)
+                            return quote
                 except Exception as scrape_err:
                     logger.error(f"❌ Scraping manual falló para {symbol}: {str(scrape_err)}")
 
-            # 5. Último intento con yfinance history
-            
-            # Si llegamos aquí con un precio de los pasos 1 o 2
+            # 5. Último intento si tenemos precio pero no el resto de OHLCV
             if current_price is not None:
                 try:
                     info = ticker.info or {}
                 except:
                     info = {}
+                    
                 quote = {
-                    "date": now,
+                    "date": data_date,
                     "open": float(current_price),
                     "high": float(info.get('dayHigh', current_price)),
                     "low": float(info.get('dayLow', current_price)),
