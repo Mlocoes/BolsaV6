@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Handsontable from 'handsontable';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useHandsontable } from '../hooks/useHandsontable';
 
 import api from '../services/api';
 import { getFiscalReport, FiscalReport as FiscalReportType } from '../services/fiscalService';
@@ -18,8 +18,6 @@ export const getPortfolios = async (): Promise<Portfolio[]> => {
 };
 
 const FiscalReport: React.FC = () => {
-    const hotTableRef = useRef<HTMLDivElement>(null);
-    const hotInstance = useRef<Handsontable | null>(null);
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -31,121 +29,94 @@ const FiscalReport: React.FC = () => {
         loadPortfolios();
     }, []);
 
-    // Inicializar Handsontable
-    useEffect(() => {
-        if (!hotTableRef.current || !report) return;
-
-        // Extraer todas las transacciones de todos los años
-        const allTransactions = report.years.flatMap(year => year.items);
-
-        if (!allTransactions.length) return;
-
-        if (hotInstance.current) {
-            hotInstance.current.destroy();
-        }
-
-        hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: allTransactions,
-            licenseKey: 'non-commercial-and-evaluation',
-            width: '100%',
-            height: '100%',
-            colHeaders: ['Activo', 'F. Venta', 'Ctd', 'P. Venta', 'F. Adq.', 'P. Adq.', 'Resultado', 'Wash Sale'],
-            columns: [
-                {
-                    data: 'asset_symbol',
-                    readOnly: true,
-                    width: 100,
-                    className: 'htLeft',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
-                        td.textContent = value || '';
-                        td.style.fontWeight = 'bold';
-                        return td;
-                    }
-                },
-                {
-                    data: 'sale_date',
-                    readOnly: true,
-                    width: 100,
-                    className: 'htRight',
-                    renderer: dateRenderer
-                },
-                {
-                    data: 'quantity_sold',
-                    readOnly: true,
-                    width: 90,
-                    className: 'htRight',
-                    renderer: numberRenderer
-                },
-                {
-                    data: 'sale_price',
-                    readOnly: true,
-                    width: 100,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'acquisition_date',
-                    readOnly: true,
-                    width: 100,
-                    className: 'htRight',
-                    renderer: dateRenderer
-                },
-                {
-                    data: 'acquisition_price',
-                    readOnly: true,
-                    width: 100,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'gross_result',
-                    readOnly: true,
-                    width: 120,
-                    className: 'htRight',
-                    renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
-                        currencyRenderer(instance, td, row, col, prop, value, cellProperties);
-                        if (typeof value === 'number') {
-                            td.style.color = value >= 0 ? '#10b981' : '#ef4444';
-                            td.style.fontWeight = 'bold';
-                        }
-                        return td;
-                    }
-                },
-                {
-                    data: 'is_wash_sale',
-                    readOnly: true,
-                    width: 100,
-                    className: 'htCenter',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
-                        td.textContent = value ? 'SÍ' : 'No';
-                        if (value) td.style.color = '#f59e0b';
-                        td.style.textAlign = 'center';
-                        return td;
-                    }
-                }
-            ],
-            rowHeaders: true,
-            stretchH: 'all',
-            autoColumnSize: false,
-            filters: true,
-            dropdownMenu: [
-                'filter_by_condition',
-                'filter_by_value',
-                'filter_action_bar'
-            ],
-            columnSorting: true,
-            manualColumnResize: true,
-            wordWrap: false,
-            themeName: 'ht-theme-main'
-        });
-
-        return () => {
-            if (hotInstance.current) {
-                hotInstance.current.destroy();
-                hotInstance.current = null;
-            }
-        };
+    // Memoized data for the table
+    const tableData = useMemo(() => {
+        if (!report) return [];
+        return report.years.flatMap(year => year.items);
     }, [report]);
+
+    // Use the custom hook for Handsontable
+    const { containerRef } = useHandsontable({
+        data: tableData,
+        colHeaders: ['Activo', 'F. Venta', 'Ctd', 'P. Venta', 'F. Adq.', 'P. Adq.', 'Resultado', 'Wash Sale'],
+        columns: [
+            {
+                data: 'asset_symbol',
+                readOnly: true,
+                width: 100,
+                className: 'htLeft',
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                    td.textContent = value || '';
+                    td.style.fontWeight = 'bold';
+                    return td;
+                }
+            },
+            {
+                data: 'sale_date',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: dateRenderer
+            },
+            {
+                data: 'quantity_sold',
+                readOnly: true,
+                width: 90,
+                className: 'htRight',
+                renderer: numberRenderer
+            },
+            {
+                data: 'sale_price',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'acquisition_date',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: dateRenderer
+            },
+            {
+                data: 'acquisition_price',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'gross_result',
+                readOnly: true,
+                width: 120,
+                className: 'htRight',
+                renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                    currencyRenderer(instance, td, row, col, prop, value, cellProperties);
+                    if (typeof value === 'number') {
+                        td.style.color = value >= 0 ? '#10b981' : '#ef4444';
+                        td.style.fontWeight = 'bold';
+                    }
+                    return td;
+                }
+            },
+            {
+                data: 'is_wash_sale',
+                readOnly: true,
+                width: 100,
+                className: 'htCenter',
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                    td.textContent = value ? 'SÍ' : 'No';
+                    if (value) td.style.color = '#f59e0b';
+                    td.style.textAlign = 'center';
+                    return td;
+                }
+            }
+        ],
+        settings: {
+            autoColumnSize: false,
+        }
+    });
 
     /**
      * Carga la lista de carteras disponibles
@@ -259,7 +230,7 @@ const FiscalReport: React.FC = () => {
                             </div>
 
                             {/* Detailed Table Container - FLEX-1 with INTERNAL SCROLL */}
-                            <div ref={hotTableRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
+                            <div ref={containerRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
                         </>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center bg-dark-surface border border-dark-border rounded-lg min-h-0">

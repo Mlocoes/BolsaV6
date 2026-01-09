@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import Handsontable from 'handsontable';
+import { useHandsontable } from '../hooks/useHandsontable';
 
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
@@ -20,8 +20,7 @@ interface Transaction {
 }
 
 export default function Transactions() {
-    const hotTableRef = useRef<HTMLDivElement>(null);
-    const hotInstance = useRef<Handsontable | null>(null);
+
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [portfolios, setPortfolios] = useState<any[]>([]);
     const [assets, setAssets] = useState<any[]>([]);
@@ -92,147 +91,94 @@ export default function Transactions() {
         filteredTransactionsRef.current = filteredTransactions;
     }, [filteredTransactions]);
 
-    const initializeHandsontable = () => {
-        if (!hotTableRef.current) return;
+    // Use the custom hook for Handsontable
+    const { containerRef } = useHandsontable({
+        data: tableData,
+        columns: [
+            { data: 'date', readOnly: true, width: 120, className: 'htLeft' },
+            {
+                data: 'type',
+                readOnly: true,
+                width: 120,
+                className: 'htLeft',
+                renderer: (_instance: any, td: HTMLTableCellElement, row: number, _col: number, _prop: any, value: any, cellProperties: any) => {
+                    td.textContent = value;
+                    // Access the row data safely using the visual row index mapping to physical index if needed, 
+                    // or better, use source data directly if possible. 
+                    // Handsontable's `getSourceDataAtRow` takes a physical index. 
+                    // `cellProperties.instance` is the hot instance.
 
-        if (hotInstance.current) {
-            hotInstance.current.destroy();
-        }
+                    const hot = cellProperties.instance;
+                    const physicalRow = hot.toPhysicalRow(row);
+                    const source: any = hot.getSourceDataAtRow(physicalRow);
 
-        hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: tableData,
-            licenseKey: 'non-commercial-and-evaluation',
-            width: '100%',
-            height: '100%',
-            themeName: 'ht-theme-main',
-            colHeaders: [
-                'Fecha', 'Tipo', 'Activo', 'Cantidad', 'Precio', 'Comisiones', 'Total', 'Notas', 'Acciones'
-            ],
-            columns: [
-                { data: 'date', readOnly: true, width: 120, className: 'htLeft' },
-                {
-                    data: 'type',
-                    readOnly: true,
-                    width: 120,
-                    className: 'htLeft',
-                    renderer: (instance: any, td: HTMLTableCellElement, row: number, _col: number, _prop: any, value: any) => {
-                        td.textContent = value;
-                        const source = instance.getSourceDataAtRow(instance.toPhysicalRow(row));
-                        const colorMap: Record<string, string> = {
-                            'BUY': '#10b981',
-                            'SELL': '#ef4444',
-                            'DIVIDEND': '#3b82f6',
-                            'SPLIT': '#8b5cf6',
-                            'CORPORATE': '#64748b'
-                        };
-                        td.style.color = colorMap[source?.type_raw] || '#ffffff';
-                        return td;
+                    const colorMap: Record<string, string> = {
+                        'BUY': '#10b981',
+                        'SELL': '#ef4444',
+                        'DIVIDEND': '#3b82f6',
+                        'SPLIT': '#8b5cf6',
+                        'CORPORATE': '#64748b'
+                    };
+
+                    if (source && source.type_raw) {
+                        td.style.color = colorMap[source.type_raw] || '#ffffff';
                     }
-                },
-                { data: 'asset', readOnly: true, width: 120, className: 'htLeft' },
-                { data: 'quantity', readOnly: true, width: 120, className: 'htRight', renderer: numberRenderer },
-                {
-                    data: 'price',
-                    readOnly: true,
-                    width: 120,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'fees',
-                    readOnly: true,
-                    width: 120,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'total',
-                    readOnly: true,
-                    width: 130,
-                    className: 'htRight',
-                    renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
-                        priceRenderer(instance, td, row, col, prop, value, cellProperties);
-                        td.style.fontWeight = 'bold';
-                        return td;
-                    }
-                },
-                { data: 'notes', readOnly: true, width: 200, className: 'htLeft' },
-                {
-                    data: 'id',
-                    readOnly: true,
-                    width: 120,
-                    className: 'htCenter htMiddle',
-                    renderer: getActionRenderer([
-                        { name: 'edit', tooltip: 'Editar' },
-                        { name: 'delete', tooltip: 'Eliminar' }
-                    ])
+                    return td;
                 }
-            ],
-            rowHeaders: false,
-            stretchH: 'all',
-            filters: true,
-            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
-            columnSorting: true,
-            manualColumnResize: true,
-            wordWrap: false,
-            rowHeights: 28
-        });
-    };
-
-    // Dedicated effect for the click event listener
-    useEffect(() => {
-        const tableElement = hotTableRef.current;
-        if (!tableElement) return;
-
-        const handleTableClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            const btn = target.closest('button');
-            if (!btn) return;
-
-            const action = btn.dataset.action;
-            if (!action) return;
-
-            const td = target.closest('td');
-            if (!td) return;
-
-            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
-            if (!coords || coords.row < 0) return;
-
-            const transactionId = hotInstance.current?.getDataAtRowProp(coords.row, 'id');
-            if (!transactionId) return;
-
-            const transaction = filteredTransactionsRef.current.find(t => t.id === transactionId);
-            if (transaction) {
-                if (action === 'edit') {
-                    handleEdit(transaction);
-                } else if (action === 'delete') {
-                    handleDelete(transaction.id);
+            },
+            { data: 'asset', readOnly: true, width: 120, className: 'htLeft' },
+            { data: 'quantity', readOnly: true, width: 120, className: 'htRight', renderer: numberRenderer },
+            {
+                data: 'price',
+                readOnly: true,
+                width: 120,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'fees',
+                readOnly: true,
+                width: 120,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'total',
+                readOnly: true,
+                width: 130,
+                className: 'htRight',
+                renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                    priceRenderer(instance, td, row, col, prop, value, cellProperties);
+                    td.style.fontWeight = 'bold';
+                    return td;
                 }
+            },
+            { data: 'notes', readOnly: true, width: 200, className: 'htLeft' },
+            {
+                data: 'id',
+                readOnly: true,
+                width: 120,
+                className: 'htCenter htMiddle',
+                renderer: getActionRenderer([
+                    { name: 'edit', tooltip: 'Editar' },
+                    { name: 'delete', tooltip: 'Eliminar' }
+                ])
             }
-        };
-
-        tableElement.addEventListener('click', handleTableClick);
-        return () => tableElement.removeEventListener('click', handleTableClick);
-    }, []);
-
-    // Effect for initializing and updating data
-    useEffect(() => {
-        if (!hotInstance.current) {
-            if (assets.length > 0) initializeHandsontable();
-        } else {
-            hotInstance.current.loadData(tableData);
+        ],
+        colHeaders: [
+            'Fecha', 'Tipo', 'Activo', 'Cantidad', 'Precio', 'Comisiones', 'Total', 'Notas', 'Acciones'
+        ],
+        onEdit: (transaction) => {
+            // transaction here is the flattened view model (tableData item)
+            // We need to find the original full Transaction object
+            const original = filteredTransactionsRef.current.find((t: any) => t.id === transaction.id);
+            if (original) handleEdit(original);
+        },
+        onDelete: (id) => handleDelete(id),
+        settings: {
+            rowHeaders: false
         }
-    }, [tableData, assets]);
-
-    // Final cleanup
-    useEffect(() => {
-        return () => {
-            if (hotInstance.current) {
-                hotInstance.current.destroy();
-                hotInstance.current = null;
-            }
-        };
-    }, []);
+    });
 
     useEffect(() => {
         loadPortfolios();
@@ -433,7 +379,7 @@ export default function Transactions() {
 
                     {/* Table Container */}
                     <div className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden">
-                        <div ref={hotTableRef} className="w-full h-full"></div>
+                        <div ref={containerRef} className="w-full h-full"></div>
                     </div>
                 </div>
 

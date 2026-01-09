@@ -1,8 +1,8 @@
 /**
  * Página de Cotizaciones con filtros
  */
-import { useEffect, useState, useRef } from 'react';
-import Handsontable from 'handsontable';
+import { useEffect, useState, useRef, useMemo } from 'react';
+import { useHandsontable } from '../hooks/useHandsontable';
 
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
@@ -19,8 +19,6 @@ interface Quote {
 }
 
 export default function Quotes() {
-    const hotTableRef = useRef<HTMLDivElement>(null);
-    const hotInstance = useRef<Handsontable | null>(null);
     const [quotes, setQuotes] = useState<Quote[]>([]);
     const [assets, setAssets] = useState<any[]>([]);
     const [selectedAsset, setSelectedAsset] = useState('');
@@ -45,24 +43,18 @@ export default function Quotes() {
         return () => clearTimeout(timer);
     }, [selectedAsset, startDate, endDate]);
 
-    // Inicializar Handsontable
-    useEffect(() => {
-        if (!hotTableRef.current) return;
-
-        if (hotInstance.current) {
-            hotInstance.current.destroy();
-        }
-
-        const columns: any[] = [];
-        const headers: string[] = [];
+    // Memoize columns and headers based on selectedAsset
+    const { columns, headers } = useMemo(() => {
+        const cols: any[] = [];
+        const hds: string[] = [];
 
         if (selectedAsset === 'all') {
-            columns.push({ data: 'symbol', readOnly: true, width: 100, className: 'htLeft' });
-            columns.push({ data: 'name', readOnly: true, width: 200, className: 'htLeft' });
-            headers.push('Símbolo', 'Nombre');
+            cols.push({ data: 'symbol', readOnly: true, width: 100, className: 'htLeft' });
+            cols.push({ data: 'name', readOnly: true, width: 200, className: 'htLeft' });
+            hds.push('Símbolo', 'Nombre');
         }
 
-        columns.push(
+        cols.push(
             {
                 data: 'date',
                 readOnly: true,
@@ -147,38 +139,20 @@ export default function Quotes() {
                 }
             }
         );
-        headers.push('Fecha', 'Aper.', 'Máx.', 'Mín.', 'Cierre', 'Vol.');
+        hds.push('Fecha', 'Aper.', 'Máx.', 'Mín.', 'Cierre', 'Vol.');
 
-        hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: quotes,
-            licenseKey: 'non-commercial-and-evaluation',
-            width: '100%',
-            height: '100%',
-            themeName: 'ht-theme-main',
-            colHeaders: headers,
-            columns: columns,
-            rowHeaders: true,
-            stretchH: 'all',
+        return { columns: cols, headers: hds };
+    }, [selectedAsset]);
+
+    // Use the custom hook for Handsontable
+    const { containerRef } = useHandsontable({
+        data: quotes,
+        columns: columns,
+        colHeaders: headers,
+        settings: {
             autoColumnSize: false,
-            filters: true,
-            dropdownMenu: [
-                'filter_by_condition',
-                'filter_by_value',
-                'filter_action_bar'
-            ],
-            columnSorting: true,
-            manualColumnResize: true,
-            wordWrap: false,
-            rowHeights: 28
-        });
-
-        return () => {
-            if (hotInstance.current) {
-                hotInstance.current.destroy();
-                hotInstance.current = null;
-            }
-        };
-    }, [quotes, selectedAsset]);
+        }
+    });
 
     /**
      * Carga el catálogo de activos
@@ -322,7 +296,7 @@ export default function Quotes() {
                         </div>
                     )}
 
-                    <div ref={hotTableRef} className="flex-1 min-h-0 overflow-hidden handsontable-dark"></div>
+                    <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden handsontable-dark"></div>
                 </div>
             </div>
         </Layout>

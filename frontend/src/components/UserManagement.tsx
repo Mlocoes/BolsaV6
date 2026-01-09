@@ -1,8 +1,8 @@
 /**
  * Componente para Gestión de Usuarios (Extraído de Users.tsx)
  */
-import { useEffect, useState, useRef, useMemo } from 'react';
-import Handsontable from 'handsontable';
+import { useEffect, useState, useMemo } from 'react';
+import { useHandsontable } from '../hooks/useHandsontable';
 
 import { toast } from 'react-toastify';
 import api from '../services/api';
@@ -18,8 +18,6 @@ interface User {
 }
 
 export default function UserManagement() {
-    const hotTableRef = useRef<HTMLDivElement>(null);
-    const hotInstance = useRef<Handsontable | null>(null);
     const [users, setUsers] = useState<User[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [editMode, setEditMode] = useState(false);
@@ -44,132 +42,58 @@ export default function UserManagement() {
     // Memoized table data
     const tableData = useMemo(() => users, [users]);
 
-    // Ref to avoid stale closures in event listeners
-    const usersRef = useRef(users);
-    useEffect(() => {
-        usersRef.current = users;
-    }, [users]);
 
-    const initializeHandsontable = () => {
-        if (!hotTableRef.current) return;
 
-        if (hotInstance.current) {
-            hotInstance.current.destroy();
-        }
-
-        hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: tableData,
-            licenseKey: 'non-commercial-and-evaluation',
-            themeName: 'ht-theme-main',
-            className: 'handsontable-dark',
-            width: '100%',
-            height: '100%',
-            colHeaders: ['Usuario', 'Email', 'Admin', 'Creado', 'Acciones'],
-            columns: [
-                { data: 'username', readOnly: true, width: 150, className: 'htLeft' },
-                { data: 'email', readOnly: true, width: 250, className: 'htLeft' },
-                {
-                    data: 'is_admin',
-                    readOnly: true,
-                    width: 100,
-                    className: 'htCenter',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
-                        td.textContent = value ? 'Sí' : 'No';
-                        td.style.textAlign = 'center';
-                        return td;
-                    }
-                },
-                {
-                    data: 'created_at',
-                    readOnly: true,
-                    width: 150,
-                    className: 'htRight',
-                    renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
-                        if (value) {
-                            td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
-                        } else {
-                            td.textContent = '';
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
-                    }
-                },
-                {
-                    data: 'id',
-                    readOnly: true,
-                    width: 120,
-                    className: 'htCenter htMiddle',
-                    renderer: getActionRenderer([
-                        { name: 'edit', tooltip: 'Editar Usuario' },
-                        { name: 'delete', tooltip: 'Eliminar Usuario' }
-                    ])
+    // Use the custom hook for Handsontable
+    const { containerRef } = useHandsontable({
+        data: tableData,
+        colHeaders: ['Usuario', 'Email', 'Admin', 'Creado', 'Acciones'],
+        columns: [
+            { data: 'username', readOnly: true, width: 150, className: 'htLeft' },
+            { data: 'email', readOnly: true, width: 250, className: 'htLeft' },
+            {
+                data: 'is_admin',
+                readOnly: true,
+                width: 100,
+                className: 'htCenter',
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                    td.textContent = value ? 'Sí' : 'No';
+                    td.style.textAlign = 'center';
+                    return td;
                 }
-            ],
-            rowHeaders: true,
-            stretchH: 'all',
-            filters: true,
-            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
-            columnSorting: true,
-            manualColumnResize: true,
-            wordWrap: false,
-            rowHeights: 28
-        });
-    };
-
-    // Dedicated effect for the click event listener
-    useEffect(() => {
-        const tableElement = hotTableRef.current;
-        if (!tableElement) return;
-
-        const handleTableClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            const btn = target.closest('button');
-            if (!btn) return;
-
-            const action = btn.dataset.action;
-            if (!action) return;
-
-            const td = target.closest('td');
-            if (!td) return;
-
-            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
-            if (!coords || coords.row < 0) return;
-
-            const userId = hotInstance.current?.getDataAtRowProp(coords.row, 'id');
-            if (!userId) return;
-
-            const user = usersRef.current.find(u => u.id === userId);
-            if (!user) return;
-
-            if (action === 'edit') {
-                handleEdit(user);
-            } else if (action === 'delete') {
-                handleDelete(userId);
+            },
+            {
+                data: 'created_at',
+                readOnly: true,
+                width: 150,
+                className: 'htRight',
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                    if (value) {
+                        td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
+                    } else {
+                        td.textContent = '';
+                    }
+                    td.style.textAlign = 'right';
+                    return td;
+                }
+            },
+            {
+                data: 'id',
+                readOnly: true,
+                width: 120,
+                className: 'htCenter htMiddle',
+                renderer: getActionRenderer([
+                    { name: 'edit', tooltip: 'Editar Usuario' },
+                    { name: 'delete', tooltip: 'Eliminar Usuario' }
+                ])
             }
-        };
-
-        tableElement.addEventListener('click', handleTableClick);
-        return () => tableElement.removeEventListener('click', handleTableClick);
-    }, []);
-
-    // Effect for initializing and updating data
-    useEffect(() => {
-        if (!hotInstance.current) {
-            initializeHandsontable();
-        } else {
-            hotInstance.current.loadData(tableData);
-        }
-    }, [tableData]);
-
-    // Cleanup
-    useEffect(() => {
-        return () => {
-            if (hotInstance.current) {
-                hotInstance.current.destroy();
-                hotInstance.current = null;
-            }
-        };
-    }, []);
+        ],
+        settings: {
+            className: 'handsontable-dark',
+        },
+        onEdit: (user) => handleEdit(user),
+        onDelete: (id) => handleDelete(id)
+    });
 
     const loadUsers = async () => {
         try {
@@ -334,7 +258,7 @@ export default function UserManagement() {
 
             {/* Table Area */}
             <div className="flex-1 min-h-[400px] border border-dark-border rounded-xl overflow-hidden bg-dark-surface/20">
-                <div ref={hotTableRef} className="handsontable-dark h-full"></div>
+                <div ref={containerRef} className="handsontable-dark h-full"></div>
             </div>
         </div>
     );

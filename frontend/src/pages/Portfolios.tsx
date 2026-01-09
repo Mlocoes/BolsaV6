@@ -1,8 +1,8 @@
 /**
  * Página de Gestión de Carteras
  */
-import { useEffect, useState, useRef, useMemo } from 'react';
-import Handsontable from 'handsontable';
+import { useEffect, useState, useMemo } from 'react';
+import { useHandsontable } from '../hooks/useHandsontable';
 
 import { toast } from 'react-toastify';
 import { getActionRenderer } from '../utils/handsontableUtils';
@@ -13,8 +13,7 @@ import { usePortfolioStore } from '../stores/portfolioStore';
 
 
 export default function Portfolios() {
-    const hotTableRef = useRef<HTMLDivElement>(null);
-    const hotInstance = useRef<Handsontable | null>(null);
+
     const { portfolios, loadPortfolios } = usePortfolioStore();
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({ name: '', description: '' });
@@ -39,112 +38,40 @@ export default function Portfolios() {
     // Memoized table data
     const tableData = useMemo(() => portfolios, [portfolios]);
 
-    // Ref to avoid stale closures in event listeners
-    const portfoliosRef = useRef(portfolios);
-    useEffect(() => {
-        portfoliosRef.current = portfolios;
-    }, [portfolios]);
-
-    const initializeHandsontable = () => {
-        if (!hotTableRef.current) return;
-
-        if (hotInstance.current) {
-            hotInstance.current.destroy();
-        }
-
-        hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: tableData,
-            licenseKey: 'non-commercial-and-evaluation',
-            width: '100%',
-            height: '100%',
-            themeName: 'ht-theme-main',
-            colHeaders: ['Nombre', 'Descripción', 'Creada', 'Acciones'],
-            columns: [
-                { data: 'name', readOnly: true, width: 250, className: 'htLeft' },
-                { data: 'description', readOnly: true, width: 350, className: 'htLeft' },
-                {
-                    data: 'created_at',
-                    readOnly: true,
-                    width: 150,
-                    className: 'htRight',
-                    renderer: (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) => {
-                        if (value) {
-                            td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
-                        } else {
-                            td.textContent = '';
-                        }
-                        td.style.textAlign = 'right';
-                        return td;
+    // Use the custom hook for Handsontable
+    const { containerRef } = useHandsontable({
+        data: tableData,
+        colHeaders: ['Nombre', 'Descripción', 'Creada', 'Acciones'],
+        columns: [
+            { data: 'name', readOnly: true, width: 250, className: 'htLeft' },
+            { data: 'description', readOnly: true, width: 350, className: 'htLeft' },
+            {
+                data: 'created_at',
+                readOnly: true,
+                width: 150,
+                className: 'htRight',
+                renderer: (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) => {
+                    if (value) {
+                        td.textContent = new Date(value).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: '2-digit' });
+                    } else {
+                        td.textContent = '';
                     }
-                },
-                {
-                    data: 'id',
-                    readOnly: true,
-                    width: 70,
-                    className: 'htCenter htMiddle',
-                    renderer: getActionRenderer([
-                        { name: 'delete', tooltip: 'Eliminar Cartera' }
-                    ])
+                    td.style.textAlign = 'right';
+                    return td;
                 }
-            ],
-            rowHeaders: true,
-            stretchH: 'all',
-            filters: true,
-            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
-            columnSorting: true,
-            manualColumnResize: true,
-            wordWrap: false,
-            rowHeights: 28
-        });
-    };
-
-    // Dedicated effect for the click event listener
-    useEffect(() => {
-        const tableElement = hotTableRef.current;
-        if (!tableElement) return;
-
-        const handleTableClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            const btn = target.closest('button');
-            if (!btn) return;
-
-            const action = btn.dataset.action;
-            if (action !== 'delete') return;
-
-            const td = target.closest('td');
-            if (!td) return;
-
-            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
-            if (!coords || coords.row < 0) return;
-
-            const id = hotInstance.current?.getDataAtRowProp(coords.row, 'id');
-            if (id) {
-                handleDelete(id);
+            },
+            {
+                data: 'id',
+                readOnly: true,
+                width: 70,
+                className: 'htCenter htMiddle',
+                renderer: getActionRenderer([
+                    { name: 'delete', tooltip: 'Eliminar Cartera' }
+                ])
             }
-        };
-
-        tableElement.addEventListener('click', handleTableClick);
-        return () => tableElement.removeEventListener('click', handleTableClick);
-    }, []);
-
-    // Effect for initializing and updating data
-    useEffect(() => {
-        if (!hotInstance.current) {
-            initializeHandsontable();
-        } else {
-            hotInstance.current.loadData(tableData);
-        }
-    }, [tableData]);
-
-    // Cleanup
-    useEffect(() => {
-        return () => {
-            if (hotInstance.current) {
-                hotInstance.current.destroy();
-                hotInstance.current = null;
-            }
-        };
-    }, []);
+        ],
+        onDelete: (id) => handleDelete(id)
+    });
 
     /**
      * Procesa el envío del formulario de nueva cartera
@@ -263,7 +190,7 @@ export default function Portfolios() {
                     </div>
 
                     {/* Table Container */}
-                    <div ref={hotTableRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
+                    <div ref={containerRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
                 </div>
             </div>
         </Layout>

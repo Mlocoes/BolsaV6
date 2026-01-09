@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import Handsontable from 'handsontable';
+import { useEffect } from 'react';
+import { useHandsontable } from '../hooks/useHandsontable';
 
 import Layout from '../components/Layout';
 import { usePortfolioStore } from '../stores/portfolioStore';
@@ -10,8 +10,7 @@ import { priceRenderer, numberRenderer, percentRenderer } from '../utils/handson
  * Página de Posiciones Actuales
  */
 export default function Positions() {
-    const hotTableRef = useRef<HTMLDivElement>(null);
-    const hotInstance = useRef<Handsontable | null>(null);
+
     const {
         portfolios,
         selectedPortfolio,
@@ -56,134 +55,105 @@ export default function Positions() {
         return () => setRealTime(false);
     }, [selectedDate]);
 
-    // Inicializar Handsontable
-    useEffect(() => {
-        if (!hotTableRef.current || !selectedPortfolio || positions.length === 0) return;
-
-        if (hotInstance.current) {
-            hotInstance.current.destroy();
-        }
-
-        hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: positions,
-            licenseKey: 'non-commercial-and-evaluation',
-            width: '100%',
-            height: '100%',
-            themeName: 'ht-theme-main',
-            colHeaders: [
-                'Símbolo',
-                'Nombre',
-                'Cantidad',
-                'P. Compra',
-                'P. Anterior',
-                'P. Actual',
-                '% Día',
-                'Res. Día',
-                'Costo Base',
-                'Valor Actual',
-                '% Total',
-                'Resultado Total'
-            ],
-            columns: [
-                { data: 'symbol', readOnly: true, width: 90, className: 'htLeft' },
-                { data: 'name', readOnly: true, width: 180, className: 'htLeft' },
-                {
-                    data: 'quantity',
-                    readOnly: true,
-                    width: 100,
-                    className: 'htRight',
-                    renderer: numberRenderer
-                },
-                {
-                    data: 'avg_price',
-                    readOnly: true,
-                    width: 110,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'previous_close',
-                    readOnly: true,
-                    width: 110,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'current_price',
-                    readOnly: true,
-                    width: 110,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'day_change_percent',
-                    readOnly: true,
-                    width: 90,
-                    className: 'htRight',
-                    renderer: percentRenderer
-                },
-                {
-                    data: 'day_result',
-                    readOnly: true,
-                    width: 110,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'cost_basis',
-                    readOnly: true,
-                    width: 120,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'current_value',
-                    readOnly: true,
-                    width: 120,
-                    className: 'htRight',
-                    renderer: priceRenderer
-                },
-                {
-                    data: 'profit_loss_percent',
-                    readOnly: true,
-                    width: 100,
-                    className: 'htRight',
-                    renderer: percentRenderer
-                },
-                {
-                    data: 'profit_loss',
-                    readOnly: true,
-                    width: 130,
-                    className: 'htRight',
-                    renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
-                        priceRenderer(instance, td, row, col, prop, value, cellProperties);
-                        td.style.fontWeight = 'bold';
-                        return td;
-                    }
+    // Use the custom hook for Handsontable
+    const { containerRef } = useHandsontable({
+        data: positions,
+        colHeaders: [
+            'Símbolo',
+            'Nombre',
+            'Cantidad',
+            'P. Compra',
+            'P. Anterior',
+            'P. Actual',
+            '% Día',
+            'Res. Día',
+            'Costo Base',
+            'Valor Actual',
+            '% Total',
+            'Resultado Total'
+        ],
+        columns: [
+            { data: 'symbol', readOnly: true, width: 90, className: 'htLeft' },
+            { data: 'name', readOnly: true, width: 180, className: 'htLeft' },
+            {
+                data: 'quantity',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: numberRenderer
+            },
+            {
+                data: 'avg_price',
+                readOnly: true,
+                width: 110,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'previous_close',
+                readOnly: true,
+                width: 110,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'current_price',
+                readOnly: true,
+                width: 110,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'day_change_percent',
+                readOnly: true,
+                width: 90,
+                className: 'htRight',
+                renderer: percentRenderer
+            },
+            {
+                data: 'day_result',
+                readOnly: true,
+                width: 110,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'cost_basis',
+                readOnly: true,
+                width: 120,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'current_value',
+                readOnly: true,
+                width: 120,
+                className: 'htRight',
+                renderer: priceRenderer
+            },
+            {
+                data: 'profit_loss_percent',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: percentRenderer
+            },
+            {
+                data: 'profit_loss',
+                readOnly: true,
+                width: 130,
+                className: 'htRight',
+                renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                    priceRenderer(instance, td, row, col, prop, value, cellProperties);
+                    td.style.fontWeight = 'bold';
+                    return td;
                 }
-            ],
-            rowHeaders: true,
-            stretchH: 'all',
-            autoColumnSize: false,
-            filters: true,
-            dropdownMenu: [
-                'filter_by_condition',
-                'filter_by_value',
-                'filter_action_bar'
-            ],
-            columnSorting: true,
-            manualColumnResize: true,
-            wordWrap: false,
-            rowHeights: 28
-        });
-
-        return () => {
-            if (hotInstance.current) {
-                hotInstance.current.destroy();
-                hotInstance.current = null;
             }
-        };
-    }, [positions, selectedPortfolio]);
+        ],
+        settings: {
+            autoColumnSize: false
+        }
+    });
 
     // Refresco automático de precios online
     // Eliminado: Ahora gestionado por usePortfolioStore
@@ -263,7 +233,7 @@ export default function Positions() {
                             </div>
 
                             {/* Table Container */}
-                            <div ref={hotTableRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
+                            <div ref={containerRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
                         </>
                     ) : (
                         <div className="text-center py-20 text-dark-muted flex-1 flex items-center justify-center bg-dark-surface border border-dark-border rounded-lg">

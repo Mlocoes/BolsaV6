@@ -1,8 +1,8 @@
 /**
  * Página de Administración - Gestión de Mercados
  */
-import { useEffect, useState, useRef, useMemo } from 'react';
-import Handsontable from 'handsontable';
+import { useEffect, useState, useMemo } from 'react';
+import { useHandsontable } from '../hooks/useHandsontable';
 
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
@@ -17,8 +17,7 @@ interface Market {
 }
 
 export default function Administration() {
-    const hotTableRef = useRef<HTMLDivElement>(null);
-    const hotInstance = useRef<Handsontable | null>(null);
+
     const [markets, setMarkets] = useState<Market[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [editingMarket, setEditingMarket] = useState<Market | null>(null);
@@ -51,103 +50,34 @@ export default function Administration() {
         }
     ], []);
 
-    // Ref to avoid stale closures in event listeners
-    const marketsRef = useRef(markets);
-    useEffect(() => {
-        marketsRef.current = markets;
-    }, [markets]);
-
-    /**
-     * Inicializa la instancia de Handsontable
-     */
-    const initializeHandsontable = () => {
-        if (!hotTableRef.current) return;
-
-        if (hotInstance.current) {
-            hotInstance.current.destroy();
-        }
-
-        hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: markets,
-            columns: columns,
-            colHeaders: columns.map(c => c.title),
-            rowHeaders: true,
-            height: '100%',
-            width: '100%',
-            stretchH: 'all',
-            autoWrapRow: true,
-            autoWrapCol: true,
-            licenseKey: 'non-commercial-and-evaluation',
-            columnSorting: true,
-            filters: true,
-            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
-            themeName: 'ht-theme-main',
-            className: 'handsontable-dark',
+    // Use the custom hook for Handsontable
+    const { containerRef, hotInstance } = useHandsontable({
+        data: markets,
+        columns: columns,
+        colHeaders: columns.map(c => c.title),
+        onEdit: (market) => handleEdit(market),
+        onDelete: (id) => handleDelete(id),
+        settings: {
             afterChange: (changes, source) => {
                 if (!changes || source === 'loadData') return;
 
                 changes.forEach(([row, _prop, oldValue, newValue]) => {
                     if (oldValue !== newValue) {
-                        const rowData = hotInstance.current?.getSourceDataAtRow(row) as Market;
-                        if (rowData) handleCellValueChanged(rowData);
+                        // Warning: hotInstance.current might be null if accessed immediately inside callback?
+                        // But it should be initialized.
+                        // We need to map visual row to physical if sorting is enabled
+                        // But here row is passed from afterChange which usually is visual index
+                        const instance = hotInstance.current;
+                        if (instance) {
+                            const physicalRow = instance.toPhysicalRow(row);
+                            const rowData = instance.getSourceDataAtRow(physicalRow) as Market;
+                            if (rowData) handleCellValueChanged(rowData);
+                        }
                     }
                 });
             }
-        });
-    };
-
-    // Dedicated effect for the click event listener
-    useEffect(() => {
-        const tableElement = hotTableRef.current;
-        if (!tableElement) return;
-
-        const handleTableClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            const btn = target.closest('button');
-            if (!btn) return;
-
-            const action = btn.dataset.action;
-            if (!action) return;
-
-            const td = target.closest('td');
-            if (!td) return;
-
-            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
-            if (!coords || coords.row < 0) return;
-
-            const rowData = hotInstance.current?.getSourceDataAtRow(coords.row) as Market;
-            if (rowData) {
-                if (action === 'edit') handleEdit(rowData);
-                else if (action === 'delete') handleDelete(rowData.id);
-            }
-        };
-
-        tableElement.addEventListener('click', handleTableClick);
-        return () => tableElement.removeEventListener('click', handleTableClick);
-    }, []);
-
-    /**
-     * Actualiza los datos de la tabla cuando cambian los mercados
-     */
-    useEffect(() => {
-        if (!hotInstance.current) {
-            initializeHandsontable();
-        } else {
-            hotInstance.current.loadData(markets);
         }
-    }, [markets]);
-
-    /**
-     * Limpieza al desmontar
-     */
-    useEffect(() => {
-        return () => {
-            if (hotInstance.current) {
-                hotInstance.current.destroy();
-                hotInstance.current = null;
-            }
-        };
-    }, []);
+    });
 
     useEffect(() => {
         loadMarkets();
@@ -293,7 +223,7 @@ export default function Administration() {
 
                     {/* Tabla Handsontable */}
                     <div className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden">
-                        <div ref={hotTableRef} className="w-full h-full"></div>
+                        <div ref={containerRef} className="w-full h-full"></div>
                     </div>
 
                     {/* Nota informativa */}

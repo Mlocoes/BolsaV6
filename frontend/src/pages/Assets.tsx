@@ -1,8 +1,8 @@
 /**
  * Página de Catálogo de Activos
  */
-import { useEffect, useState, useRef, useMemo } from 'react';
-import Handsontable from 'handsontable';
+import { useEffect, useState, useMemo } from 'react';
+import { useHandsontable } from '../hooks/useHandsontable';
 
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
@@ -19,8 +19,6 @@ interface Asset {
 }
 
 export default function Assets() {
-    const hotTableRef = useRef<HTMLDivElement>(null);
-    const hotInstance = useRef<Handsontable | null>(null);
     const [assets, setAssets] = useState<Asset[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
@@ -35,11 +33,7 @@ export default function Assets() {
     // Memoized table data
     const tableData = useMemo(() => assets, [assets]);
 
-    // Ref to avoid stale closures in event listeners
-    const assetsRef = useRef(assets);
-    useEffect(() => {
-        assetsRef.current = assets;
-    }, [assets]);
+
 
     /**
      * Calcular estadísticas de los activos
@@ -50,105 +44,38 @@ export default function Assets() {
         currencies: new Set(assets.map(a => a.currency)).size
     };
 
-    const initializeHandsontable = () => {
-        if (!hotTableRef.current) return;
-
-        if (hotInstance.current) {
-            hotInstance.current.destroy();
-        }
-
-        hotInstance.current = new Handsontable(hotTableRef.current, {
-            data: tableData,
-            licenseKey: 'non-commercial-and-evaluation',
-            width: '100%',
-            height: '100%',
-            themeName: 'ht-theme-main',
-            colHeaders: ['Símbolo', 'Nombre', 'Tipo', 'Moneda', 'Mercado', 'Acciones'],
-            columns: [
-                { data: 'symbol', readOnly: true, width: 100, className: 'htLeft' },
-                { data: 'name', readOnly: true, width: 250, className: 'htLeft' },
-                { data: 'asset_type', readOnly: true, width: 100, className: 'htLeft' },
-                { data: 'currency', readOnly: true, width: 80, className: 'htCenter' },
-                { data: 'market', readOnly: true, width: 120, className: 'htLeft' },
-                {
-                    data: 'id',
-                    readOnly: true,
-                    width: 150,
-                    className: 'htCenter htMiddle',
-                    renderer: getActionRenderer([
-                        { name: 'edit', tooltip: 'Editar' },
-                        { name: 'custom', label: 'fetch', icon: '📥', tooltip: 'Importar Cotizaciones' },
-                        { name: 'delete', tooltip: 'Eliminar' }
-                    ])
-                }
-            ],
-            rowHeaders: true,
-            stretchH: 'all',
-            filters: true,
-            dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
-            columnSorting: true,
-            manualColumnResize: true,
-            wordWrap: false,
-            rowHeights: 28
-        });
-    };
-
-    // Dedicated effect for the click event listener
-    useEffect(() => {
-        const tableElement = hotTableRef.current;
-        if (!tableElement) return;
-
-        const handleTableClick = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            const btn = target.closest('button');
-            if (!btn) return;
-
-            const action = btn.dataset.action;
-            if (!action) return;
-
-            const td = target.closest('td');
-            if (!td) return;
-
-            const coords = hotInstance.current?.getCoords(td as HTMLTableCellElement);
-            if (!coords || coords.row < 0) return;
-
-            const assetId = hotInstance.current?.getDataAtRowProp(coords.row, 'id');
-            if (!assetId) return;
-
-            const asset = assetsRef.current.find(a => a.id === assetId);
-            if (!asset) return;
-
-            if (action === 'edit') {
-                handleEdit(asset);
-            } else if (action === 'delete') {
-                handleDelete(asset.id);
-            } else if (action === 'custom') {
+    // Use the custom hook for Handsontable
+    const { containerRef } = useHandsontable({
+        data: tableData,
+        colHeaders: ['Símbolo', 'Nombre', 'Tipo', 'Moneda', 'Mercado', 'Acciones'],
+        columns: [
+            { data: 'symbol', readOnly: true, width: 100, className: 'htLeft' },
+            { data: 'name', readOnly: true, width: 250, className: 'htLeft' },
+            { data: 'asset_type', readOnly: true, width: 100, className: 'htLeft' },
+            { data: 'currency', readOnly: true, width: 80, className: 'htCenter' },
+            { data: 'market', readOnly: true, width: 120, className: 'htLeft' },
+            {
+                data: 'id',
+                readOnly: true,
+                width: 150,
+                className: 'htCenter htMiddle',
+                renderer: getActionRenderer([
+                    { name: 'edit', tooltip: 'Editar' },
+                    { name: 'custom', label: 'fetch', icon: '📥', tooltip: 'Importar Cotizaciones' },
+                    { name: 'delete', tooltip: 'Eliminar' }
+                ])
+            }
+        ],
+        onEdit: (asset) => handleEdit(asset),
+        onDelete: (id) => handleDelete(id),
+        onAction: (action, asset) => {
+            if (action === 'custom') {
                 handleFetchQuotes(asset);
             }
-        };
-
-        tableElement.addEventListener('click', handleTableClick);
-        return () => tableElement.removeEventListener('click', handleTableClick);
-    }, []);
-
-    // Effect for initializing and updating data
-    useEffect(() => {
-        if (!hotInstance.current) {
-            if (assets.length > 0) initializeHandsontable();
-        } else {
-            hotInstance.current.loadData(tableData);
         }
-    }, [tableData]);
+    });
 
-    // Final cleanup
-    useEffect(() => {
-        return () => {
-            if (hotInstance.current) {
-                hotInstance.current.destroy();
-                hotInstance.current = null;
-            }
-        };
-    }, []);
+
 
     useEffect(() => {
         loadAssets();
@@ -366,7 +293,7 @@ export default function Assets() {
                     </div>
 
                     {/* Table Container */}
-                    <div ref={hotTableRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
+                    <div ref={containerRef} className="rounded-lg border border-dark-border flex-1 min-h-[300px] overflow-hidden handsontable-dark"></div>
                 </div>
             </div>
         </Layout>
