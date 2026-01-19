@@ -65,4 +65,4 @@ class QuoteProviderService:
         # Para real-time, Yahoo Finance suele ser suficiente y gratuito
         return await yfinance_service.get_current_quote(symbol)
 
-quote_provider = QuoteProviderService()
+quote_provider_service = QuoteProviderService()
