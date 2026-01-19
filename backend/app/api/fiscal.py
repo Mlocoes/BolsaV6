@@ -68,7 +68,9 @@ async def get_fiscal_report(
                 asset_currency=asset_currency,
                 quantity=t.quantity,
                 price=t.price,
-                fees=t.fees or 0
+                fees=t.fees or 0,
+                original_price=t.price, # Guardar valor original antes de conversión
+                original_fees=t.fees or 0
             )
             fiscal_ops.append(fiscal_op)
 

@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 import Handsontable from 'handsontable';
+import { formatDate } from '../utils/formatters';
 
 interface UseHandsontableProps {
     data: any[];
@@ -66,6 +67,87 @@ export const useHandsontable = ({
                     className: 'handsontable-custom', 
                     themeName: 'ht-theme-main', // Suppress deprecated warning for v17+
                     rowHeights: 28,
+
+                    // Custom Copy/Paste behavior to respect user locale (Spanish)
+                    beforeCopy: function(data: any[][], coords: any[]) {
+                        // Use instance from ref or 'this' if bound correctly, but ref is safer in arrow/closure
+                        const hot = hotInstanceRef.current;
+                        if (!hot || !data || !coords || coords.length === 0) return;
+                        
+                        // Handle first selection range
+                        const range = coords[0];
+                        // Normalize range coordinates (handle generic objects or Range objects)
+                        const startRow = (range.startRow !== undefined) ? range.startRow : (range.from ? range.from.row : 0);
+                        const endRow = (range.endRow !== undefined) ? range.endRow : (range.to ? range.to.row : 0);
+                        const startCol = (range.startCol !== undefined) ? range.startCol : (range.from ? range.from.col : 0);
+                        const endCol = (range.endCol !== undefined) ? range.endCol : (range.to ? range.to.col : 0);
+
+                        const minRow = Math.min(startRow, endRow);
+                        const minCol = Math.min(startCol, endCol);
+
+                        for (let i = 0; i < data.length; i++) {
+                            for (let j = 0; j < data[i].length; j++) {
+                                // Safety check for data array dimensions
+                                if (i >= data.length || j >= data[i].length) continue;
+
+                                const row = minRow + i;
+                                const col = minCol + j;
+                                
+                                const meta = hot.getCellMeta(row, col);
+                                const rawValue = hot.getDataAtCell(row, col);
+                                const prop = String(meta.prop || '');
+
+                                if (rawValue === null || rawValue === undefined) {
+                                    data[i][j] = '';
+                                    continue;
+                                }
+
+                                // Apply formatting logic based on property name or value type
+                                const lowerProp = prop.toLowerCase();
+
+                                // 1. Dates
+                                if (lowerProp.includes('date') || lowerProp.includes('fecha') || (typeof rawValue === 'string' && /^\d{4}-\d{2}-\d{2}/.test(rawValue))) {
+                                    data[i][j] = formatDate(rawValue);
+                                } 
+                                // 2. Integer Fields (ID, Year, Days) - Pass through string
+                                else if (lowerProp.includes('year') || lowerProp.includes('id') || prop === 'days_held') {
+                                    data[i][j] = String(rawValue);
+                                }
+                                // 3. Exchange Rates (6 decimals) - High Priority check before generic number
+                                else if (lowerProp.includes('rate') || lowerProp.includes('tasa') || lowerProp.includes('exchange')) {
+                                     const num = Number(rawValue);
+                                     if (!isNaN(num)) {
+                                         data[i][j] = num.toFixed(6).replace('.', ',');
+                                     } else {
+                                         data[i][j] = String(rawValue);
+                                     }
+                                }
+                                // 4. Quantities (0-8 decimals - preserve raw precision but force comma)
+                                else if (lowerProp.includes('quantity') || lowerProp.includes('shares') || lowerProp.includes('ctd')) {
+                                    data[i][j] = String(rawValue).replace('.', ',');
+                                }
+                                // 5. Generic Numbers (Prices, Values, etc.) -> Force 2 decimals
+                                else if (typeof rawValue === 'number') {
+                                     const fixed = rawValue.toFixed(2);
+                                     data[i][j] = fixed.replace('.', ',');
+                                }
+                                // 6. Catch-all for numeric strings meant to be prices
+                                else if (!isNaN(Number(rawValue)) && rawValue !== '' && rawValue !== null) {
+                                     const num = Number(rawValue);
+                                     // Default to 2 decimals for currency-like strings
+                                     const fixed = num.toFixed(2);
+                                     data[i][j] = fixed.replace('.', ',');
+                                }
+                                // 3. Catch-all for numeric strings that might have slipped through
+                                else if (!isNaN(Number(rawValue)) && rawValue !== '' && rawValue !== null && rawValue !== undefined) {
+                                     const num = Number(rawValue);
+                                     // Assume currency/price if uncertain
+                                      const fixed = num.toFixed(2);
+                                      data[i][j] = fixed.replace('.', ',');
+                                }
+                            }
+                        }
+                    }
                 };
 
                 const mergedSettings = { ...defaultSettings, ...settings };

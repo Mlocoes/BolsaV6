@@ -23,6 +23,7 @@ class FiscalService:
     ) -> FiscalReport:
         # Pre-procesamiento: Conversión de divisas si es necesario
         if db:
+            print(f"DEBUG: Starting currency conversion. Target: {target_currency}")
             for op in operations:
                 if op.asset_currency and op.asset_currency != target_currency:
                     # Convertir a moneda objetivo usando fecha de operación
@@ -33,7 +34,16 @@ class FiscalService:
                             op.date.date(), 
                             db
                         )
+                        # DEBUG
+                        # print(f"DEBUG: Converting {op.asset_symbol} {op.date.date()} USD->EUR Rate: {rate}")
+                        
                         if rate:
+                            # Guardamos los originales si aún no se han rellenado en la creación
+                            # Aunque ya lo hicimos en el API, nos aseguramos aquí
+                            if op.original_price is None:
+                                op.original_price = op.price
+                                op.original_fees = op.fees
+
                             op.price = op.price * Decimal(str(rate))
                             op.fees = op.fees * Decimal(str(rate))
                             # op.asset_currency = target_currency # No cambiamos la etiqueta para mantener rastro, pero los valores ya están convertidos
@@ -92,28 +102,79 @@ class FiscalService:
             buy_consumption_map[buy_id] = buy_consumption_map.get(buy_id, Decimal(0)) + matched_qty
             
             # Calcular valores proporcionales
-            # ... (cálculo igual al anterior) ...
-            buy_fees_part = current_lot.op.fees * (matched_qty / current_lot.op.quantity)
-            buy_value = (current_lot.op.price * matched_qty) + buy_fees_part
             
+            # --- LOGICA CORREGIDA SEGÚN PETICION USUARIO ---
+            # Calcular Tasa de Cambio implícita en la venta
+            # Forzamos cálculo via rate implícito para alinear con el método bancario (P&L en Divisa Orig * Tasa Venta)
+            sale_conversion_rate = Decimal(1)
+            sell_original_price = op.original_price if op.original_price is not None else op.price
+            
+            # Evitar división por cero
+            if sell_original_price and sell_original_price != 0:
+                 sale_conversion_rate = op.price / sell_original_price
+
+            # Calcular valores originales PRIMERO
+            buy_original_price = current_lot.op.original_price if current_lot.op.original_price is not None else current_lot.op.price
+            buy_original_fees_part = (current_lot.op.original_fees if current_lot.op.original_fees is not None else current_lot.op.fees) * (matched_qty / current_lot.op.quantity)
+            buy_original_value = (buy_original_price * matched_qty) + buy_original_fees_part
+
+            sell_original_fees_part = (op.original_fees if op.original_fees is not None else op.fees) * (matched_qty / op.quantity)
+            sell_original_value = (sell_original_price * matched_qty) - sell_original_fees_part
+
+            # Recalcular valores en Moneda Objetivo (EUR) usando TASA DE VENTA para TODO
+            
+            # Venta (ya convertida correctamente con tasa de venta en pre-proceso)
             sell_fees_part = op.fees * (matched_qty / op.quantity)
             sell_value = (op.price * matched_qty) - sell_fees_part
-            
+
+            # Compra (VALORES HISTÓRICOS REALES - MODIFICADO A ORIGINALES POR SOLICITUD)
+            # Volvemos a usar los valores originales para los campos principales
+            acquisition_price_final = buy_original_price
+            acquisition_fees_final = buy_original_fees_part
+            acquisition_value_final = buy_original_value
+
+            # Venta (VALORES ORIGINALES POR SOLICITUD)
+            sale_price_final = sell_original_price
+            sale_fees_final = sell_original_fees_part
+            sale_value_final = sell_original_value
+
+            # RESULTADO: Ajustado a Tasa de Venta (Petición Usuario)
+            # Gross Result = (P&L Original) * Tasa Venta
+            gross_result_adjusted = (sell_original_value - buy_original_value) * sale_conversion_rate
+
             # Crear item de resultado
             item = FiscalResultItem(
                 asset_symbol=op.asset_symbol,
+                asset_currency=op.asset_currency,
                 quantity_sold=matched_qty,
                 sale_date=op.date,
-                sale_price=op.price,
-                sale_fees=sell_fees_part,
-                sale_value=sell_value,
                 
+                # CAMPOS PRINCIPALES EN ORIGINAL (USD)
+                sale_price=sale_price_final,
+                sale_fees=sale_fees_final,
+                sale_value=sale_value_final,
+                
+                sale_price_original=sell_original_price,
+                sale_fees_original=sell_original_fees_part,
+                sale_value_original=sell_original_value,
+
                 acquisition_date=current_lot.op.date,
-                acquisition_price=current_lot.op.price,
-                acquisition_fees=buy_fees_part,
-                acquisition_value=buy_value,
                 
-                gross_result=sell_value - buy_value,
+                # CAMPOS PRINCIPALES EN ORIGINAL (USD)
+                acquisition_price=acquisition_price_final,
+                acquisition_fees=acquisition_fees_final,
+                acquisition_value=acquisition_value_final,
+                
+                acquisition_price_original=buy_original_price,
+                acquisition_fees_original=buy_original_fees_part,
+                acquisition_value_original=buy_original_value,
+
+                # RESULTADO EN EUR (CONVERTIDO)
+                gross_result=gross_result_adjusted,
+                # RESULTADO EN USD (ORIGINAL)
+                gross_result_original=sell_original_value - buy_original_value,
+                
+                exchange_rate_used=sale_conversion_rate,
                 days_held=(op.date - current_lot.op.date).days
             )
             results.append(item)

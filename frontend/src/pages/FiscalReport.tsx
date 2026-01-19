@@ -41,13 +41,22 @@ const FiscalReport: React.FC = () => {
     // Memoized data for the table
     const tableData = useMemo(() => {
         if (!report) return [];
-        return report.years.flatMap(year => year.items);
+        return report.years.flatMap(year => year.items.map(item => ({
+            ...item,
+            // Ensure numbers to avoid string concatenation issues
+            sale_fees: Number(item.sale_fees),
+            acquisition_fees: Number(item.acquisition_fees),
+            total_fees: Number(item.sale_fees || 0) + Number(item.acquisition_fees || 0),
+            total_fees_original: (item.sale_fees_original !== undefined && item.acquisition_fees_original !== undefined) 
+                ? (Number(item.sale_fees_original) + Number(item.acquisition_fees_original)) 
+                : undefined
+        })));
     }, [report]);
 
     // Use the custom hook for Handsontable
     const { containerRef } = useHandsontable({
         data: tableData,
-        colHeaders: ['Activo', 'F. Venta', 'Ctd', 'P. Venta', 'F. Adq.', 'P. Adq.', 'Resultado', 'Wash Sale'],
+        colHeaders: ['Activo', 'Divisa', 'F. Venta', 'Ctd', 'P. Venta', 'T. Cambio', 'F. Adq.', 'P. Adq.', 'Comisiones', 'Resultado', 'Res. Orig.', 'Wash Sale'],
         columns: [
             {
                 data: 'asset_symbol',
@@ -57,6 +66,17 @@ const FiscalReport: React.FC = () => {
                 renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
                     td.textContent = value || '';
                     td.style.fontWeight = 'bold';
+                    return td;
+                }
+            },
+            {
+                data: 'asset_currency',
+                readOnly: true,
+                width: 70,
+                className: 'htCenter',
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any) {
+                    td.textContent = value || '';
+                    td.style.color = '#6b7280';
                     return td;
                 }
             },
@@ -82,6 +102,22 @@ const FiscalReport: React.FC = () => {
                 renderer: priceRenderer
             },
             {
+                data: 'exchange_rate_used',
+                readOnly: true,
+                width: 90,
+                className: 'htRight',
+                renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                    if (value === undefined || value === null) {
+                        td.textContent = '-';
+                    } else {
+                        // 6 decimales para tasa de cambio
+                         td.textContent = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 6, minimumFractionDigits: 6 }).format(value);
+                    }
+                    td.style.color = '#6b7280';
+                    return td;
+                }
+            },
+            {
                 data: 'acquisition_date',
                 readOnly: true,
                 width: 100,
@@ -96,6 +132,17 @@ const FiscalReport: React.FC = () => {
                 renderer: priceRenderer
             },
             {
+                data: 'total_fees',
+                readOnly: true,
+                width: 100,
+                className: 'htRight',
+                renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                    currencyRenderer(instance, td, row, col, prop, value, cellProperties);
+                    td.style.color = '#ef4444'; // Red for fees
+                    return td;
+                }
+            },
+            {
                 data: 'gross_result',
                 readOnly: true,
                 width: 120,
@@ -105,6 +152,23 @@ const FiscalReport: React.FC = () => {
                     if (typeof value === 'number') {
                         td.style.color = value >= 0 ? '#10b981' : '#ef4444';
                         td.style.fontWeight = 'bold';
+                    }
+                    return td;
+                }
+            },
+            {
+                data: 'gross_result_original',
+                readOnly: true,
+                width: 120,
+                className: 'htRight',
+                renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                    if (value === undefined || value === null) {
+                        td.textContent = '-';
+                        return td;
+                    }
+                    currencyRenderer(instance, td, row, col, prop, value, cellProperties);
+                    if (typeof value === 'number') {
+                        td.style.color = value >= 0 ? '#10b981' : '#ef4444';
                     }
                     return td;
                 }
