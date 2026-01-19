@@ -59,6 +59,7 @@ export const useHandsontable = ({
                     
                     // Styles controlled purely by handsontable-custom.css
                     className: 'handsontable-custom', 
+                    themeName: 'ht-theme-main', // Suppress deprecated warning for v17+
                     rowHeights: 28,
                 };
 
