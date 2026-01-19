@@ -33,12 +33,11 @@ export const useHandsontable = ({
         if (node) {
             // Mount: Initialize Handsontable
             // Use setTimeout to completely decouple from current call stack and rendering phase
-            // This is more effective than requestAnimationFrame for avoiding forced reflows during heavy init
             setTimeout(() => {
                 if (!node || hotInstanceRef.current) return; // Node gone or already init with double-check
 
                 const defaultSettings: Handsontable.GridSettings = {
-                    data: data,
+                    data: [], // Init empty to reduce initial blocking time (split task)
                     columns: columns,
                     colHeaders: colHeaders,
 
@@ -106,6 +105,13 @@ export const useHandsontable = ({
 
                 node.addEventListener('click', handleTableClick);
                 (hotInstanceRef.current as any)._customClickListener = handleTableClick;
+
+                // Load initial data in the next frame to split the main thread work
+                if (data && data.length > 0) {
+                    requestAnimationFrame(() => {
+                        hotInstanceRef.current?.loadData(data);
+                    });
+                }
             });
 
         } else {
