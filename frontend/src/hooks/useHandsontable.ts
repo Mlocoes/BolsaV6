@@ -32,74 +32,80 @@ export const useHandsontable = ({
     const containerRef = useCallback((node: HTMLDivElement | null) => {
         if (node) {
             // Mount: Initialize Handsontable
-            const defaultSettings: Handsontable.GridSettings = {
-                data: data,
-                columns: columns,
-                colHeaders: colHeaders,
+            // Use requestAnimationFrame to prevent forced reflow by allowing
+            // the browser to complete the current layout first.
+            requestAnimationFrame(() => {
+                if (!node || hotInstanceRef.current) return; // Node gone or already init with double-check
 
-                // STANDARD DEFAULTS (Optimized)
-                rowHeaders: true,
-                height: '100%',
-                width: '100%',
-                stretchH: 'all',
-                manualColumnResize: true,
-                autoRowSize: false, // Performance boost
-                autoColumnSize: false, // Performance boost - rely on defined widths or CSS
-                renderAllRows: false, // Virtualization enabled (default)
-                
-                licenseKey: 'non-commercial-and-evaluation',
-                columnSorting: true,
-                filters: true,
-                dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
-                
-                // Styles controlled purely by handsontable-custom.css
-                className: 'handsontable-custom', 
-                rowHeights: 28,
-            };
+                const defaultSettings: Handsontable.GridSettings = {
+                    data: data,
+                    columns: columns,
+                    colHeaders: colHeaders,
 
-            const mergedSettings = { ...defaultSettings, ...settings };
-            hotInstanceRef.current = new Handsontable(node, mergedSettings);
+                    // STANDARD DEFAULTS (Optimized)
+                    rowHeaders: true,
+                    height: '100%',
+                    width: '100%',
+                    stretchH: 'all',
+                    manualColumnResize: true,
+                    autoRowSize: false, // Performance boost
+                    autoColumnSize: false, // Performance boost - rely on defined widths or CSS
+                    renderAllRows: false, // Virtualization enabled (default)
+                    
+                    licenseKey: 'non-commercial-and-evaluation',
+                    columnSorting: true,
+                    filters: true,
+                    dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
+                    
+                    // Styles controlled purely by handsontable-custom.css
+                    className: 'handsontable-custom', 
+                    rowHeights: 28,
+                };
 
-            // Add Click Listener
-            const handleTableClick = (e: MouseEvent) => {
-                const target = e.target as HTMLElement;
-                const btn = target.closest('button'); // Look for button
-                if (!btn) return;
+                const mergedSettings = { ...defaultSettings, ...settings };
+                hotInstanceRef.current = new Handsontable(node, mergedSettings);
 
-                const action = btn.dataset.action; // Get action from data attribute
-                if (!action) return;
+                // Add Click Listener
+                const handleTableClick = (e: MouseEvent) => {
+                    const target = e.target as HTMLElement;
+                    const btn = target.closest('button'); // Look for button
+                    if (!btn) return;
 
-                const td = target.closest('td');
-                if (!td) return;
+                    const action = btn.dataset.action; // Get action from data attribute
+                    if (!action) return;
 
-                const instance = hotInstanceRef.current;
-                if (!instance) return;
+                    const td = target.closest('td');
+                    if (!td) return;
 
-                const coords = instance.getCoords(td as HTMLTableCellElement);
-                if (!coords || coords.row < 0) return;
+                    const instance = hotInstanceRef.current;
+                    if (!instance) return;
 
-                const visualRow = coords.row;
-                const physicalRow = instance.toPhysicalRow(visualRow);
-                const rowData = instance.getSourceDataAtRow(physicalRow);
+                    const coords = instance.getCoords(td as HTMLTableCellElement);
+                    if (!coords || coords.row < 0) return;
 
-                if (rowData) {
-                    if (action === 'edit' && callbacksRef.current.onEdit) {
-                        callbacksRef.current.onEdit(rowData);
-                    } else if (action === 'delete' && callbacksRef.current.onDelete) {
-                        const id = (rowData as any).id;
-                        if (id) {
-                            callbacksRef.current.onDelete(id);
+                    const visualRow = coords.row;
+                    const physicalRow = instance.toPhysicalRow(visualRow);
+                    const rowData = instance.getSourceDataAtRow(physicalRow);
+
+                    if (rowData) {
+                        if (action === 'edit' && callbacksRef.current.onEdit) {
+                            callbacksRef.current.onEdit(rowData);
+                        } else if (action === 'delete' && callbacksRef.current.onDelete) {
+                            const id = (rowData as any).id;
+                            if (id) {
+                                callbacksRef.current.onDelete(id);
+                            }
+                        }
+
+                        if (callbacksRef.current.onAction) {
+                            callbacksRef.current.onAction(action, rowData);
                         }
                     }
+                };
 
-                    if (callbacksRef.current.onAction) {
-                        callbacksRef.current.onAction(action, rowData);
-                    }
-                }
-            };
-
-            node.addEventListener('click', handleTableClick);
-            (hotInstanceRef.current as any)._customClickListener = handleTableClick;
+                node.addEventListener('click', handleTableClick);
+                (hotInstanceRef.current as any)._customClickListener = handleTableClick;
+            });
 
         } else {
             // Unmount: Destroy Handsontable

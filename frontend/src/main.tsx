@@ -7,7 +7,7 @@ import { applyPassiveEventsPatch } from './utils/passiveEvents';
 applyPassiveEventsPatch();
 
 // Use standard base styles instead of theme styles to avoid conflicts with handsontable-custom.css
-import 'handsontable/dist/handsontable.min.css';
+import 'handsontable/dist/handsontable.full.min.css';
 import './styles/index.css'
 import { registerAllModules } from 'handsontable/registry';
 
