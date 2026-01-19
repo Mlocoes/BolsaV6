@@ -1,6 +1,7 @@
 /* Handsontable Custom Dark Theme */
+.ht-theme-main,
 .handsontable.ht-theme-main {
-    --ht-line-height: 1.5; /* Required to suppress Handsontable v17+ warning */
+    --ht-line-height: normal; /* Required to suppress Handsontable v17+ warning. "normal" or unitless number */
 }
 
 .handsontable {
