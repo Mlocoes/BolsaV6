@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useHandsontable } from '../hooks/useHandsontable';
+import { useUser } from '../context/UserContext';
 
 import api from '../services/api';
 import { getFiscalReport, FiscalReport as FiscalReportType } from '../services/fiscalService';
@@ -18,6 +19,7 @@ export const getPortfolios = async (): Promise<Portfolio[]> => {
 };
 
 const FiscalReport: React.FC = () => {
+    const { user } = useUser();
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>('');
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -28,6 +30,13 @@ const FiscalReport: React.FC = () => {
     useEffect(() => {
         loadPortfolios();
     }, []);
+
+    // Recargar informe si cambia la moneda base del usuario
+    useEffect(() => {
+        if (selectedPortfolioId && user?.base_currency) {
+            generateReport();
+        }
+    }, [user?.base_currency]);
 
     // Memoized data for the table
     const tableData = useMemo(() => {

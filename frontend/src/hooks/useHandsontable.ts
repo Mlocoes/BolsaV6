@@ -28,6 +28,12 @@ export const useHandsontable = ({
         callbacksRef.current = { onEdit, onDelete, onAction };
     }, [onEdit, onDelete, onAction]);
 
+    // Ref for data to be accessible within stale closures (init)
+    const dataRef = useRef(data);
+    useEffect(() => {
+        dataRef.current = data;
+    }, [data]);
+
     // Callback Ref to handle DOM lifecycle
     const containerRef = useCallback((node: HTMLDivElement | null) => {
         if (node) {
@@ -107,9 +113,10 @@ export const useHandsontable = ({
                 (hotInstanceRef.current as any)._customClickListener = handleTableClick;
 
                 // Load initial data in the next frame to split the main thread work
-                if (data && data.length > 0) {
+                // Use dataRef to ensure we access the LATEST data, not the stale one from closure
+                if (dataRef.current && dataRef.current.length > 0) {
                     requestAnimationFrame(() => {
-                        hotInstanceRef.current?.loadData(data);
+                        hotInstanceRef.current?.loadData(dataRef.current);
                     });
                 }
             });
