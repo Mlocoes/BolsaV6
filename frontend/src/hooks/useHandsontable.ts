@@ -32,9 +32,9 @@ export const useHandsontable = ({
     const containerRef = useCallback((node: HTMLDivElement | null) => {
         if (node) {
             // Mount: Initialize Handsontable
-            // Use requestAnimationFrame to prevent forced reflow by allowing
-            // the browser to complete the current layout first.
-            requestAnimationFrame(() => {
+            // Use setTimeout to completely decouple from current call stack and rendering phase
+            // This is more effective than requestAnimationFrame for avoiding forced reflows during heavy init
+            setTimeout(() => {
                 if (!node || hotInstanceRef.current) return; // Node gone or already init with double-check
 
                 const defaultSettings: Handsontable.GridSettings = {

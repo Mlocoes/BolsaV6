@@ -1,4 +1,8 @@
 /* Handsontable Custom Dark Theme */
+.handsontable.ht-theme-main {
+    --ht-line-height: 1.5; /* Required to suppress Handsontable v17+ warning */
+}
+
 .handsontable {
     font-family: 'Inter', sans-serif;
     font-size: 11px;
