@@ -7,7 +7,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.core.config import settings
 
 # Importar routers
-from app.api import assets, transactions, portfolios, quotes, import_transactions, auth, users, fiscal, dashboard, markets, backup, system_settings
+from app.api import assets, transactions, portfolios, quotes, import_transactions, auth, users, fiscal, dashboard, markets, backup, system_settings, monitor
 from app.services.scheduler_service import scheduler_service
 
 # Crear aplicación
@@ -69,6 +69,7 @@ app.include_router(fiscal.router, prefix="/api/fiscal", tags=["fiscal"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(markets.router, prefix="/api/markets", tags=["Mercados"])
 app.include_router(system_settings.router, prefix="/api/settings/system", tags=["Configuración Sistema"])
+app.include_router(monitor.router, prefix="/api/monitor", tags=["Monitor"])
 
 # Health check
 @app.get("/health")

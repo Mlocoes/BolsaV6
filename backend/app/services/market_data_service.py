@@ -21,6 +21,9 @@ class MarketDataService:
     def __init__(self):
         self.is_running = False
         self.update_interval = 60  # Segundos entre actualizaciones
+        self.last_update = None
+        self.last_error = None
+        self.tracked_symbols_count = 0
 
     async def start_background_service(self):
         """Inicia el bucle de actualización en segundo plano"""
@@ -33,8 +36,11 @@ class MarketDataService:
         while self.is_running:
             try:
                 await self.update_market_data()
+                self.last_error = None  # Clear error on success
             except Exception as e:
-                logger.error(f"❌ Error en ciclo de actualización de mercado: {e}")
+                self.last_error = str(e)
+                logger.error(f"❌ Error CRÍTICO en ciclo de actualización de mercado: {e}", exc_info=True)
+                # No detenemos el servicio, solo esperamos para reintentar
             
             await asyncio.sleep(self.update_interval)
 
@@ -62,11 +68,27 @@ class MarketDataService:
         logger.info(f"📊 {len(active_symbols)} símbolos a actualizar ({', '.join(active_symbols[:10])}...)")
         
         # Obtener cotizaciones de Yahoo Finance
-        quotes = await yfinance_service.fetch_real_time_quotes(active_symbols)
-        
-        if quotes:
-            await self._update_virtual_table(quotes)
-            logger.info(f"✅ Tabla virtual actualizada con {len(quotes)} cotizaciones")
+        try:
+            quotes = await yfinance_service.fetch_real_time_quotes(active_symbols)
+            
+            if quotes:
+                await self._update_virtual_table(quotes)
+                self.last_update = datetime.now()
+                self.tracked_symbols_count = len(quotes)
+                logger.info(f"✅ Tabla virtual actualizada con {len(quotes)} cotizaciones")
+        except Exception as e:
+             logger.error(f"⚠️ Error obteniendo cotizaciones: {e}")
+             raise e # Re-raise to be caught by main loop
+
+    def get_status(self):
+        """Retorna el estado actual del servicio"""
+        return {
+            "is_running": self.is_running,
+            "last_update": self.last_update.isoformat() if self.last_update else None,
+            "tracked_symbols_count": self.tracked_symbols_count,
+            "last_error": self.last_error,
+            "update_interval": self.update_interval
+        }
 
     async def _get_symbols_to_track(self, db: AsyncSession) -> list[str]:
         """

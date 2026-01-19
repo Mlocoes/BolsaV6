@@ -6,7 +6,8 @@ import { applyPassiveEventsPatch } from './utils/passiveEvents';
 // Aplicar parches de rendimiento
 applyPassiveEventsPatch();
 
-import 'handsontable/styles/ht-theme-main.min.css';
+// Use standard base styles instead of theme styles to avoid conflicts with handsontable-custom.css
+import 'handsontable/dist/handsontable.full.min.css';
 import './styles/index.css'
 import { registerAllModules } from 'handsontable/registry';
 

@@ -70,47 +70,24 @@ export interface ActionConfig {
  * @param actions List of actions to render
  */
 export const getActionRenderer = (actions: ActionConfig[]) => {
-    return (_instance: any, td: HTMLElement, row: number, _col: number, _prop: string | number, _value: any, _cellProperties: any) => {
-        _instance.getSourceDataAtRow(row);
-
-        // Clear content
-        while (td.firstChild) {
-            td.removeChild(td.firstChild);
-        }
-
-        const container = document.createElement('div');
-        container.className = 'actions-cell-container';
-
-        actions.forEach(action => {
-            const btn = document.createElement('button');
-
-            // Set basic stylings
+    return (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, _value: any, _cellProperties: any) => {
+        // Use InnerHTML for better performance than creating DOM nodes
+        const buttonsHtml = actions.map(action => {
             let btnClass = 'action-btn';
             if (action.name === 'edit') btnClass += ' edit';
             else if (action.name === 'delete') btnClass += ' delete';
             else if (action.name === 'view') btnClass += ' view';
             else btnClass += ' custom ' + (action.className || '');
 
-            btn.className = btnClass;
-            btn.innerHTML = action.icon || (action.name === 'edit' ? '✏️' : action.name === 'delete' ? '🗑️' : action.name === 'view' ? '👁️' : '🔘');
-            btn.title = action.tooltip || action.label || action.name;
+            const icon = action.icon || (action.name === 'edit' ? '✏️' : action.name === 'delete' ? '🗑️' : action.name === 'view' ? '👁️' : '🔘');
+            const title = action.tooltip || action.label || action.name;
+            
+            // data-action attribute is used by the global click handler in useHandsontable
+            return `<button class="${btnClass}" data-action="${action.name}" title="${title}">${icon}</button>`;
+        }).join('');
 
-            // Store metadata on the button to identify it later in the global click handler if needed
-            // But better, we rely on the component using this to handle the click via the Grid's hooks
-            // or we can attach a direct listener here (careful with memory, but HT re-renders often)
-            // Ideally, we depend on 'afterOnCellMouseDown' in the component, identifying the target.
-            // So we add a data-action attribute.
-            btn.dataset.action = action.name;
-            // For custom actions we might need an index or ID if names collide, but usually name/label is enough
-            if (action.name === 'custom') {
-                btn.dataset.label = action.label; // differentiator
-            }
-
-            container.appendChild(btn);
-        });
-
-        td.appendChild(container);
-        td.className = 'htCenter';
+        td.innerHTML = `<div class="actions-cell-container">${buttonsHtml}</div>`;
+        td.className = 'htCenter htMiddle'; // Ensure alignment classes
         return td;
     };
 };

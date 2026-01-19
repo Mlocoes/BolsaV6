@@ -39,7 +39,7 @@ class BulkImportRequest(BaseModel):
 async def get_all_quotes(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    limit: int = 500,
+    limit: int = 2000,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -56,8 +56,13 @@ async def get_all_quotes(
     
     query = query.limit(limit)
     
+    # Log query execution for debugging performance
+    import time
+    start_time = time.time()
     result = await db.execute(query)
     quotes = result.scalars().all()
+    duration = time.time() - start_time
+    print(f"⚡ get_all_quotes query took {duration:.4f}s for {len(quotes)} rows")
     
     return [QuoteResponseWithAsset.model_validate(q) for q in quotes]
 
@@ -67,6 +72,7 @@ async def get_asset_quotes(
     asset_id: str,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    limit: int = 2000,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -87,7 +93,7 @@ async def get_asset_quotes(
     if end_date:
         query = query.where(Quote.date <= end_date)
     
-    query = query.order_by(Quote.date.desc())
+    query = query.order_by(Quote.date.desc()).limit(limit)
     
     result = await db.execute(query)
     quotes = result.scalars().all()
@@ -669,14 +675,12 @@ async def import_bulk_historical(
     # Obtener activos a procesar (solo los que tienen sync_enabled=True)
     if request.asset_ids:
         result = await db.execute(
-            select(Asset).where(
-                Asset.id.in_(request.asset_ids),
-                Asset.sync_enabled == True
-            )
+            select(Asset).where(Asset.id.in_(request.asset_ids))
         )
     else:
+        # Requerimiento: Mirar TODOS los activos catastrados en la BD
         result = await db.execute(
-            select(Asset).where(Asset.sync_enabled == True).order_by(Asset.symbol)
+            select(Asset).order_by(Asset.symbol)
         )
     
     assets = result.scalars().all()
