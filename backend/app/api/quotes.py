@@ -19,8 +19,7 @@ from app.models.asset import Asset
 from app.models.quote import Quote
 from app.schemas.quote import QuoteResponse, QuoteResponseWithAsset
 # from app.services.finnhub_service import finnhub_service
-from app.services.yfinance_service import yfinance_service
-from app.services.alpha_vantage_service import alpha_vantage_service
+from app.services.quote_provider_service import quote_provider_service
 from app.core.utils import clean_decimal
 from sqlalchemy import func
 import logging
@@ -360,34 +359,37 @@ async def import_quotes_from_excel(
 
 async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool = False):
     """
-    Función helper para obtener y guardar cotizaciones
-    
-    - Si full_history=True: Usa Polygon.io para obtener hasta 500 días de histórico
-    - Si full_history=False: Usa Yahoo Finance para obtener cotización actual
-    
-    Ejecutada en background
+    Función helper para obtener y guardar cotizaciones.
+    Usa QuoteProviderService.
     """
     import logging
     from app.core.database import AsyncSessionLocal
+    from app.services.quote_provider_service import quote_provider
     
     logger = logging.getLogger(__name__)
     logger.info(f"🔄 Iniciando fetch de cotizaciones para {symbol} (full_history={full_history})")
     
-    # Decidir qué servicio usar
+    # Obtener cotizaciones usando la fachada
+    # Si es histórico completo, intenta usar Polygon. Si no, usa Yahoo por defecto (u optimizado).
+    # Como el proveedor abstrae start/end date, aquí simplificamos la llamada.
+    
+    quotes_data = []
     if full_history:
-        # Usar Polygon.io para histórico (hasta 500 días sin límite diario)
-        logger.info(f"📊 Usando Polygon.io para histórico de {symbol} (hasta 500 días)")
-        from app.services.polygon_service import polygon_service
-        quotes_data = await polygon_service.get_historical_quotes(symbol)
+        # Pide histórico largo (ej. 500 días o más si se configura)
+        # El provider maneja la lógica interna de fechas por defecto o explícitas
+        quotes_data = await quote_provider.get_historical_quotes(symbol, use_polygon=True)
     else:
-        # Usar Yahoo Finance para cotización actual (últimos 5 días para asegurar datos recientes)
-        logger.info(f"📊 Usando Yahoo Finance para cotización actual de {symbol}")
-        # Usamos el servicio importado globalmente o lo importamos aquí si es necesario
-        from app.services.yfinance_service import yfinance_service
-        quotes_data = await yfinance_service.get_historical_quotes(symbol, period="5d")
+        # Pide últimos días (ej. 5d)
+        from datetime import date, timedelta
+        quotes_data = await quote_provider.get_historical_quotes(
+            symbol, 
+            start_date=date.today() - timedelta(days=5),
+            end_date=date.today(),
+            use_polygon=False # Usa Yahoo para datos recientes rápidos
+        )
     
     if not quotes_data:
-        logger.warning(f"⚠️ No se obtuvieron datos de Yahoo Finance para {symbol}")
+        logger.warning(f"⚠️ No se obtuvieron datos para {symbol}")
         return
     
     logger.info(f"📊 Se obtuvieron {len(quotes_data)} cotizaciones para {symbol}")
@@ -412,12 +414,7 @@ async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool 
                 )
                 
                 if existing.scalar_one_or_none():
-                    logger.debug(f"⏭️ Cotización ya existe para {symbol} en {quote_date.date()}, saltando...")
                     continue  # Ya existe, skip
-                
-                # Crear nueva cotización con fecha normalizada
-                # Determinar source según el servicio usado
-                source = "polygon" if full_history else "yahoo"
                 
                 new_quote = Quote(
                     asset_id=asset_id,
@@ -427,7 +424,7 @@ async def _fetch_and_save_quotes(asset_id: str, symbol: str, full_history: bool 
                     low=quote_data["low"],
                     close=quote_data["close"],
                     volume=quote_data["volume"],
-                    source=source
+                    source="provider_import"
                 )
                 
                 db.add(new_quote)
@@ -717,8 +714,6 @@ async def _bulk_import_historical(assets: List[dict], force_refresh: bool = Fals
     import asyncio
     from datetime import datetime, date, timezone, timedelta
     from app.core.database import AsyncSessionLocal
-    from app.services.polygon_service import polygon_service
-    from app.services.yfinance_service import yfinance_service
     from app.models.transaction import Transaction
     from sqlalchemy import func
     
@@ -774,22 +769,12 @@ async def _bulk_import_historical(assets: List[dict], force_refresh: bool = Fals
                 
                 logger.info(f"📥 {symbol} tiene {len(missing_days)} lagunas. Intentando descarga...")
                 
-                # 4. Descarga de datos MULTI-FUENTE
-                # Intento 1: Polygon.io (Más fiable para históricos específicos)
-                quotes_data = await polygon_service.get_historical_quotes(
+                # 4. Descarga de datos MULTI-FUENTE (Usando Facade)
+                quotes_data = await quote_provider_service.get_historical_quotes(
                     symbol, 
                     start_date=start_date,
                     end_date=today
                 )
-                
-                # Intento 2: Fallback a Yahoo Finance
-                if not quotes_data:
-                    logger.info(f"⚠️ Polygon falló para {symbol}, intentando Yahoo Finance...")
-                    quotes_data = await yfinance_service.get_historical_quotes(
-                        symbol, 
-                        start_date=start_date,
-                        end_date=today
-                    )
                 
                 if not quotes_data:
                     logger.warning(f"❌ Sin datos disponibles en ningún feed para {symbol}")

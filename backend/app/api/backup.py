@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Backgro
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_current_admin_user
 from app.services.backup_service import backup_service
 from typing import List
 
@@ -21,10 +21,9 @@ router = APIRouter()
 @router.get("/full", response_class=FileResponse)
 async def get_full_backup(
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin_user)
 ):
-    """Descargar backup completo de la base de datos"""
-    # Verificar admin (opcional, por ahora cualquier usuario autenticado)
+    """Descargar backup completo de la base de datos (Solo Admin)"""
     
     try:
         # Crear archivo temporal
@@ -47,9 +46,9 @@ async def get_full_backup(
 @router.post("/full/restore")
 async def restore_full_backup(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin_user)
 ):
-    """Restaurar backup completo de la base de datos"""
+    """Restaurar backup completo de la base de datos (Solo Admin)"""
     try:
         # Guardar archivo subido
         fd, path = tempfile.mkstemp(suffix=".dump")
@@ -73,9 +72,9 @@ async def restore_full_backup(
 @router.get("/quotes", response_class=FileResponse)
 async def get_quotes_backup(
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin_user)
 ):
-    """Descargar backup de cotizaciones"""
+    """Descargar backup de cotizaciones (Solo Admin)"""
     try:
         fd, path = tempfile.mkstemp(suffix=".dump")
         os.close(fd)
@@ -95,9 +94,9 @@ async def get_quotes_backup(
 @router.post("/quotes/restore")
 async def restore_quotes_backup(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_admin_user)
 ):
-    """Restaurar backup de cotizaciones"""
+    """Restaurar backup de cotizaciones (Solo Admin)"""
     try:
         fd, path = tempfile.mkstemp(suffix=".dump")
         os.close(fd)

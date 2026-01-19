@@ -1,23 +1,30 @@
 /**
  * App principal con rutas completas
  */
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { UserProvider } from './context/UserContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Positions from './pages/Positions';
-import Assets from './pages/Assets';
-import Portfolios from './pages/Portfolios';
-import Transactions from './pages/Transactions';
-import Quotes from './pages/Quotes';
-import Import from './pages/Import';
-import FiscalReport from './pages/FiscalReport';
-import Administration from './pages/Administration';
-import Settings from './pages/Settings';
+
+// Lazy loading de páginas
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Positions = lazy(() => import('./pages/Positions'));
+const Assets = lazy(() => import('./pages/Assets'));
+const Portfolios = lazy(() => import('./pages/Portfolios'));
+const Transactions = lazy(() => import('./pages/Transactions'));
+const Quotes = lazy(() => import('./pages/Quotes'));
+const Import = lazy(() => import('./pages/Import'));
+const FiscalReport = lazy(() => import('./pages/FiscalReport'));
+const Administration = lazy(() => import('./pages/Administration'));
+const Settings = lazy(() => import('./pages/Settings'));
+
 import './styles/index.css';
+
+// Componente de carga
+const Loading = () => <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center text-white">Cargando...</div>;
 
 function App() {
     return (
@@ -34,6 +41,7 @@ function App() {
                     draggable
                     pauseOnHover
                 />
+                <Suspense fallback={<Loading />}>
                 <Routes>
                     <Route path="/login" element={<Login />} />
 
@@ -130,6 +138,7 @@ function App() {
 
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
+                </Suspense>
             </UserProvider>
         </BrowserRouter>
     );

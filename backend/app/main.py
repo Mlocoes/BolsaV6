@@ -26,6 +26,7 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 # Configurar CORS
 # En desarrollo: permite cualquier origen de red local automáticamente
 # En producción: solo los orígenes configurados en CORS_ORIGINS
+# ADVERTENCIA: is_cors_permissive debe ser False en producción para evitar vulnerabilidades CSRF/CORS.
 if settings.is_cors_permissive:
     # Modo desarrollo: CORS permisivo para facilitar desarrollo en red local
     app.add_middleware(
