@@ -1,12 +1,15 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from sqlalchemy import select
 from uuid import UUID
 
 from app.core.database import get_db
+from app.core.security import get_current_user
 from app.models.transaction import Transaction
 from app.models.asset import Asset
+from app.models.user import User
 from app.schemas.fiscal import FiscalReport, FiscalOperation
 from app.services.fiscal_service import fiscal_service
 
@@ -16,12 +19,20 @@ router = APIRouter()
 async def get_fiscal_report(
     portfolio_id: str,
     year: Optional[int] = None,
-    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Calcula el informe fiscal para una cartera específica.
     """
     try:
+        user_id = current_user["user_id"]
+        
+        # Obtener moneda base del usuario
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
+        target_currency = user.base_currency if user else "EUR"
+
         # Verificar UUID válido
         try:
             pid = UUID(portfolio_id)
@@ -46,6 +57,7 @@ async def get_fiscal_report(
         for t in transactions:
             # Asegurar asset_symbol
             asset_symbol = t.asset.symbol if t.asset else "UNKNOWN"
+            asset_currency = t.asset.currency if t.asset else "USD"
             
             fiscal_op = FiscalOperation(
                 id=str(t.id),
@@ -53,6 +65,7 @@ async def get_fiscal_report(
                 type=t.transaction_type,
                 asset_id=str(t.asset_id),
                 asset_symbol=asset_symbol,
+                asset_currency=asset_currency,
                 quantity=t.quantity,
                 price=t.price,
                 fees=t.fees or 0
@@ -60,7 +73,7 @@ async def get_fiscal_report(
             fiscal_ops.append(fiscal_op)
 
         # Calcular reporte
-        report = fiscal_service.calculate_fiscal_impact(portfolio_id, fiscal_ops)
+        report = await fiscal_service.calculate_fiscal_impact(portfolio_id, fiscal_ops, target_currency, db)
         
         # Filtrar por año si se solicita
         if year:

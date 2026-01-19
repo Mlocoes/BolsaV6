@@ -2,8 +2,10 @@ from typing import List, Dict, Optional
 from datetime import timedelta
 from decimal import Decimal
 from collections import deque
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.fiscal import FiscalOperation, FiscalResultItem, FiscalReport, FiscalYearSummary
 from app.models.transaction import TransactionType
+from app.services.forex_service import forex_service
 
 class PositionLot:
     """Clase auxiliar para rastrear lotes abiertos para FIFO."""
@@ -12,7 +14,32 @@ class PositionLot:
         self.remaining_quantity = quantity
 
 class FiscalService:
-    def calculate_fiscal_impact(self, portfolio_id: str, operations: List[FiscalOperation]) -> FiscalReport:
+    async def calculate_fiscal_impact(
+        self, 
+        portfolio_id: str, 
+        operations: List[FiscalOperation],
+        target_currency: str = "EUR",
+        db: Optional[AsyncSession] = None
+    ) -> FiscalReport:
+        # Pre-procesamiento: Conversión de divisas si es necesario
+        if db:
+            for op in operations:
+                if op.asset_currency and op.asset_currency != target_currency:
+                    # Convertir a moneda objetivo usando fecha de operación
+                    try:
+                        rate = await forex_service.get_exchange_rate(
+                            op.asset_currency, 
+                            target_currency, 
+                            op.date.date(), 
+                            db
+                        )
+                        if rate:
+                            op.price = op.price * Decimal(str(rate))
+                            op.fees = op.fees * Decimal(str(rate))
+                            # op.asset_currency = target_currency # No cambiamos la etiqueta para mantener rastro, pero los valores ya están convertidos
+                    except Exception as e:
+                        print(f"Error converting currency for fiscal report: {e}")
+
         # 1. Ordenar operaciones cronológicamente
         ops = sorted(operations, key=lambda x: x.date)
         

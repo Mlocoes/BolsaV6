@@ -14,6 +14,7 @@ class FiscalOperation(BaseModel):
     type: TransactionType
     asset_id: str
     asset_symbol: str
+    asset_currency: Optional[str] = "USD"
     quantity: Decimal
     price: Decimal
     fees: Decimal
