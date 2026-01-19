@@ -114,20 +114,23 @@ export const useHandsontable = ({
         }
     }, []);
 
-    // Efficiently update data or settings
+    // Efficiently update data 
     useEffect(() => {
         if (hotInstanceRef.current) {
-            // If data changed, use loadData for better performance/stability
             hotInstanceRef.current.loadData(data);
-            
-            // Update other settings if needed (excluding data to avoid double set)
+        }
+    }, [data]);
+
+    // Efficiently update settings
+    useEffect(() => {
+        if (hotInstanceRef.current) {
             hotInstanceRef.current.updateSettings({
                 columns: columns,
                 colHeaders: colHeaders,
                 ...settings
             });
         }
-    }, [data, columns, colHeaders, settings]);
+    }, [columns, colHeaders, settings]);
 
 
     return {
