@@ -94,6 +94,20 @@ async def update_asset(
         )
     
     # Actualizar campos
+    if asset_data.symbol is not None:
+        new_symbol = asset_data.symbol.upper()
+        if new_symbol != asset.symbol:
+            # Verificar duplicados
+            existing = await db.execute(
+                select(Asset).where(Asset.symbol == new_symbol)
+            )
+            if existing.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Symbol ya existe"
+                )
+            asset.symbol = new_symbol
+
     if asset_data.name is not None:
         asset.name = asset_data.name
     if asset_data.asset_type is not None:

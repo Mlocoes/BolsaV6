@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.models.system_setting import SystemSetting
 from app.schemas.system_setting import SystemSetting as SystemSettingSchema, SystemSettingUpdate
 from app.models.user import User
+from app.services.scheduler_service import scheduler_service
 
 # Importación perezosa para evitar importación circular
 def get_admin_dependency():
@@ -56,11 +57,20 @@ async def update_system_setting(
     
     # Si se actualiza algo relacionado con el scheduler, podriamos notificar al scheduler_service
     if key.startswith("scheduler_"):
-        from app.services.scheduler_service import scheduler_service
-        # El scheduler se encargará de recargar los jobs si es necesario
-        # Podríamos llamar a un método reload_jobs() aquí si lo implementamos
-        pass
+        await scheduler_service.reload_jobs()
         
     return setting
+
+@router.post("/sync-quotes", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_manual_sync(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_admin_dependency())
+):
+    """
+    Dispara manualmente el proceso de sincronización diaria de cotizaciones (Cierre).
+    Se ejecuta en segundo plano.
+    """
+    background_tasks.add_task(scheduler_service.sync_all_quotes)
+    return {"message": "Sincronización iniciada en segundo plano"}
 
 # Comentario explicativo: Endpoints para gestionar las configuraciones globales del sistema, protegidos para administradores.

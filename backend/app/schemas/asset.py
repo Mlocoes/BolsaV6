@@ -25,6 +25,7 @@ class AssetCreate(AssetBase):
 
 class AssetUpdate(BaseModel):
     """Schema para actualizar activo"""
+    symbol: Optional[str] = Field(None, min_length=1, max_length=20)
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     asset_type: Optional[AssetType] = None
     currency: Optional[str] = Field(None, max_length=10)

@@ -27,6 +27,7 @@ class SchedulerService:
             # Tarea diaria (configurada por Base de Datos o 00:00 UTC)
             self.scheduler.start()
             asyncio.create_task(self.reload_jobs())
+            asyncio.create_task(self.check_startup_sync())
             logger.info("✅ Programador de tareas iniciado")
 
     def shutdown(self):
@@ -104,12 +105,60 @@ class SchedulerService:
                     except Exception as e:
                         logger.error(f"❌ Error sincronizando {asset.symbol}: {str(e)}")
                 
+                # Actualizar marca de tiempo de última ejecución exitosa
+                try:
+                    now_str = now_utc.date().isoformat()
+                    setting = await db.execute(select(SystemSetting).where(SystemSetting.key == "scheduler_last_sync_date"))
+                    setting_obj = setting.scalar_one_or_none()
+                    
+                    if not setting_obj:
+                        setting_obj = SystemSetting(
+                            key="scheduler_last_sync_date", 
+                            value=now_str, 
+                            type="date", 
+                            description="Última ejecución exitosa del cierre diario"
+                        )
+                        db.add(setting_obj)
+                    else:
+                        setting_obj.value = now_str
+                except Exception as ex_setting:
+                    logger.error(f"⚠️ No se pudo guardar la fecha de sincronización: {ex_setting}")
+
                 await db.commit()
                 logger.info("✅ Cierre diario completado exitosamente")
                 
             except Exception as e:
                 await db.rollback()
                 logger.error(f"❌ Error general en la sincronización de cierre: {str(e)}")
+
+    async def check_startup_sync(self):
+        """Verifica al inicio si falta la sincronización del día"""
+        logger.info("⏳ Esperando arranque para verificar sincronizaciones pendientes...")
+        await asyncio.sleep(15)  # Esperar a que otros servicios arranquen
+        
+        async with AsyncSessionLocal() as db:
+            try:
+                from datetime import timezone as dt_timezone
+                now_utc = datetime.now(dt_timezone.utc).date()
+                
+                res = await db.execute(select(SystemSetting).where(SystemSetting.key == "scheduler_last_sync_date"))
+                setting = res.scalar_one_or_none()
+                
+                last_sync = None
+                if setting:
+                    try:
+                        last_sync = datetime.strptime(setting.value, "%Y-%m-%d").date()
+                    except:
+                        pass
+                
+                if not last_sync or last_sync < now_utc:
+                    logger.warning(f"⚠️ Detectado que no se ha ejecutado el cierre diario hoy ({now_utc}). Último: {last_sync}. Ejecutando ahora...")
+                    await self.sync_all_quotes()
+                else:
+                    logger.info(f"✅ Sincronización diaria ya realizada hoy ({last_sync}).")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error verificando sincronización al inicio: {e}")
 
     async def reload_jobs(self):
         """Recarga los trabajos del programador basándose en la configuración de la DB"""

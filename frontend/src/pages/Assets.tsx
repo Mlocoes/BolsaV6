@@ -202,7 +202,6 @@ export default function Assets() {
                                         className="w-full px-2 py-1 bg-dark-bg border border-dark-border rounded text-xs text-white focus:outline-none focus:border-primary disabled:opacity-50"
                                         required
                                         placeholder="AAPL"
-                                        disabled={editingAsset !== null}
                                     />
                                 </div>
                                 <div>
