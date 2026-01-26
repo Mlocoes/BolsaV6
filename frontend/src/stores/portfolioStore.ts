@@ -48,6 +48,12 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
   },
 
   selectPortfolio: (portfolioId: string) => {
+    if (portfolioId === 'all') {
+      set({ selectedPortfolio: { id: 'all', name: 'Todas' } });
+      get().syncData(false);
+      return;
+    }
+
     const portfolio = get().portfolios.find(p => p.id === portfolioId);
     set({ selectedPortfolio: portfolio });
     if (portfolio) {

@@ -154,27 +154,32 @@ async def get_portfolio_positions(
     base_currency = user.base_currency or "EUR"
 
     # Verificar que la cartera pertenece al usuario
-    result = await db.execute(
-        select(Portfolio).where(
-            Portfolio.id == portfolio_id,
-            Portfolio.user_id == current_user["user_id"]
+    if portfolio_id != "all":
+        result = await db.execute(
+            select(Portfolio).where(
+                Portfolio.id == portfolio_id,
+                Portfolio.user_id == current_user["user_id"]
+            )
         )
-    )
-    portfolio = result.scalar_one_or_none()
-    
-    if not portfolio:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cartera no encontrada"
-        )
+        portfolio = result.scalar_one_or_none()
+        
+        if not portfolio:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cartera no encontrada"
+            )
     
     # Calcular fecha de referencia
     ref_date = target_date or datetime.now().date()
     
     # Obtener todas las transacciones de la cartera hasta la fecha de referencia
-    stmt = select(Transaction, Asset).join(Asset).where(
-        Transaction.portfolio_id == portfolio_id
-    )
+    stmt = select(Transaction, Asset).join(Asset)
+    
+    if portfolio_id == "all":
+        stmt = stmt.join(Portfolio).where(Portfolio.user_id == current_user["user_id"])
+    else:
+        stmt = stmt.where(Transaction.portfolio_id == portfolio_id)
+
     if target_date:
         stmt = stmt.where(Transaction.transaction_date <= target_date)
     

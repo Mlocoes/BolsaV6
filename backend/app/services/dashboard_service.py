@@ -11,6 +11,7 @@ from app.models.transaction import Transaction, TransactionType
 from app.models.quote import Quote
 from app.models.asset import Asset, AssetType
 from app.models.user import User
+from app.models.portfolio import Portfolio
 from app.schemas.dashboard import DashboardStats, PerformancePoint, MonthlyValue, AssetAllocation
 from app.services.forex_service import forex_service
 from app.services.yfinance_service import yfinance_service
@@ -36,11 +37,16 @@ class DashboardService:
             logger.info(f"Using base currency: {base_currency}")
             
             # 1. Fetch all transactions (ordered by date and id for deterministic order)
-            result = await db.execute(
-                select(Transaction)
-                .where(Transaction.portfolio_id == portfolio_id)
-                .order_by(Transaction.transaction_date, Transaction.id)
-            )
+            stmt = select(Transaction)
+            
+            if portfolio_id == "all":
+                stmt = stmt.join(Portfolio).where(Portfolio.user_id == user_id)
+            else:
+                stmt = stmt.where(Transaction.portfolio_id == portfolio_id)
+                
+            stmt = stmt.order_by(Transaction.transaction_date, Transaction.id)
+            
+            result = await db.execute(stmt)
             transactions = result.scalars().all()
             logger.info(f"Found {len(transactions)} transactions")
 

@@ -114,6 +114,7 @@ export default function Dashboard() {
                                 onChange={(e) => selectPortfolio(e.target.value)}
                                 className="w-full bg-dark-bg border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
                             >
+                                <option value="all">Todas</option>
                                 {portfolios.map(p => (
                                     <option key={p.id} value={p.id}>{p.name}</option>
                                 ))}
