@@ -5,12 +5,22 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
+from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.asset import Asset
 from app.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
 
 router = APIRouter()
+
+
+# Schemas específicos para gestión de activos
+class SyncUpdateRequest(BaseModel):
+    sync_enabled: bool
+
+class BulkSyncRequest(BaseModel):
+    asset_ids: List[str]
+    sync_enabled: bool
 
 
 @router.get("/", response_model=List[AssetResponse])
@@ -163,3 +173,155 @@ async def delete_asset(
     
     await db.delete(asset)
     await db.commit()
+
+
+# ==================== NUEVOS ENDPOINTS PARA GESTIÓN DE ACTIVOS ====================
+
+@router.patch("/{asset_id}/sync")
+async def update_asset_sync(
+    asset_id: str,
+    request: SyncUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Actualizar estado de sincronización de un activo específico.
+    
+    Permite activar o desactivar la sincronización automática de cotizaciones
+    para un activo individual.
+    """
+    result = await db.execute(select(Asset).where(Asset.id == asset_id))
+    asset = result.scalar_one_or_none()
+    
+    if not asset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Activo no encontrado"
+        )
+    
+    asset.sync_enabled = request.sync_enabled
+    await db.commit()
+    await db.refresh(asset)
+    
+    return {
+        "success": True,
+        "asset": AssetResponse.model_validate(asset)
+    }
+
+
+@router.post("/bulk-sync")
+async def bulk_update_sync(
+    request: BulkSyncRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Actualizar estado de sincronización para múltiples activos.
+    
+    Permite activar o desactivar la sincronización de varios activos
+    simultáneamente. Útil para operaciones masivas de gestión.
+    """
+    if not request.asset_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Lista de asset_ids no puede estar vacía"
+        )
+    
+    # Obtener todos los activos
+    result = await db.execute(
+        select(Asset).where(Asset.id.in_(request.asset_ids))
+    )
+    assets = result.scalars().all()
+    
+    if not assets:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No se encontraron activos con los IDs proporcionados"
+        )
+    
+    # Actualizar sync_enabled
+    updated_assets = []
+    for asset in assets:
+        asset.sync_enabled = request.sync_enabled
+        updated_assets.append(asset)
+    
+    await db.commit()
+    
+    # Refrescar todos los activos
+    for asset in updated_assets:
+        await db.refresh(asset)
+    
+    return {
+        "success": True,
+        "updated_count": len(updated_assets),
+        "assets": [AssetResponse.model_validate(a) for a in updated_assets]
+    }
+
+
+@router.get("/management/list")
+async def get_assets_for_management(
+    status_filter: Optional[str] = Query(None, description="Filtrar por estado: no_data, incomplete_data, outdated, complete, inactive"),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Obtener lista completa de activos con información de cobertura para gestión.
+    
+    Incluye estadísticas de sincronización y estado de cotizaciones para cada activo.
+    Permite filtrar por estado específico.
+    """
+    # Importar la función de coverage
+    from app.api.quotes import _check_asset_needs_import
+    
+    # Obtener todos los activos
+    query = select(Asset).order_by(Asset.symbol)
+    result = await db.execute(query)
+    assets = result.scalars().all()
+    
+    # Preparar estadísticas
+    stats = {
+        "no_data": 0,
+        "incomplete_data": 0,
+        "outdated": 0,
+        "complete": 0,
+        "inactive": 0
+    }
+    
+    assets_data = []
+    
+    for asset in assets:
+        # Obtener información de cobertura
+        check = await _check_asset_needs_import(str(asset.id), db)
+        
+        asset_info = {
+            "id": str(asset.id),
+            "symbol": asset.symbol,
+            "name": asset.name,
+            "asset_type": asset.asset_type.value if asset.asset_type else None,
+            "currency": asset.currency,
+            "market": asset.market,
+            "sync_enabled": asset.sync_enabled,
+            "created_at": asset.created_at.isoformat() if asset.created_at else None,
+            "updated_at": asset.updated_at.isoformat() if asset.updated_at else None,
+            "coverage": check["coverage"]
+        }
+        
+        # Actualizar estadísticas
+        stats[check["reason"]] += 1
+        if not asset.sync_enabled:
+            stats["inactive"] += 1
+        
+        # Aplicar filtro si existe
+        if status_filter:
+            if status_filter == "inactive" and not asset.sync_enabled:
+                assets_data.append(asset_info)
+            elif status_filter == check["reason"]:
+                assets_data.append(asset_info)
+        else:
+            assets_data.append(asset_info)
+    
+    return {
+        "assets": assets_data,
+        "stats": stats,
+        "total": len(assets)
+    }

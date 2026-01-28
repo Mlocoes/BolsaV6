@@ -9,6 +9,8 @@ import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
 import { numberRenderer } from '../utils/handsontableUtils';
+import Tabs from '../components/Tabs';
+import AssetManagement from '../components/AssetManagement';
 
 export default function Import() {
     const [loading, setLoading] = useState(false);
@@ -258,62 +260,14 @@ export default function Import() {
         }
     };
 
-    return (
-        <Layout>
-            <div className="h-full overflow-y-auto p-3 bg-dark-bg">
-                <div className="space-y-3 max-w-full mx-auto flex flex-col h-full">
-                    {/* Compact Header */}
-                    <div className="flex flex-row justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border flex-none">
-                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
-                            📥 Importación de Datos
-                        </h1>
-                        <div className="flex gap-2">
-                            {loading && (
-                                <div className="flex items-center gap-2 text-xs text-dark-muted">
-                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
-                                    Procesando...
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-none">
-                        {/* Importar Históricos Card */}
-                        <div className="bg-dark-surface border border-dark-border rounded-lg p-4 flex flex-col justify-between">
-                            <div>
-                                <h2 className="text-sm font-bold text-white mb-1 uppercase tracking-wider">Histórico de Cotizaciones</h2>
-                                <p className="text-xs text-dark-muted mb-4">
-                                    Importa el historial completo para activos nuevos.
-                                </p>
-                            </div>
-                            <button
-                                onClick={handleImportHistorical}
-                                disabled={loading}
-                                className="w-full bg-dark-bg hover:bg-primary/20 border border-dark-border hover:border-primary text-white text-xs py-2 rounded transition-all font-medium disabled:opacity-50"
-                            >
-                                {loading ? 'Importando...' : 'Iniciar Importación'}
-                            </button>
-                        </div>
-
-                        {/* Actualizar Últimas Card */}
-                        <div className="bg-dark-surface border border-dark-border rounded-lg p-4 flex flex-col justify-between">
-                            <div>
-                                <h2 className="text-sm font-bold text-white mb-1 uppercase tracking-wider">Últimas Cotizaciones</h2>
-                                <p className="text-xs text-dark-muted mb-4">
-                                    Actualiza precios actuales de todos los activos.
-                                </p>
-                            </div>
-                            <button
-                                onClick={handleImportLatest}
-                                disabled={loading}
-                                className="w-full bg-dark-bg hover:bg-green-500/20 border border-dark-border hover:border-green-500 text-white text-xs py-2 rounded transition-all font-medium disabled:opacity-50"
-                            >
-                                {loading ? 'Actualizando...' : 'Actualizar Precios'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Importar Excel Section - Primary focus */}
+    const tabs = [
+        {
+            id: 'transactions',
+            label: 'Importar Excel',
+            icon: '📥',
+            content: (
+                <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                    {/* Importar Excel Section */}
                     <div className="bg-dark-surface border border-dark-border rounded-lg p-4 flex-1 flex flex-col min-h-0">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-sm font-bold text-white uppercase tracking-wider">Importar Transacciones (Excel)</h2>
@@ -421,6 +375,52 @@ export default function Import() {
                             </div>
                         </div>
                     </div>
+                </div>
+            )
+        },
+        {
+            id: 'quotes',
+            label: 'Cotizaciones',
+            icon: '📊',
+            content: (
+                <div className="space-y-3 flex-1 flex flex-col min-h-0">
+                    {/* Quick Actions Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-none">
+                        {/* Importar Históricos Card */}
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-4 flex flex-col justify-between">
+                            <div>
+                                <h2 className="text-sm font-bold text-white mb-1 uppercase tracking-wider">Histórico de Cotizaciones</h2>
+                                <p className="text-xs text-dark-muted mb-4">
+                                    Importa el historial completo para activos nuevos.
+                                </p>
+                            </div>
+                            <button
+                                onClick={handleImportHistorical}
+                                disabled={loading}
+                                className="w-full bg-dark-bg hover:bg-primary/20 border border-dark-border hover:border-primary text-white text-xs py-2 rounded transition-all font-medium disabled:opacity-50"
+                            >
+                                {loading ? 'Importando...' : 'Iniciar Importación'}
+                            </button>
+                        </div>
+
+                        {/* Actualizar Últimas Card */}
+                        <div className="bg-dark-surface border border-dark-border rounded-lg p-4 flex flex-col justify-between">
+                            <div>
+                                <h2 className="text-sm font-bold text-white mb-1 uppercase tracking-wider">Últimas Cotizaciones</h2>
+                                <p className="text-xs text-dark-muted mb-4">
+                                    Actualiza precios actuales de todos los activos.
+                                </p>
+                            </div>
+                            <button
+                                onClick={handleImportLatest}
+                                disabled={loading}
+                                className="w-full bg-dark-bg hover:bg-green-500/20 border border-dark-border hover:border-green-500 text-white text-xs py-2 rounded transition-all font-medium disabled:opacity-50"
+                            >
+                                {loading ? 'Actualizando...' : 'Actualizar Precios'}
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Importar Cotizaciones Section */}
                     <div className="bg-dark-surface border border-dark-border rounded-lg p-4 flex-1 flex flex-col min-h-0">
                         <div className="flex justify-between items-center mb-4">
@@ -517,7 +517,39 @@ export default function Import() {
                         </div>
                     </div>
                 </div>
-            </div>
+            )
+        },
+        {
+            id: 'management',
+            label: 'Gestión Activos',
+            icon: '⚙️',
+            content: <AssetManagement />
+        }
+    ];
+
+    return (
+        <Layout>
+            <div className="h-full overflow-y-auto p-3 bg-dark-bg">
+                <div className="space-y-3 max-w-full mx-auto flex flex-col h-full">
+                    {/* Compact Header */}
+                    <div className="flex flex-row justify-between items-center bg-dark-surface p-3 rounded-lg border border-dark-border flex-none">
+                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
+                            📥 Importación de Datos
+                        </h1>
+                        <div className="flex gap-2">
+                            {loading && (
+                                <div className="flex items-center gap-2 text-xs text-dark-muted">
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
+                                    Procesando...
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Tabs Component */}
+                    <div className="flex-1 min-h-0 flex flex-col">
+                        <Tabs tabs={tabs} />
+                    </div>
 
             {/* Modal de Cobertura */}
             {showCoverageModal && coverageData && (
