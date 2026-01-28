@@ -1,7 +1,7 @@
 """
 FastAPI Main Application
 """
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -12,6 +12,52 @@ from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 # Importar routers
 from app.api import assets, transactions, portfolios, quotes, import_transactions, auth, users, fiscal, dashboard, markets, backup, system_settings, monitor
 from app.services.scheduler_service import scheduler_service
+
+
+class HTTPSRedirectFixMiddleware:
+    """
+    Middleware ASGI para corregir URLs de redirección cuando la app está detrás de un proxy HTTPS.
+    
+    Problema: FastAPI genera redirects (ej: trailing slash) usando http:// porque no sabe
+    que está detrás de Traefik con HTTPS. Aunque ProxyHeadersMiddleware procesa X-Forwarded-Proto,
+    los redirects ya se generan antes.
+    
+    Solución: Este middleware intercepta las respuestas y reescribe el header Location
+    de http:// a https:// cuando el cliente llegó por HTTPS (X-Forwarded-Proto: https).
+    """
+    
+    def __init__(self, app):
+        self.app = app
+    
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        
+        # Obtener X-Forwarded-Proto de los headers
+        headers = dict(scope.get("headers", []))
+        forwarded_proto = headers.get(b"x-forwarded-proto", b"http").decode()
+        
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start" and forwarded_proto == "https":
+                # Buscar y modificar el header Location si existe
+                headers = list(message.get("headers", []))
+                new_headers = []
+                
+                for name, value in headers:
+                    if name == b"location" and value.startswith(b"http://"):
+                        # Reemplazar http:// por https://
+                        new_value = b"https://" + value[7:]
+                        new_headers.append((name, new_value))
+                    else:
+                        new_headers.append((name, value))
+                
+                message = {**message, "headers": new_headers}
+            
+            await send(message)
+        
+        await self.app(scope, receive, send_wrapper)
+
 
 # Crear aplicación
 app = FastAPI(
@@ -25,6 +71,10 @@ app = FastAPI(
 # Configurar Rate Limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# IMPORTANTE: Middleware para corregir redirects HTTP->HTTPS cuando estamos detrás de proxy
+# Debe añadirse ANTES de otros middlewares para interceptar las respuestas correctamente
+app.add_middleware(HTTPSRedirectFixMiddleware)
 
 # IMPORTANTE: Confiar en headers de proxy (Traefik)
 # En producción: solo confiar en hosts específicos para evitar IP spoofing

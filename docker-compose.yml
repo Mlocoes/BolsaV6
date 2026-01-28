@@ -53,6 +53,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Frontend (React + Vite)
+  # En producción con HTTPS via Traefik, usar 'preview' en lugar de 'dev'
   frontend:
     build:
       context: ./frontend
@@ -66,7 +67,9 @@ services:
       - /app/node_modules
     env_file:
       - ./frontend/.env
-    command: npm run dev -- --host 0.0.0.0
+    # Producción: usar preview para servir el build estático
+    # Desarrollo: cambiar a 'npm run dev -- --host 0.0.0.0'
+    command: sh -c "npm run build && npm run preview -- --host 0.0.0.0 --port 3000"
 
 volumes:
   postgres_data:

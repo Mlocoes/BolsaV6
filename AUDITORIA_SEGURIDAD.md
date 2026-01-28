@@ -12,6 +12,7 @@
 | **Fase 1** | Correcciones Críticas | ✅ Completada | 28/01/2026 |
 | **Fase 2** | Seguridad Alta | ✅ Completada | 28/01/2026 |
 | **Fase 3** | Optimización Media | ✅ Completada | 28/01/2026 |
+| **Fase 4** | Fix HTTPS Proxy Redirects | ✅ Completada | 28/01/2026 |
 
 ---
 
@@ -105,11 +106,55 @@
 - ~~🟠 ALTA: Dependencias vulnerables (react-router-dom)~~ ✅
 - 🟠 ALTA: CSP con unsafe-inline/eval (requiere config servidor)
 - ~~🟡 MEDIA: Console logs en producción~~ (mitigado con nginx.conf)
+- ~~🔴 CRÍTICO: Mixed Content (HTTP redirect desde HTTPS)~~ ✅
 
 ### Infraestructura
 - ~~🟡 MEDIA: Routers duplicados en main.py~~ ✅
 - ~~🟡 MEDIA: `--reload` en producción Docker~~ ✅
 - ~~🟢 BAJA: Dockerfile usa usuario root~~ ✅
+
+---
+
+## ✅ Fase 4 - Fix HTTPS Proxy Redirects (COMPLETADA)
+
+### Problema detectado:
+El navegador mostraba error "Mixed Content" porque al hacer peticiones HTTPS a `/api/portfolios`, 
+el backend respondía con un **HTTP 307 Redirect** con `Location: http://...` (HTTP en lugar de HTTPS).
+
+### Causa raíz:
+FastAPI genera redirects automáticos para añadir trailing slashes (ej: `/portfolios` → `/portfolios/`).
+Al estar detrás de Traefik (proxy HTTPS), FastAPI no sabía que el cliente llegaba por HTTPS y 
+generaba URLs de redirección con `http://`.
+
+Aunque `ProxyHeadersMiddleware` estaba configurado para confiar en `X-Forwarded-Proto`, 
+los redirects se generan ANTES de que el middleware procese los headers.
+
+### Solución implementada:
+Middleware ASGI personalizado (`HTTPSRedirectFixMiddleware`) que:
+1. Intercepta todas las respuestas HTTP
+2. Detecta respuestas de redirección (3xx)
+3. Verifica si el cliente llegó por HTTPS (`X-Forwarded-Proto: https`)
+4. Reescribe el header `Location` de `http://` a `https://`
+
+### Archivos modificados:
+
+| # | Archivo | Cambio |
+|---|---------|--------|
+| 4.1 | `backend/app/main.py` | Añadido `HTTPSRedirectFixMiddleware` |
+| 4.2 | `frontend/src/services/api.ts` | Simplificado a baseURL `/api` |
+
+### Verificación:
+```bash
+# Antes (problema):
+$ curl -sI https://bolsa.kronos.cloudns.ph/api/portfolios
+HTTP/2 307
+location: http://bolsa.kronos.cloudns.ph/api/portfolios/  # ← HTTP!
+
+# Después (corregido):
+$ curl -sI https://bolsa.kronos.cloudns.ph/api/portfolios
+HTTP/2 307
+location: https://bolsa.kronos.cloudns.ph/api/portfolios/  # ← HTTPS ✓
+```
 
 ---
 
@@ -119,6 +164,7 @@
 Fase 1: ████████████████████ 100%
 Fase 2: ████████████████████ 100%
 Fase 3: ████████████████████ 100%
+Fase 4: ████████████████████ 100%
 
 Total:  ████████████████████ 100%
 ```
@@ -131,4 +177,5 @@ Total:  ████████████████████ 100%
 |-------|------|--------|-------------|
 | 28/01/2026 | 1 | 8c08128 | Correcciones críticas de seguridad |
 | 28/01/2026 | 2 | 25e1d8d | Rate limiting, validación contraseñas, paginación |
-| 28/01/2026 | 3 | - | Cache Redis, Dockerfile non-root, docker-compose prod |
+| 28/01/2026 | 3 | d4c785f | Cache Redis, Dockerfile non-root, docker-compose prod |
+| 28/01/2026 | 4 | - | Middleware HTTPS redirect fix, Mixed Content resuelto |

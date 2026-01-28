@@ -106,7 +106,7 @@ const FiscalReport: React.FC = () => {
                 readOnly: true,
                 width: 90,
                 className: 'htRight',
-                renderer: function (instance: any, td: HTMLTableCellElement, row: number, col: number, prop: any, value: any, cellProperties: any) {
+                renderer: function (_instance: any, td: HTMLTableCellElement, _row: number, _col: number, _prop: any, value: any, _cellProperties: any) {
                     if (value === undefined || value === null) {
                         td.textContent = '-';
                     } else {

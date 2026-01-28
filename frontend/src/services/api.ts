@@ -1,62 +1,26 @@
 /**
  * Configuración de Axios para API
+ * @version 7.0.0 - Simplified after fixing backend HTTPS redirect issue
  */
 import axios from 'axios';
 
-/**
- * Determina la URL base de la API de forma inteligente:
- * 1. Si hay VITE_API_URL definida, la usa (producción/custom)
- * 2. Detecta automáticamente usando el mismo hostname que el navegador
- */
-function getApiUrl(): string {
-
-
-    const { protocol, hostname } = window.location;
-
-
-
-    // 1. Si estamos en el dominio de producción (kronos), FORZAR ruta relativa
-    if (hostname.includes('kronos.cloudns.ph')) {
-
-        return '/api';
-    }
-
-    // 2. Si el protocolo es HTTPS, FORZAR ruta relativa
-    if (protocol === 'https:') {
-
-        return '/api';
-    }
-
-    // 3. Si hay variable de entorno y NO estamos en los casos anteriores
-    if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL;
-    }
-
-    // Detección automática para desarrollo local (HTTP)
-    const apiUrl = `${protocol}//${hostname}:8000/api`;
-    return apiUrl;
-}
-
-const API_URL = getApiUrl();
-
-
-
-export const api = axios.create({
-    baseURL: API_URL,
-    withCredentials: true, // Importante para cookies
+// BaseURL relativo - funciona correctamente ahora que el backend
+// genera redirects con el protocolo correcto (HTTPS)
+const axiosInstance = axios.create({
+    baseURL: '/api',
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
 // Interceptor para manejar errores de autenticación
-api.interceptors.response.use(
+axiosInstance.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // No redirigir si es el endpoint /auth/me (carga inicial)
+            // No redirigir si estamos verificando la sesión actual
             if (!error.config?.url?.includes('/auth/me')) {
-                // Sesión expirada o no autenticado en otras llamadas
                 window.location.href = '/login';
             }
         }
@@ -64,4 +28,5 @@ api.interceptors.response.use(
     }
 );
 
+export const api = axiosInstance;
 export default api;
