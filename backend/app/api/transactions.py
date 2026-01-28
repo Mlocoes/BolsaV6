@@ -1,12 +1,13 @@
 """
 API de Transacciones
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List
+from typing import List, Optional
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.dependencies import get_user_portfolio
 from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionCreate, TransactionUpdate, TransactionResponse
@@ -17,27 +18,26 @@ router = APIRouter()
 @router.get("/portfolio/{portfolio_id}", response_model=List[TransactionResponse])
 async def list_transactions(
     portfolio_id: str,
+    skip: int = Query(0, ge=0, description="Número de registros a saltar"),
+    limit: int = Query(100, ge=1, le=1000, description="Máximo de registros a devolver"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Listar transacciones de una cartera"""
+    """
+    Listar transacciones de una cartera con paginación.
+    
+    - **skip**: Número de registros a saltar (para paginación)
+    - **limit**: Máximo de registros a devolver (1-1000)
+    """
     # Verificar que la cartera pertenece al usuario
-    portfolio_result = await db.execute(
-        select(Portfolio).where(
-            Portfolio.id == portfolio_id,
-            Portfolio.user_id == current_user["user_id"]
-        )
-    )
-    if not portfolio_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cartera no encontrada"
-        )
+    await get_user_portfolio(portfolio_id, current_user, db)
     
     result = await db.execute(
         select(Transaction)
         .where(Transaction.portfolio_id == portfolio_id)
         .order_by(Transaction.transaction_date.desc())
+        .offset(skip)
+        .limit(limit)
     )
     transactions = result.scalars().all()
     return [TransactionResponse.model_validate(t) for t in transactions]

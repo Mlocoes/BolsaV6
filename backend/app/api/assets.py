@@ -1,10 +1,10 @@
 """
 API de Activos
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import List
+from sqlalchemy import select, func
+from typing import List, Optional
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.asset import Asset
@@ -15,11 +15,31 @@ router = APIRouter()
 
 @router.get("/", response_model=List[AssetResponse])
 async def list_assets(
+    skip: int = Query(0, ge=0, description="Número de registros a saltar"),
+    limit: int = Query(100, ge=1, le=1000, description="Máximo de registros a devolver"),
+    search: Optional[str] = Query(None, description="Buscar por símbolo o nombre"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Listar todos los activos"""
-    result = await db.execute(select(Asset).order_by(Asset.symbol))
+    """
+    Listar todos los activos con paginación.
+    
+    - **skip**: Número de registros a saltar (para paginación)
+    - **limit**: Máximo de registros a devolver (1-1000)
+    - **search**: Filtrar por símbolo o nombre (opcional)
+    """
+    query = select(Asset)
+    
+    # Filtro de búsqueda
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.where(
+            (Asset.symbol.ilike(search_pattern)) | 
+            (Asset.name.ilike(search_pattern))
+        )
+    
+    query = query.order_by(Asset.symbol).offset(skip).limit(limit)
+    result = await db.execute(query)
     assets = result.scalars().all()
     return [AssetResponse.model_validate(asset) for asset in assets]
 

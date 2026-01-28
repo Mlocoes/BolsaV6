@@ -1,12 +1,13 @@
 """
 API de Autenticación
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import verify_password, get_current_user
 from app.core.session import session_manager
+from app.core.rate_limit import limiter, RATE_LIMITS
 from app.models.user import User
 from app.schemas.user import LoginRequest, LoginResponse, UserResponse
 from app.core.config import settings
@@ -15,7 +16,9 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit(RATE_LIMITS["login"])
 async def login(
+    request: Request,
     credentials: LoginRequest,
     response: Response,
     db: AsyncSession = Depends(get_db)
@@ -24,6 +27,8 @@ async def login(
     Login de usuario
     
     Crea una sesión efímera en Redis y establece cookie HttpOnly
+    
+    Rate limit: 5 intentos por minuto para prevenir fuerza bruta
     """
     import logging
     logger = logging.getLogger(__name__)

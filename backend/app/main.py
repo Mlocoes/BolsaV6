@@ -1,10 +1,13 @@
 """
 FastAPI Main Application
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
+from app.core.rate_limit import limiter, rate_limit_exceeded_handler
 
 # Importar routers
 from app.api import assets, transactions, portfolios, quotes, import_transactions, auth, users, fiscal, dashboard, markets, backup, system_settings, monitor
@@ -19,9 +22,14 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# Configurar Rate Limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 # IMPORTANTE: Confiar en headers de proxy (Traefik)
-# Esto asegura que FastAPI sepa que está corriendo detrás de HTTPS
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+# En producción: solo confiar en hosts específicos para evitar IP spoofing
+trusted_hosts = ["127.0.0.1", "localhost", "traefik", "nginx"] if settings.ENVIRONMENT == "production" else "*"
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted_hosts)
 
 # Configurar CORS
 # En desarrollo: permite cualquier origen de red local automáticamente

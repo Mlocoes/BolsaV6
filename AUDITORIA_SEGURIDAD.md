@@ -1,7 +1,7 @@
 # 🔐 Auditoría de Seguridad y Optimización - BolsaV6
 
 **Fecha de inicio:** 28 de enero de 2026  
-**Estado actual:** Fase 1 completada ✅
+**Estado actual:** Fase 2 completada ✅
 
 ---
 
@@ -10,8 +10,8 @@
 | Fase | Descripción | Estado | Fecha |
 |------|-------------|--------|-------|
 | **Fase 1** | Correcciones Críticas | ✅ Completada | 28/01/2026 |
-| **Fase 2** | Seguridad Alta | 🔄 Pendiente | - |
-| **Fase 3** | Optimización Media | ⏳ Pendiente | - |
+| **Fase 2** | Seguridad Alta | ✅ Completada | 28/01/2026 |
+| **Fase 3** | Optimización Media | 🔄 Pendiente | - |
 
 ---
 
@@ -41,18 +41,27 @@
 
 ---
 
-## 🔄 Fase 2 - Seguridad Alta (PENDIENTE)
+## ✅ Fase 2 - Seguridad Alta (COMPLETADA)
 
-### Tareas planificadas:
+### Tareas realizadas:
 
-| # | Tarea | Archivo | Esfuerzo | Estado |
-|---|-------|---------|----------|--------|
-| 2.1 | Implementar Rate Limiting (slowapi) | `backend/app/main.py`, `auth.py` | Medio | ⏳ |
-| 2.2 | Restringir `trusted_hosts` en proxy | `backend/app/main.py` | Bajo | ⏳ |
-| 2.3 | Fortalecer validación de contraseñas | `backend/app/schemas/user.py` | Bajo | ⏳ |
-| 2.4 | Agregar paginación en endpoints | `backend/app/api/assets.py`, `transactions.py` | Bajo | ⏳ |
-| 2.5 | Crear dependencia `get_or_404` | `backend/app/core/dependencies.py` | Bajo | ⏳ |
-| 2.6 | Crear dependencia `get_user_portfolio` | `backend/app/core/dependencies.py` | Bajo | ⏳ |
+| # | Tarea | Archivo | Estado |
+|---|-------|---------|--------|
+| 2.1 | Implementar Rate Limiting (slowapi) | `backend/app/core/rate_limit.py`, `auth.py`, `main.py` | ✅ |
+| 2.2 | Restringir `trusted_hosts` en proxy | `backend/app/main.py` | ✅ |
+| 2.3 | Fortalecer validación de contraseñas | `backend/app/schemas/user.py` | ✅ |
+| 2.4 | Agregar paginación en endpoints | `backend/app/api/assets.py`, `transactions.py` | ✅ |
+| 2.5 | Crear dependencia `get_or_404` | `backend/app/core/dependencies.py` | ✅ |
+| 2.6 | Crear dependencia `get_user_portfolio` | `backend/app/core/dependencies.py` | ✅ |
+
+### Cambios detallados:
+
+1. **rate_limit.py**: Nuevo módulo con slowapi, límites predefinidos (login: 5/min, backup: 5/min, etc.)
+2. **main.py**: Configurado rate limiting global y `trusted_hosts` restrictivo en producción
+3. **auth.py**: Login con rate limit de 5 intentos/minuto
+4. **user.py (schemas)**: Contraseña requiere: 8+ chars, mayúscula, minúscula, número, símbolo especial
+5. **assets.py, transactions.py**: Paginación con `skip`, `limit` y búsqueda
+6. **dependencies.py**: Nuevo módulo con `get_or_404` y `get_user_portfolio` reutilizables
 
 ---
 
@@ -76,12 +85,12 @@
 ### Backend
 - ~~🔴 CRÍTICA: Credenciales admin hardcodeadas~~ ✅
 - ~~🔴 CRÍTICA: Exposición de errores internos~~ ✅
-- 🟠 ALTA: Sin Rate Limiting en login (Fase 2)
+- ~~🟠 ALTA: Sin Rate Limiting en login~~ ✅
 - ~~🟠 ALTA: Cookie sin `secure=True` en producción~~ ✅
 - ~~🟠 ALTA: Logout no invalida sesión~~ ✅
-- 🟠 ALTA: `trusted_hosts="*"` en proxy (Fase 2)
-- 🟡 MEDIA: Validación de contraseña débil (Fase 2)
-- 🟡 MEDIA: Sin paginación en endpoints (Fase 2)
+- ~~🟠 ALTA: `trusted_hosts="*"` en proxy~~ ✅
+- ~~🟡 MEDIA: Validación de contraseña débil~~ ✅
+- ~~🟡 MEDIA: Sin paginación en endpoints~~ ✅
 
 ### Frontend
 - ~~🟠 ALTA: Dependencias vulnerables (react-router-dom)~~ ✅
@@ -99,15 +108,21 @@
 
 ```
 Fase 1: ████████████████████ 100%
-Fase 2: ░░░░░░░░░░░░░░░░░░░░   0%
+Fase 2: ████████████████████ 100%
 Fase 3: ░░░░░░░░░░░░░░░░░░░░   0%
 
-Total:  ██████░░░░░░░░░░░░░░  33%
+Total:  █████████████░░░░░░░  67%
 ```
 
 ---
 
 ## 🔄 Historial de Commits
+
+| Fecha | Fase | Commit | Descripción |
+|-------|------|--------|-------------|
+| 28/01/2026 | 1 | 8c08128 | Correcciones críticas de seguridad |
+| 28/01/2026 | 2 | - | Rate limiting, validación contraseñas, paginación |
+| - | 3 | - | Pendiente |
 
 | Fecha | Fase | Commit | Descripción |
 |-------|------|--------|-------------|
