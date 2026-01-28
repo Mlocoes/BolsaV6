@@ -1,0 +1,104 @@
+# ============================================
+# Docker Compose - Producción
+# ============================================
+# Uso: docker compose -f docker-compose.prod.yml up -d
+#
+# Diferencias con desarrollo:
+# - Backend sin --reload (mejor rendimiento)
+# - Backend con múltiples workers
+# - Frontend sirve build estático
+# - Logs más restrictivos
+# ============================================
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: bolsav6_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis (Sessions y Cache)
+  redis:
+    image: redis:7-alpine
+    container_name: bolsav6_redis
+    restart: always
+    command: >
+      redis-server 
+      --maxmemory 512mb 
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --appendonly no
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backend (FastAPI) - Producción
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bolsav6_backend
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Producción: sin volumen montado, sin --reload, con workers
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # Frontend (React) - Producción con Nginx
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: bolsav6_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:

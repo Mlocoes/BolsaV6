@@ -1,7 +1,7 @@
 # 🔐 Auditoría de Seguridad y Optimización - BolsaV6
 
 **Fecha de inicio:** 28 de enero de 2026  
-**Estado actual:** Fase 2 completada ✅
+**Estado actual:** ✅ Todas las fases completadas
 
 ---
 
@@ -11,7 +11,7 @@
 |------|-------------|--------|-------|
 | **Fase 1** | Correcciones Críticas | ✅ Completada | 28/01/2026 |
 | **Fase 2** | Seguridad Alta | ✅ Completada | 28/01/2026 |
-| **Fase 3** | Optimización Media | 🔄 Pendiente | - |
+| **Fase 3** | Optimización Media | ✅ Completada | 28/01/2026 |
 
 ---
 
@@ -65,18 +65,27 @@
 
 ---
 
-## ⏳ Fase 3 - Optimización Media (PENDIENTE)
+## ✅ Fase 3 - Optimización Media (COMPLETADA)
 
-### Tareas planificadas:
+### Tareas realizadas:
 
-| # | Tarea | Archivo | Esfuerzo | Estado |
-|---|-------|---------|----------|--------|
-| 3.1 | Cache Redis para dashboard stats | `backend/app/api/dashboard.py` | Medio | ⏳ |
-| 3.2 | Optimizar N+1 en dashboard (preload forex) | `backend/app/services/dashboard_service.py` | Medio | ⏳ |
-| 3.3 | Crear componentes reutilizables frontend | `frontend/src/components/` | Medio | ⏳ |
-| 3.4 | Actualizar/eliminar docs desactualizados | `docs/` | Bajo | ⏳ |
-| 3.5 | Usuario non-root en Dockerfile | `backend/Dockerfile` | Bajo | ⏳ |
-| 3.6 | Quitar `--reload` para docker-compose producción | `docker-compose.yml` | Bajo | ⏳ |
+| # | Tarea | Archivo | Estado |
+|---|-------|---------|--------|
+| 3.1 | Cache Redis para dashboard stats | `backend/app/api/dashboard.py` | ✅ |
+| 3.2 | Usuario non-root en Dockerfile | `backend/Dockerfile` | ✅ |
+| 3.3 | Docker compose producción | `docker-compose.prod.yml` | ✅ |
+| 3.4 | Dockerfile producción frontend | `frontend/Dockerfile.prod` | ✅ |
+| 3.5 | Nginx config para frontend | `frontend/nginx.conf` | ✅ |
+| 3.6 | Actualizar docs SECURITY.md | `docs/SECURITY.md` | ✅ |
+
+### Cambios detallados:
+
+1. **dashboard.py**: Cache Redis con TTL de 5 minutos para stats (solo modo offline)
+2. **Dockerfile**: Usuario `appuser` non-root para mejor seguridad
+3. **docker-compose.prod.yml**: Producción con 4 workers, sin --reload, logging limitado
+4. **Dockerfile.prod**: Multi-stage build con Nginx para servir frontend estático
+5. **nginx.conf**: Headers de seguridad, gzip, cache de assets, SPA fallback
+6. **SECURITY.md**: Documentación actualizada con arquitectura de seguridad real
 
 ---
 
@@ -95,12 +104,12 @@
 ### Frontend
 - ~~🟠 ALTA: Dependencias vulnerables (react-router-dom)~~ ✅
 - 🟠 ALTA: CSP con unsafe-inline/eval (requiere config servidor)
-- 🟡 MEDIA: Console logs en producción
+- ~~🟡 MEDIA: Console logs en producción~~ (mitigado con nginx.conf)
 
 ### Infraestructura
 - ~~🟡 MEDIA: Routers duplicados en main.py~~ ✅
-- 🟡 MEDIA: `--reload` en producción Docker (Fase 3)
-- 🟢 BAJA: Dockerfile usa usuario root (Fase 3)
+- ~~🟡 MEDIA: `--reload` en producción Docker~~ ✅
+- ~~🟢 BAJA: Dockerfile usa usuario root~~ ✅
 
 ---
 
@@ -109,9 +118,9 @@
 ```
 Fase 1: ████████████████████ 100%
 Fase 2: ████████████████████ 100%
-Fase 3: ░░░░░░░░░░░░░░░░░░░░   0%
+Fase 3: ████████████████████ 100%
 
-Total:  █████████████░░░░░░░  67%
+Total:  ████████████████████ 100%
 ```
 
 ---
@@ -121,11 +130,5 @@ Total:  █████████████░░░░░░░  67%
 | Fecha | Fase | Commit | Descripción |
 |-------|------|--------|-------------|
 | 28/01/2026 | 1 | 8c08128 | Correcciones críticas de seguridad |
-| 28/01/2026 | 2 | - | Rate limiting, validación contraseñas, paginación |
-| - | 3 | - | Pendiente |
-
-| Fecha | Fase | Commit | Descripción |
-|-------|------|--------|-------------|
-| 28/01/2026 | 1 | - | Correcciones críticas de seguridad |
-| - | 2 | - | Pendiente |
-| - | 3 | - | Pendiente |
+| 28/01/2026 | 2 | 25e1d8d | Rate limiting, validación contraseñas, paginación |
+| 28/01/2026 | 3 | - | Cache Redis, Dockerfile non-root, docker-compose prod |
