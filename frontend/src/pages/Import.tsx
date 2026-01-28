@@ -13,6 +13,7 @@ import Tabs from '../components/Tabs';
 import AssetManagement from '../components/AssetManagement';
 
 export default function Import() {
+    const [activeTab, setActiveTab] = useState('excel');
     const [loading, setLoading] = useState(false);
     const [portfolios, setPortfolios] = useState<any[]>([]);
     const [selectedPortfolio, setSelectedPortfolio] = useState('');
@@ -548,8 +549,10 @@ export default function Import() {
 
                     {/* Tabs Component */}
                     <div className="flex-1 min-h-0 flex flex-col">
-                        <Tabs tabs={tabs} />
+                        <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
                     </div>
+                </div>
+            </div>
 
             {/* Modal de Cobertura */}
             {showCoverageModal && coverageData && (

@@ -90,15 +90,16 @@ export default function AssetManagement() {
         { data: 'sync_enabled', title: 'Sync', width: 70, renderer: syncRenderer }
     ], []);
 
-    const handleSyncToggle = async (assetId: string, currentValue: boolean) => {
-        try {
-            await api.patch(`/assets/${assetId}/sync`, { sync_enabled: !currentValue });
-            toast.success('Sincronización actualizada');
-            loadData(activeFilter || undefined);
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al actualizar');
-        }
-    };
+    // TODO: Implement sync toggle via Handsontable afterChange hook
+    // const handleSyncToggle = async (assetId: string, currentValue: boolean) => {
+    //     try {
+    //         await api.patch(`/assets/${assetId}/sync`, { sync_enabled: !currentValue });
+    //         toast.success('Sincronización actualizada');
+    //         loadData(activeFilter || undefined);
+    //     } catch (error: any) {
+    //         toast.error(error.response?.data?.detail || 'Error al actualizar');
+    //     }
+    // };
 
     const handleBulkAction = (action: 'activate' | 'deactivate') => {
         if (selectedRows.length === 0) {
