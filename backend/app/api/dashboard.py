@@ -30,6 +30,9 @@ async def get_dashboard_stats(
     try:
         stats = await dashboard_service.get_stats(portfolio_id, year, user_id, db, online=online)
         return stats
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error calculating dashboard stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.getLogger(__name__).error(f"Error calculating dashboard stats: {e}")
+        raise HTTPException(status_code=500, detail="Error interno al calcular estadísticas del dashboard")

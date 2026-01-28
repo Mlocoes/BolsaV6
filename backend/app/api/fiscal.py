@@ -83,5 +83,9 @@ async def get_fiscal_report(
             
         return report
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error calculating fiscal report: {str(e)}")
+        import logging
+        logging.getLogger(__name__).error(f"Error calculating fiscal report: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno al calcular el informe fiscal")

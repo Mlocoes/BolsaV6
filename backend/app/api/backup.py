@@ -41,7 +41,9 @@ async def get_full_backup(
             media_type="application/octet-stream"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.getLogger(__name__).error(f"Error en backup completo: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al generar backup completo")
 
 @router.post("/full/restore")
 async def restore_full_backup(
@@ -63,7 +65,9 @@ async def restore_full_backup(
         os.unlink(path)
         return {"message": "Base de datos restaurada exitosamente"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.getLogger(__name__).error(f"Error restaurando backup: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al restaurar backup")
 
 # ==========================================
 # QUOTES BACKUP
@@ -89,7 +93,9 @@ async def get_quotes_backup(
             media_type="application/octet-stream"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.getLogger(__name__).error(f"Error en backup de cotizaciones: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al generar backup de cotizaciones")
 
 @router.post("/quotes/restore")
 async def restore_quotes_backup(
@@ -110,7 +116,9 @@ async def restore_quotes_backup(
         os.unlink(path)
         return {"message": "Cotizaciones restauradas exitosamente"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.getLogger(__name__).error(f"Error restaurando cotizaciones: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al restaurar cotizaciones")
 
 # ==========================================
 # TRANSACTIONS BACKUP
@@ -142,7 +150,9 @@ async def get_transactions_backup(
             media_type="application/json"
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.getLogger(__name__).error(f"Error en backup de transacciones: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al generar backup de transacciones")
 
 @router.post("/transactions/{portfolio_id}/restore")
 async def restore_transactions_backup(
@@ -164,5 +174,9 @@ async def restore_transactions_backup(
         return {"message": "Transacciones restauradas exitosamente"}
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Archivo JSON inválido")
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.getLogger(__name__).error(f"Error restaurando transacciones: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error al restaurar transacciones")

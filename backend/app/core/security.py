@@ -47,6 +47,9 @@ async def get_current_user(session_id: Optional[str] = Cookie(None, alias="sessi
     # Renovar sesión en cada request
     await session_manager.refresh_session(session_id)
     
+    # Incluir session_id en los datos para poder invalidar en logout
+    session_data["session_id"] = session_id
+    
     return session_data
 
 

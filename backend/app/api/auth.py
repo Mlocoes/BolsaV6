@@ -72,14 +72,15 @@ async def login(
         raise e
     
     # Establecer cookie HttpOnly
-    # SameSite=lax funciona cuando frontend y backend están en el mismo dominio
-    # Para desarrollo en diferentes IPs, necesitamos SameSite=none con HTTPS
+    # secure=True en producción (HTTPS), False en desarrollo
+    # samesite=lax para protección CSRF básica
+    is_production = settings.ENVIRONMENT == "production"
     response.set_cookie(
         key="session_id",
         value=session_id,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=is_production or settings.SECURE_COOKIES,
+        samesite="strict" if is_production else "lax",
         max_age=settings.SESSION_EXPIRE_MINUTES * 60,
         # No especificar domain permite usar cualquier IP/hostname
     )

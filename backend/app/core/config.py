@@ -35,10 +35,10 @@ class Settings(BaseSettings):
     FINNHUB_API_KEY: str
     QUOTE_UPDATE_INTERVAL_MINUTES: int = 60
     
-    # Admin user
-    ADMIN_USERNAME: str = "admin"
-    ADMIN_EMAIL: str = "admin@bolsav6.local"
-    ADMIN_PASSWORD: str = "admin123"
+    # Admin user (OBLIGATORIO - sin valores por defecto por seguridad)
+    ADMIN_USERNAME: str
+    ADMIN_EMAIL: str
+    ADMIN_PASSWORD: str
     
     @property
     def cors_origins_list(self) -> List[str]:
