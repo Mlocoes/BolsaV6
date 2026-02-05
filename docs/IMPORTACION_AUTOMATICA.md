@@ -27,8 +27,8 @@ Cuando el sistema detecta un activo que no existe en la base de datos durante la
 
 Inmediatamente después de crear un activo nuevo, el sistema:
 
-1. **Conecta a Alpha Vantage** (API gratuita)
-2. **Descarga últimos 100 días de histórico** (plan gratuito)
+1. **Conecta a Yahoo Finance** (API gratuita)
+2. **Descarga histórico reciente** (si está habilitado)
 3. **Guarda cotizaciones OHLCV** en la tabla `quotes`:
    - Open (apertura)
    - High (máximo)
@@ -37,8 +37,8 @@ Inmediatamente después de crear un activo nuevo, el sistema:
    - Volume (volumen)
 4. **Continúa la importación** sin interrupciones
 
-**Fuente de datos**: Alpha Vantage  
-**Período**: Últimos 100 días (plan gratuito)  
+**Fuente de datos**: Yahoo Finance (yfinance)  
+**Período**: Configurable (generalmente histórico completo disponible)  
 **Frecuencia**: Diaria (1d)
 
 ---
@@ -143,20 +143,11 @@ Resultado:
 
 ### Período de Histórico
 
-**Plan Gratuito de Alpha Vantage**: Últimos **100 días** (compact)
+### Configuración de Fuente de Datos
 
-Para obtener más histórico, necesitas:
+El sistema prioriza **Yahoo Finance** por su disponibilidad de datos gratuitos y amplia cobertura. 
 
-1. **Plan Premium de Alpha Vantage**:
-   - Cambiar `outputsize='compact'` a `outputsize='full'` en `backend/app/services/alpha_vantage_service.py`
-   - Esto proporciona hasta 20+ años de histórico
-
-```python
-df, meta_data = self.ts.get_daily(
-    symbol=symbol.upper(),
-    outputsize='full'  # Requiere plan premium
-)
-```
+Para configurar o cambiar el comportamiento, revisar `backend/app/config.py` y `backend/app/services/yfinance_service.py`.
 
 2. **Actualizar API Key**:
    - Obtener API key premium de [Alpha Vantage](https://www.alphavantage.co/support/#api-key)

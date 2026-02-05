@@ -56,6 +56,11 @@ BolsaV6 utiliza **PostgreSQL 15** como sistema de gestión de base de datos. El 
 │   markets    │
 │  (mercados)  │ (tabla independiente)
 └──────────────┘
+
+┌───────────────┐
+│system_settings│
+│(configuración)│ (tabla clave-valor)
+└───────────────┘
 ```
 
 ---
@@ -351,6 +356,33 @@ Catálogo de mercados bursátiles. Tabla de referencia independiente.
 - Esta tabla es principalmente de referencia
 - Se usa en la UI para ayudar al usuario a identificar el mercado correcto
 - No hay FK directa desde assets.market para permitir flexibilidad
+
+---
+
+### 8. **system_settings** - Configuración del Sistema
+
+Almacena parámetros de configuración global de la aplicación, permitiendo ajustes dinámicos sin redesplegar.
+
+**Columnas:**
+| Campo | Tipo | Restricciones | Descripción |
+|-------|------|---------------|-------------|
+| `key` | VARCHAR(50) | PK | Clave de configuración (ej: 'scheduler_last_sync_date') |
+| `value` | TEXT | NOT NULL | Valor de la configuración |
+| `description` | VARCHAR(255) | NULL | Descripción para el administrador |
+| `type` | VARCHAR(20) | DEFAULT 'string' | Tipo de dato (string, int, bool, json, date) |
+| `updated_at` | TIMESTAMP TZ | DEFAULT NOW() | Última modificación |
+
+**Ejemplos de Configuración:**
+| Key | Value | Type | Description |
+|-----|-------|------|-------------|
+| `scheduler_last_sync_date` | 2024-01-01 | date | Última ejecución del cierre diario |
+| `session_timeout_minutes` | 30 | int | Tiempo de inactividad para logout |
+| `maintenance_mode` | false | bool | Modo mantenimiento activado |
+
+**Notas:**
+- Tabla clave-valor simple
+- Accesible solo por administradores
+- Usada por `SchedulerService` y `Config` al inicio
 
 ---
 

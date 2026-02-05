@@ -1,6 +1,6 @@
 # 💼 BolsaV6 - Sistema de Gestión de Carteras de Inversión
 
-![Version](https://img.shields.io/badge/version-6.0-blue)
+![Version](https://img.shields.io/badge/version-6.2-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-green)
 ![React](https://img.shields.io/badge/react-18.2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -56,6 +56,7 @@ Sistema profesional y completo para gestión de carteras de inversión con segui
 - ✅ **Gestión de usuarios** con roles (admin/usuario)
 - ✅ **Catálogo de activos** con búsqueda y filtros
 - ✅ **Gestión de mercados** bursátiles
+- ✅ **Configuración dinámica** (System Settings) para ajustes globales sin reinicio
 - ✅ **Configuración personalizada** (moneda base, preferencias)
 
 ---
@@ -219,5 +220,5 @@ MIT License
 
 ---
 
-**Última actualización**: Diciembre 2024 (v6.1 - Mejoras de UI y Organización)
-**Versión**: 6.1
+**Última actualización**: Febrero 2026 (v6.2 - Estabilización de Imports y Scheduler)
+**Versión**: 6.2

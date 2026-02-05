@@ -144,7 +144,7 @@ backend/
 │   │   ├── forex_service.py        # Conversión de divisas
 │   │   ├── fiscal_service.py       # Cálculos fiscales (FIFO, wash sale)
 │   │   ├── dashboard_service.py    # Estadísticas y gráficos
-│   │   └── scheduler_service.py    # Tareas programadas
+│   │   └── scheduler_service.py    # Tareas programadas (Daily Close & Backfill)
 │   │
 │   └── scripts/            # 📜 Scripts de utilidad
 │       ├── init_markets_db.py      # Inicializar mercados
@@ -388,6 +388,8 @@ Ver [DATABASE_DOCUMENTATION.md](./DATABASE_DOCUMENTATION.md) para detalles compl
 - `Quote` - Cotizaciones históricas (OHLCV)
 - `Result` - Snapshots diarios de resultados
 - `Market` - Mercados bursátiles
+- `SystemSetting` - Configuración global
+- `SystemSetting` - Configuración dinámica global
 
 **Importación:**
 ```python
