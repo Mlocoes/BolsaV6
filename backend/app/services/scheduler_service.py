@@ -37,8 +37,8 @@ class SchedulerService:
             logger.info("🛑 Programador de tareas detenido")
 
     async def sync_all_quotes(self):
-        """Sincroniza las cotizaciones de todos los activos registrados (Cierre Diario)"""
-        logger.info("🔄 Iniciando sincronización automática de cotizaciones (Cierre Diario)...")
+        """Sincroniza las cotizaciones de todos los activos registrados (Cierre Diario - Backfill 5 días)"""
+        logger.info("🔄 Iniciando sincronización automática de cotizaciones (Estrategia Backfill 5d)...")
         
         async with AsyncSessionLocal() as db:
             try:
@@ -52,56 +52,68 @@ class SchedulerService:
                 from datetime import timezone as dt_timezone
                 now_utc = datetime.now(dt_timezone.utc)
                 
+                stats_processed = 0
+                stats_inserted = 0
+                
                 for asset in assets:
                     try:
-                        logger.info(f"🔎 Obteniendo cierre para {asset.symbol}...")
+                        logger.info(f"🔎 Verificando historial reciente para {asset.symbol}...")
                         
-                        # Obtener cotización de cierre/actual
-                        price_data = await yfinance_service.get_current_quote(asset.symbol)
+                        # ESTRATEGIA: Obtener últimos 5 días para rellenar huecos si falló algún día anterior
+                        historical_data = await yfinance_service.get_historical_quotes(asset.symbol, period="5d")
                         
-                        if price_data:
-                            # Normalizar fecha a medianoche UTC
-                            data_date = price_data["date"]
-                            
-                            # EVITAR FINES DE SEMANA para persistencia de histórico para activos no-24/7
-                            # (Sábado = 5, Domingo = 6)
-                            from app.models.asset import AssetType
-                            if asset.asset_type != AssetType.CRYPTO and data_date.weekday() >= 5:
-                                logger.info(f"⏭️ Saltando persistencia para {asset.symbol}: El dato es de fin de semana ({data_date.date()})")
-                                continue
+                        if historical_data:
+                            for quote_data in historical_data:
+                                # Normalizar fecha a medianoche UTC (ya viene así del servicio, pero aseguramos)
+                                data_date = quote_data["date"]
                                 
-                            quote_date = datetime.combine(data_date.date(), datetime.min.time()).replace(tzinfo=dt_timezone.utc)
-                            
-                            # Verificar si ya existe exactamente para esa fecha
-                            existing = await db.execute(
-                                select(Quote).where(
-                                    and_(
-                                        Quote.asset_id == asset.id,
-                                        Quote.date == quote_date
+                                # EVITAR FINES DE SEMANA
+                                # (Sábado = 5, Domingo = 6)
+                                from app.models.asset import AssetType
+                                if asset.asset_type != AssetType.CRYPTO and data_date.weekday() >= 5:
+                                    continue
+                                
+                                quote_date = datetime.combine(data_date.date(), datetime.min.time()).replace(tzinfo=dt_timezone.utc)
+                                
+                                # FIX CRÍTICO: Ignorar velas incompletas de HOY
+                                # Solo importar cotizaciones de días estrictamente anteriores
+                                if quote_date.date() >= now_utc.date():
+                                    logger.debug(f"⏭️ Ignorando cotización incompleta de hoy para {asset.symbol} ({quote_date.date()})")
+                                    continue
+                                
+                                # Verificar si ya existe exactamente para esa fecha
+                                existing = await db.execute(
+                                    select(Quote).where(
+                                        and_(
+                                            Quote.asset_id == asset.id,
+                                            Quote.date == quote_date
+                                        )
                                     )
                                 )
-                            )
-                            
-                            if existing.scalar_one_or_none():
-                                logger.info(f"⏭️ Registro ya existe para {asset.symbol} en {quote_date.date()}")
-                                continue
                                 
-                            # Crear nueva cotización con datos OHLCV
-                            new_quote = Quote(
-                                asset_id=asset.id,
-                                date=quote_date,
-                                open=price_data.get("open", price_data["close"]),
-                                high=price_data.get("high", price_data["close"]),
-                                low=price_data.get("low", price_data["close"]),
-                                close=price_data["close"],
-                                volume=price_data.get("volume", 0),
-                                source="daily_close"
-                            )
-                            db.add(new_quote)
-                            logger.info(f"✅ Cierre guardado para {asset.symbol}: {price_data['close']} ({quote_date.date()})")
+                                if existing.scalar_one_or_none():
+                                    continue
+                                    
+                                # Crear nueva cotización
+                                new_quote = Quote(
+                                    asset_id=asset.id,
+                                    date=quote_date,
+                                    open=quote_data["open"],
+                                    high=quote_data["high"],
+                                    low=quote_data["low"],
+                                    close=quote_data["close"],
+                                    volume=quote_data["volume"],
+                                    source="daily_scheduler_backfill"
+                                )
+                                db.add(new_quote)
+                                stats_inserted += 1
+                                logger.info(f"✅ Nuevo cierre importado para {asset.symbol}: {quote_data['close']} ({quote_date.date()})")
+                                
                         else:
-                            logger.warning(f"⚠️ No se pudo obtener cierre para {asset.symbol}")
+                            logger.warning(f"⚠️ No se obtuvieron datos históricos para {asset.symbol}")
                             
+                        stats_processed += 1
+                        
                     except Exception as e:
                         logger.error(f"❌ Error sincronizando {asset.symbol}: {str(e)}")
                 
@@ -125,7 +137,7 @@ class SchedulerService:
                     logger.error(f"⚠️ No se pudo guardar la fecha de sincronización: {ex_setting}")
 
                 await db.commit()
-                logger.info("✅ Cierre diario completado exitosamente")
+                logger.info(f"✅ Cierre diario completado. Activos: {stats_processed}, Nuevas Cotizaciones: {stats_inserted}")
                 
             except Exception as e:
                 await db.rollback()
