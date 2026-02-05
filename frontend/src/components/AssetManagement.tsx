@@ -20,8 +20,9 @@ interface AssetManagementData {
 }
 
 export default function AssetManagement() {
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [data, setData] = useState<AssetManagementData | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const [activeFilter, setActiveFilter] = useState<string | null>(null);
     const [selectedRows, setSelectedRows] = useState<number[]>([]);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -35,58 +36,140 @@ export default function AssetManagement() {
 
     const loadData = async (filter?: string) => {
         setLoading(true);
+        setError(null);
         try {
             const url = filter ? `/assets/management/list?status_filter=${filter}` : '/assets/management/list';
+            console.log('AssetManagement: Fetching data from', url);
             const response = await api.get(url);
+            console.log('AssetManagement: Data received:', {
+                total: response.data.total,
+                assets_count: response.data.assets?.length,
+                stats: response.data.stats,
+                first_asset: response.data.assets?.[0],
+                full_data: response.data
+            });
+            console.log('AssetManagement: First asset detailed:', JSON.stringify(response.data.assets?.[0], null, 2));
             setData(response.data);
             setActiveFilter(filter || null);
         } catch (error: any) {
-            console.error('Error loading assets:', error);
-            toast.error(error.response?.data?.detail || 'Error al cargar activos');
+            console.error('AssetManagement: Error loading assets:', error);
+            const errorMsg = error.response?.data?.detail || error.message || 'Error al cargar activos';
+            setError(errorMsg);
+            toast.error(errorMsg);
         } finally {
             setLoading(false);
         }
     };
 
+    // Renderers personalizados
     const statusRenderer = (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any) => {
         const reason = value?.reason || 'no_data';
         const statusConfig: any = {
-            'no_data': { color: 'text-red-400', icon: '🔴', label: 'Sin datos' },
-            'incomplete_data': { color: 'text-yellow-400', icon: '🟡', label: 'Incompleto' },
-            'outdated': { color: 'text-orange-400', icon: '🟠', label: 'Desactualizado' },
-            'complete': { color: 'text-green-400', icon: '🟢', label: 'Completo' }
+            'no_data': { color: '#ef4444', icon: '🔴', label: 'Sin datos' },
+            'incomplete_data': { color: '#fbbf24', icon: '🟡', label: 'Incompleto' },
+            'outdated': { color: '#fb923c', icon: '🟠', label: 'Desactualizado' },
+            'complete': { color: '#4ade80', icon: '🟢', label: 'Completo' }
         };
         const status = statusConfig[reason] || statusConfig['no_data'];
-        td.innerHTML = `<span class="${status.color} font-bold text-xs">${status.icon} ${status.label}</span>`;
-        td.className = 'htLeft';
+        td.innerHTML = `<div style="display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; color: ${status.color};">
+            <span style="font-size: 14px;">${status.icon}</span>
+            <span>${status.label}</span>
+        </div>`;
+        td.style.textAlign = 'left';
+        td.style.verticalAlign = 'middle';
         return td;
     };
 
     const syncRenderer = (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: boolean) => {
-        td.innerHTML = value ? '<span class="text-green-400 font-bold">✅</span>' : '<span class="text-red-400 font-bold">❌</span>';
-        td.className = 'htCenter';
+        td.innerHTML = `<div style="text-align: center; font-size: 18px; font-weight: bold;">
+            ${value ? '<span style="color: #4ade80;">✅</span>' : '<span style="color: #ef4444;">❌</span>'}
+        </div>`;
+        td.style.textAlign = 'center';
+        td.style.verticalAlign = 'middle';
         return td;
     };
 
     const percentRenderer = (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any) => {
         const pct = value ? (value * 100).toFixed(1) : '0.0';
-        td.innerHTML = `${pct}%`;
-        td.className = 'htRight';
-        if (parseFloat(pct) < 50) td.style.color = '#f87171';
-        else if (parseFloat(pct) < 94) td.style.color = '#fb923c';
-        else td.style.color = '#4ade80';
+        let color = '#4ade80';
+        if (parseFloat(pct) < 50) color = '#ef4444';
+        else if (parseFloat(pct) < 94) color = '#fb923c';
+        
+        td.innerHTML = `<div style="text-align: right; font-weight: 600; color: ${color}; font-size: 13px;">
+            ${pct}%
+        </div>`;
+        td.style.textAlign = 'right';
+        td.style.verticalAlign = 'middle';
+        return td;
+    };
+
+    const numericRenderer = (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any) => {
+        td.innerHTML = `<div style="text-align: right; font-weight: 500; color: #e5e7eb; font-size: 13px;">
+            ${value || 0}
+        </div>`;
+        td.style.textAlign = 'right';
+        td.style.verticalAlign = 'middle';
+        return td;
+    };
+
+    const dateRenderer = (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any) => {
+        td.innerHTML = `<div style="text-align: center; color: #9ca3af; font-size: 12px; font-family: 'Courier New', monospace;">
+            ${value || '-'}
+        </div>`;
+        td.style.textAlign = 'center';
+        td.style.verticalAlign = 'middle';
         return td;
     };
 
     const columns = useMemo(() => [
-        { data: 'symbol', title: 'Símbolo', width: 120, className: 'htLeft font-mono font-bold text-white' },
-        { data: 'name', title: 'Nombre', width: 300, className: 'htLeft text-dark-muted' },
-        { data: 'asset_type', title: 'Tipo', width: 80, className: 'htCenter text-xs' },
-        { data: 'coverage', title: 'Estado', width: 140, renderer: statusRenderer },
-        { data: 'coverage.total_quotes', title: 'Cotiz.', width: 80, className: 'htRight' },
-        { data: 'coverage.last_date', title: 'Última', width: 110, className: 'htCenter text-dark-muted' },
-        { data: 'coverage.days_since_last_update', title: 'Días', width: 60, className: 'htRight' },
-        { data: 'coverage.coverage_ratio', title: 'Cobertura', width: 90, renderer: percentRenderer },
+        { 
+            data: 'symbol', 
+            title: 'Símbolo', 
+            width: 120,
+            className: 'htLeft',
+            renderer: (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any) => {
+                td.innerHTML = `<div style="font-family: 'Courier New', monospace; font-weight: bold; color: #60a5fa; font-size: 13px;">${value}</div>`;
+                td.style.textAlign = 'left';
+                td.style.verticalAlign = 'middle';
+                return td;
+            }
+        },
+        { 
+            data: 'name', 
+            title: 'Nombre', 
+            width: 350,
+            className: 'htLeft',
+            renderer: (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any) => {
+                td.innerHTML = `<div style="color: #d1d5db; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${value}</div>`;
+                td.style.textAlign = 'left';
+                td.style.verticalAlign = 'middle';
+                return td;
+            }
+        },
+        { 
+            data: 'asset_type', 
+            title: 'Tipo', 
+            width: 90,
+            className: 'htCenter',
+            renderer: (_instance: any, td: HTMLElement, _row: number, _col: number, _prop: string | number, value: any) => {
+                const types: any = {
+                    'stock': { label: 'Stock', color: '#3b82f6' },
+                    'fund': { label: 'Fondo', color: '#8b5cf6' },
+                    'crypto': { label: 'Crypto', color: '#f59e0b' },
+                    'currency': { label: 'Divisa', color: '#10b981' }
+                };
+                const type = types[value] || { label: value, color: '#6b7280' };
+                td.innerHTML = `<div style="display: inline-block; padding: 3px 8px; background: ${type.color}20; border: 1px solid ${type.color}; border-radius: 4px; color: ${type.color}; font-size: 11px; font-weight: 600; text-transform: uppercase;">${type.label}</div>`;
+                td.style.textAlign = 'center';
+                td.style.verticalAlign = 'middle';
+                return td;
+            }
+        },
+        { data: 'coverage', title: 'Estado', width: 150, renderer: statusRenderer },
+        { data: 'coverage.total_quotes', title: 'Cotiz.', width: 80, renderer: numericRenderer },
+        { data: 'coverage.last_date', title: 'Última', width: 110, renderer: dateRenderer },
+        { data: 'coverage.days_since_last_update', title: 'Días', width: 70, renderer: numericRenderer },
+        { data: 'coverage.coverage_ratio', title: 'Cobertura', width: 100, renderer: percentRenderer },
         { data: 'sync_enabled', title: 'Sync', width: 70, renderer: syncRenderer }
     ], []);
 
@@ -148,7 +231,40 @@ export default function AssetManagement() {
         </button>
     );
 
-    if (!data) return <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
+    // Estados de carga y error
+    if (loading && !data) {
+        return (
+            <div className="flex items-center justify-center h-full">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
+    }
+
+    if (error && !data) {
+        return (
+            <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                    <div className="text-red-400 text-2xl mb-2">⚠️</div>
+                    <div className="text-white font-bold mb-2">Error al cargar datos</div>
+                    <div className="text-dark-muted text-sm mb-4">{error}</div>
+                    <button
+                        onClick={() => loadData()}
+                        className="px-4 py-2 bg-primary hover:bg-primary/80 text-white rounded font-bold transition-all"
+                    >
+                        Reintentar
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!data) {
+        return (
+            <div className="flex items-center justify-center h-full">
+                <div className="text-dark-muted">No hay datos disponibles</div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-full flex flex-col bg-dark-bg p-3 gap-3">
@@ -168,26 +284,33 @@ export default function AssetManagement() {
             </div>
 
             {/* Tabla */}
-            <div className="bg-dark-surface border border-dark-border rounded-lg flex-1 min-h-0 overflow-hidden">
-                <HotTable
-                    ref={hotRef}
-                    data={data.assets}
-                    columns={columns}
-                    colHeaders={columns.map(c => c.title)}
-                    rowHeaders={true}
-                    height="100%"
-                    width="100%"
-                    stretchH="all"
-                    autoWrapRow={true}
-                    autoWrapCol={true}
-                    licenseKey="non-commercial-and-evaluation"
-                    columnSorting={true}
-                    filters={true}
-                    dropdownMenu={['filter_by_condition', 'filter_by_value', 'filter_action_bar']}
-                    readOnly={true}
-                    themeName='ht-theme-main'
-                    className="handsontable-dark"
-                />
+            <div className="bg-dark-surface border border-dark-border rounded-lg p-3">
+                {data.assets && data.assets.length > 0 ? (
+                    <HotTable
+                        ref={hotRef}
+                        data={data.assets}
+                        columns={columns}
+                        colHeaders={true}
+                        rowHeaders={true}
+                        height={450}
+                        width="100%"
+                        licenseKey="non-commercial-and-evaluation"
+                        readOnly={true}
+                        stretchH="all"
+                        columnSorting={true}
+                        filters={true}
+                        dropdownMenu={['filter_by_condition', 'filter_by_value', 'filter_action_bar']}
+                        rowHeights={40}
+                    />
+                ) : (
+                    <div className="flex items-center justify-center" style={{ height: '450px' }}>
+                        <div className="text-center text-dark-muted">
+                            <div className="text-4xl mb-2">📊</div>
+                            <div className="text-lg font-bold mb-1">No hay activos</div>
+                            <div className="text-sm">No se encontraron activos con el filtro seleccionado</div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Acciones */}
